@@ -1,12 +1,12 @@
-import { Link, useLocation } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import buildifyLogo from '@/assets/buildify-logo.png';
+import { Link, useLocation } from "react-router-dom";
+import { motion } from "framer-motion";
+import buildifyLogo from "@/assets/buildify-logo.png";
 
 const navLinks = [
-  { href: '/', label: 'Home' },
-  { href: '/pricing', label: 'Pricing' },
-  { href: '/docs', label: 'Docs' },
-  { href: '/explore', label: 'Explore' },
+  { href: "/", label: "Home" },
+  { href: "/pricing", label: "Pricing" },
+  { href: "/docs", label: "Docs" },
+  { href: "/explore", label: "Explore" },
 ];
 
 export default function Navbar() {
@@ -22,11 +22,7 @@ export default function Navbar() {
       <nav className="glass-nav w-full max-w-2xl px-6 py-3 flex items-center justify-between">
         {/* Logo on the left */}
         <Link to="/" className="flex items-center gap-2 logo-shine overflow-hidden">
-          <img 
-            src={buildifyLogo} 
-            alt="Buildify" 
-            className="h-10 w-10 object-contain"
-          />
+          <img src={buildifyLogo} alt="Buildify" className="h-14 w-14 object-contain" />
           <span className="text-base font-semibold text-foreground">Buildify</span>
         </Link>
 
@@ -37,9 +33,7 @@ export default function Navbar() {
               key={link.href}
               to={link.href}
               className={`text-sm font-medium transition-colors duration-200 ${
-                location.pathname === link.href
-                  ? 'text-foreground'
-                  : 'text-muted-foreground hover:text-foreground'
+                location.pathname === link.href ? "text-foreground" : "text-muted-foreground hover:text-foreground"
               }`}
             >
               {link.label}
