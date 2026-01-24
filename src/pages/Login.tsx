@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Mail, Lock, ArrowRight, Loader2 } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import buildifyLogo from '@/assets/buildify-logo.png';
@@ -10,8 +10,13 @@ import { toast } from 'sonner';
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Get the redirect destination from state or default to dashboard
+  const from = (location.state as { from?: { pathname: string } })?.from?.pathname || '/dashboard';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,6 +27,13 @@ export default function Login() {
     }
 
     setLoading(true);
+
+    // Store remember me preference
+    if (rememberMe) {
+      localStorage.setItem('buildify_remember_me', 'true');
+    } else {
+      localStorage.removeItem('buildify_remember_me');
+    }
 
     const { error } = await supabase.auth.signInWithPassword({
       email,
@@ -34,7 +46,7 @@ export default function Login() {
       toast.error(error.message);
     } else {
       toast.success('Welcome back!');
-      navigate('/dashboard');
+      navigate(from, { replace: true });
     }
   };
 
@@ -93,9 +105,14 @@ export default function Login() {
               </div>
 
               <div className="flex items-center justify-between text-sm">
-                <label className="flex items-center gap-2">
-                  <input type="checkbox" className="rounded border-border" />
-                  <span className="text-muted-foreground">Remember me</span>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="rounded border-border w-4 h-4 accent-primary" 
+                  />
+                  <span className="text-muted-foreground">Remember me for 30 days</span>
                 </label>
                 <Link to="#" className="text-primary hover:underline">
                   Forgot password?
