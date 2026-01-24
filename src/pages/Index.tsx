@@ -1,57 +1,42 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
-import { Sparkles, ArrowRight, Zap, Code2, Layers, Rocket, Plus, Paperclip, MessageSquare, AudioLines, ChevronDown } from 'lucide-react';
+import { Sparkles, ArrowRight, Plus, Paperclip, MessageSquare, AudioLines, ChevronDown } from 'lucide-react';
 import Aurora from '@/components/Aurora';
 import Navbar from '@/components/Navbar';
-
-const features = [
-  {
-    icon: Zap,
-    title: 'Lightning Fast',
-    description: 'Go from idea to production-ready code in minutes, not months.',
-  },
-  {
-    icon: Code2,
-    title: 'Clean Code',
-    description: 'Modern frameworks, best practices, and scalable architecture.',
-  },
-  {
-    icon: Layers,
-    title: 'Full Stack',
-    description: 'Frontend, backend, database, auth, and payments out of the box.',
-  },
-  {
-    icon: Rocket,
-    title: 'Deploy Ready',
-    description: 'Ship immediately with structured, production-quality output.',
-  },
-];
+import { useAuth } from '@/hooks/useAuth';
 
 export default function Index() {
   const [prompt, setPrompt] = useState('');
   const navigate = useNavigate();
+  const { user, profile, loading } = useAuth();
   
-  // For demo purposes, using a static name. In a real app, this would come from auth context
-  const userName = 'User';
+  // Get the display name from profile, or fallback to email username, or 'there'
+  const userName = profile?.display_name || user?.email?.split('@')[0] || 'there';
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (prompt.trim()) {
-      navigate('/sign-up');
+      if (user) {
+        navigate('/dashboard');
+      } else {
+        navigate('/sign-up');
+      }
     }
   };
 
   return (
-    <div className="relative min-h-screen overflow-hidden">
-      {/* Aurora Background */}
-      <div className="absolute inset-0 z-0">
+    <div className="relative min-h-screen overflow-hidden bg-background">
+      {/* Aurora Background - Limited to top area */}
+      <div className="absolute top-0 left-0 right-0 h-[70vh] z-0 overflow-hidden">
         <Aurora
           colorStops={["#de66ff", "#2ccea6", "#5227FF"]}
           blend={0.5}
           amplitude={1.0}
           speed={1}
         />
+        {/* Gradient fade to background */}
+        <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-background to-transparent" />
       </div>
 
       {/* Content */}
@@ -59,7 +44,7 @@ export default function Index() {
         <Navbar />
 
         {/* Hero Section */}
-        <section className="min-h-screen flex flex-col items-center justify-center px-6 pt-20">
+        <section className="min-h-[70vh] flex flex-col items-center justify-center px-6 pt-20">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -73,10 +58,10 @@ export default function Index() {
               transition={{ duration: 0.6, delay: 0.2 }}
               className="text-4xl md:text-5xl font-bold mb-10 text-foreground"
             >
-              Let's build something, {userName}
+              Let's build something, {loading ? '...' : userName}
             </motion.h1>
 
-            {/* Prompt Input Box - Matching screenshot style */}
+            {/* Prompt Input Box */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -138,10 +123,17 @@ export default function Index() {
               transition={{ duration: 0.6, delay: 0.4 }}
               className="flex flex-col sm:flex-row items-center justify-center gap-4"
             >
-              <Link to="/sign-up" className="gradient-button flex items-center gap-2">
-                Get Started Free
-                <ArrowRight className="w-4 h-4" />
-              </Link>
+              {user ? (
+                <Link to="/dashboard" className="gradient-button flex items-center gap-2">
+                  Go to Dashboard
+                  <ArrowRight className="w-4 h-4" />
+                </Link>
+              ) : (
+                <Link to="/sign-up" className="gradient-button flex items-center gap-2">
+                  Get Started Free
+                  <ArrowRight className="w-4 h-4" />
+                </Link>
+              )}
               <Link to="/docs" className="glass-button flex items-center gap-2">
                 Learn More
               </Link>
@@ -149,88 +141,8 @@ export default function Index() {
           </motion.div>
         </section>
 
-        {/* Features Section */}
-        <section className="py-24 px-6">
-          <div className="max-w-6xl mx-auto">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6 }}
-              className="text-center mb-16"
-            >
-              <h2 className="text-3xl md:text-4xl font-bold mb-4">
-                Everything you need to <span className="text-gradient">build fast</span>
-              </h2>
-              <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-                From landing pages to full-stack SaaS, Buildify handles it all.
-              </p>
-            </motion.div>
-
-            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {features.map((feature, index) => (
-                <motion.div
-                  key={feature.title}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.5, delay: index * 0.1 }}
-                  className="glass-card p-6 hover:border-primary/30 transition-colors"
-                >
-                  <div className="w-12 h-12 rounded-lg bg-primary/20 flex items-center justify-center mb-4">
-                    <feature.icon className="w-6 h-6 text-primary" />
-                  </div>
-                  <h3 className="text-lg font-semibold mb-2">{feature.title}</h3>
-                  <p className="text-muted-foreground text-sm">{feature.description}</p>
-                </motion.div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* What Buildify Creates */}
-        <section className="py-24 px-6">
-          <div className="max-w-4xl mx-auto">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6 }}
-              className="glass-card p-8 md:p-12"
-            >
-              <h2 className="text-2xl md:text-3xl font-bold mb-8 text-center">
-                What can Buildify create?
-              </h2>
-              <div className="grid md:grid-cols-2 gap-4 text-muted-foreground">
-                {[
-                  'Modern marketing websites',
-                  'Full-stack web applications',
-                  'Dashboards & internal tools',
-                  'SaaS with auth & payments',
-                  'Mobile responsive web apps',
-                  'APIs & database schemas',
-                  'Admin panels & CRUD systems',
-                  'Design systems & UI components',
-                ].map((item, index) => (
-                  <motion.div
-                    key={item}
-                    initial={{ opacity: 0, x: -10 }}
-                    whileInView={{ opacity: 1, x: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ duration: 0.4, delay: index * 0.05 }}
-                    className="flex items-center gap-3"
-                  >
-                    <div className="w-2 h-2 rounded-full bg-secondary" />
-                    <span>{item}</span>
-                  </motion.div>
-                ))}
-              </div>
-            </motion.div>
-          </div>
-        </section>
-
         {/* Footer */}
-        <footer className="py-12 px-6 border-t border-border">
+        <footer className="py-12 px-6 border-t border-border mt-24">
           <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">
