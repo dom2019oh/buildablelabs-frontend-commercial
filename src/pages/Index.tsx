@@ -4,6 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { ArrowRight, Plus, MessageSquare } from "lucide-react";
 import Aurora from "@/components/Aurora";
 import Navbar from "@/components/Navbar";
+import ShinyText from "@/components/ShinyText";
 import { useAuth } from "@/hooks/useAuth";
 
 export default function Index() {
@@ -51,9 +52,17 @@ export default function Index() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.2 }}
-              className="text-4xl md:text-5xl font-bold mb-12 text-foreground"
+              className="text-4xl md:text-5xl font-bold mb-12"
             >
-              Let's get your build going, {loading ? "..." : userName}
+              <ShinyText
+                text={`Let's get your build going, ${loading ? "..." : userName}`}
+                speed={3}
+                delay={1}
+                color="hsl(var(--foreground))"
+                shineColor="hsl(var(--foreground) / 0.4)"
+                spread={120}
+                direction="left"
+              />
             </motion.h1>
 
             {/* Prompt Input Box - Simplified */}
