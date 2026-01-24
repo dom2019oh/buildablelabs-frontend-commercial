@@ -1,26 +1,26 @@
-import { useState } from 'react';
-import { motion } from 'framer-motion';
-import { Link, useNavigate } from 'react-router-dom';
-import { ArrowRight, Plus, MessageSquare } from 'lucide-react';
-import Aurora from '@/components/Aurora';
-import Navbar from '@/components/Navbar';
-import { useAuth } from '@/hooks/useAuth';
+import { useState } from "react";
+import { motion } from "framer-motion";
+import { Link, useNavigate } from "react-router-dom";
+import { ArrowRight, Plus, MessageSquare } from "lucide-react";
+import Aurora from "@/components/Aurora";
+import Navbar from "@/components/Navbar";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function Index() {
-  const [prompt, setPrompt] = useState('');
+  const [prompt, setPrompt] = useState("");
   const navigate = useNavigate();
   const { user, profile, loading } = useAuth();
-  
+
   // Get the display name from profile, or fallback to email username, or 'there'
-  const userName = profile?.display_name || user?.email?.split('@')[0] || 'there';
+  const userName = profile?.display_name || user?.email?.split("@")[0] || "there";
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (prompt.trim()) {
       if (user) {
-        navigate('/dashboard');
+        navigate("/dashboard");
       } else {
-        navigate('/sign-up');
+        navigate("/sign-up");
       }
     }
   };
@@ -29,12 +29,7 @@ export default function Index() {
     <div className="relative min-h-[120vh] overflow-hidden bg-background">
       {/* Aurora Background - Limited to top area */}
       <div className="absolute top-0 left-0 right-0 h-[60vh] z-0 overflow-hidden">
-        <Aurora
-          colorStops={["#de66ff", "#2ccea6", "#5227FF"]}
-          blend={0.5}
-          amplitude={1.0}
-          speed={1}
-        />
+        <Aurora colorStops={["#de66ff", "#2ccea6", "#5227FF"]} blend={0.5} amplitude={1.0} speed={1} />
         {/* Gradient fade to background */}
         <div className="absolute bottom-0 left-0 right-0 h-40 bg-gradient-to-t from-background to-transparent" />
       </div>
@@ -58,7 +53,7 @@ export default function Index() {
               transition={{ duration: 0.6, delay: 0.2 }}
               className="text-4xl md:text-5xl font-bold mb-12 text-foreground"
             >
-              Let's build something, {loading ? '...' : userName}
+              Let's get your build going, {loading ? "..." : userName}
             </motion.h1>
 
             {/* Prompt Input Box - Simplified */}
@@ -83,18 +78,24 @@ export default function Index() {
                 {/* Bottom Toolbar - Simplified */}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1">
-                    <button type="button" className="w-9 h-9 rounded-full border border-border/50 flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-border transition-colors">
+                    <button
+                      type="button"
+                      className="w-9 h-9 rounded-full border border-border/50 flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-border transition-colors"
+                    >
                       <Plus className="w-4 h-4" />
                     </button>
                   </div>
 
                   <div className="flex items-center gap-1">
-                    <button type="button" className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-border/50 text-sm text-muted-foreground hover:text-foreground hover:border-border transition-colors">
+                    <button
+                      type="button"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-border/50 text-sm text-muted-foreground hover:text-foreground hover:border-border transition-colors"
+                    >
                       <MessageSquare className="w-4 h-4" />
                       Chat
                     </button>
-                    <button 
-                      type="submit" 
+                    <button
+                      type="submit"
                       className="w-9 h-9 rounded-full bg-foreground flex items-center justify-center text-background hover:bg-foreground/90 transition-colors"
                     >
                       <ArrowRight className="w-4 h-4" />
@@ -136,9 +137,7 @@ export default function Index() {
         <footer className="py-12 px-6 border-t border-border">
           <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">
-                © 2025 Buildify. All rights reserved.
-              </span>
+              <span className="text-sm text-muted-foreground">© 2025 Buildify. All rights reserved.</span>
             </div>
             <div className="flex items-center gap-6">
               <Link to="/docs" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
