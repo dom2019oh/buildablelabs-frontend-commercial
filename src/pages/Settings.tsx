@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Camera, Loader2, Save, ArrowLeft } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
@@ -17,10 +17,18 @@ export default function Settings() {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  const [displayName, setDisplayName] = useState(profile?.display_name || "");
-  const [avatarUrl, setAvatarUrl] = useState(profile?.avatar_url || "");
+  const [displayName, setDisplayName] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Sync state when profile loads
+  useEffect(() => {
+    if (profile) {
+      setDisplayName(profile.display_name || "");
+      setAvatarUrl(profile.avatar_url || "");
+    }
+  }, [profile]);
 
   const initials = (displayName || user?.email?.split("@")[0] || "U").slice(0, 2).toUpperCase();
 
