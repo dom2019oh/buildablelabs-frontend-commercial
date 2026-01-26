@@ -14,6 +14,99 @@ export type Database = {
   }
   public: {
     Tables: {
+      credit_action_costs: {
+        Row: {
+          action_type: Database["public"]["Enums"]["credit_action_type"]
+          created_at: string
+          credit_cost: number
+          description: string | null
+          id: string
+          is_active: boolean
+          updated_at: string
+        }
+        Insert: {
+          action_type: Database["public"]["Enums"]["credit_action_type"]
+          created_at?: string
+          credit_cost: number
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          updated_at?: string
+        }
+        Update: {
+          action_type?: Database["public"]["Enums"]["credit_action_type"]
+          created_at?: string
+          credit_cost?: number
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      credit_tiers: {
+        Row: {
+          created_at: string
+          credits: number
+          id: string
+          is_popular: boolean
+          plan_type: Database["public"]["Enums"]["subscription_plan_type"]
+          price_cents: number
+        }
+        Insert: {
+          created_at?: string
+          credits: number
+          id?: string
+          is_popular?: boolean
+          plan_type: Database["public"]["Enums"]["subscription_plan_type"]
+          price_cents: number
+        }
+        Update: {
+          created_at?: string
+          credits?: number
+          id?: string
+          is_popular?: boolean
+          plan_type?: Database["public"]["Enums"]["subscription_plan_type"]
+          price_cents?: number
+        }
+        Relationships: []
+      }
+      credit_transactions: {
+        Row: {
+          action_type: Database["public"]["Enums"]["credit_action_type"] | null
+          amount: number
+          balance_after: number
+          created_at: string
+          description: string | null
+          id: string
+          metadata: Json | null
+          transaction_type: Database["public"]["Enums"]["credit_transaction_type"]
+          user_id: string
+        }
+        Insert: {
+          action_type?: Database["public"]["Enums"]["credit_action_type"] | null
+          amount: number
+          balance_after: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          metadata?: Json | null
+          transaction_type: Database["public"]["Enums"]["credit_transaction_type"]
+          user_id: string
+        }
+        Update: {
+          action_type?: Database["public"]["Enums"]["credit_action_type"] | null
+          amount?: number
+          balance_after?: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          metadata?: Json | null
+          transaction_type?: Database["public"]["Enums"]["credit_transaction_type"]
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -41,15 +134,217 @@ export type Database = {
         }
         Relationships: []
       }
+      subscription_plans: {
+        Row: {
+          allows_custom_domain: boolean
+          allows_remove_branding: boolean
+          allows_rollover: boolean
+          base_price_cents: number
+          created_at: string
+          daily_bonus_credits: number
+          description: string | null
+          features: Json
+          id: string
+          is_active: boolean
+          max_credits: number
+          max_team_members: number | null
+          min_credits: number
+          name: string
+          plan_type: Database["public"]["Enums"]["subscription_plan_type"]
+          updated_at: string
+        }
+        Insert: {
+          allows_custom_domain?: boolean
+          allows_remove_branding?: boolean
+          allows_rollover?: boolean
+          base_price_cents?: number
+          created_at?: string
+          daily_bonus_credits?: number
+          description?: string | null
+          features?: Json
+          id?: string
+          is_active?: boolean
+          max_credits?: number
+          max_team_members?: number | null
+          min_credits?: number
+          name: string
+          plan_type: Database["public"]["Enums"]["subscription_plan_type"]
+          updated_at?: string
+        }
+        Update: {
+          allows_custom_domain?: boolean
+          allows_remove_branding?: boolean
+          allows_rollover?: boolean
+          base_price_cents?: number
+          created_at?: string
+          daily_bonus_credits?: number
+          description?: string | null
+          features?: Json
+          id?: string
+          is_active?: boolean
+          max_credits?: number
+          max_team_members?: number | null
+          min_credits?: number
+          name?: string
+          plan_type?: Database["public"]["Enums"]["subscription_plan_type"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      user_credits: {
+        Row: {
+          bonus_credits: number
+          created_at: string
+          id: string
+          last_daily_bonus_at: string | null
+          monthly_credits: number
+          rollover_credits: number
+          topup_credits: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          bonus_credits?: number
+          created_at?: string
+          id?: string
+          last_daily_bonus_at?: string | null
+          monthly_credits?: number
+          rollover_credits?: number
+          topup_credits?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          bonus_credits?: number
+          created_at?: string
+          id?: string
+          last_daily_bonus_at?: string | null
+          monthly_credits?: number
+          rollover_credits?: number
+          topup_credits?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_subscriptions: {
+        Row: {
+          billing_period_end: string
+          billing_period_start: string
+          created_at: string
+          id: string
+          is_annual: boolean
+          plan_type: Database["public"]["Enums"]["subscription_plan_type"]
+          price_cents: number
+          selected_credits: number
+          status: string
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          billing_period_end?: string
+          billing_period_start?: string
+          created_at?: string
+          id?: string
+          is_annual?: boolean
+          plan_type?: Database["public"]["Enums"]["subscription_plan_type"]
+          price_cents?: number
+          selected_credits?: number
+          status?: string
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          billing_period_end?: string
+          billing_period_start?: string
+          created_at?: string
+          id?: string
+          is_annual?: boolean
+          plan_type?: Database["public"]["Enums"]["subscription_plan_type"]
+          price_cents?: number
+          selected_credits?: number
+          status?: string
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      add_credits: {
+        Args: {
+          p_amount: number
+          p_description?: string
+          p_metadata?: Json
+          p_transaction_type: Database["public"]["Enums"]["credit_transaction_type"]
+          p_user_id: string
+        }
+        Returns: {
+          message: string
+          new_balance: number
+          success: boolean
+        }[]
+      }
+      claim_daily_bonus: {
+        Args: { p_user_id: string }
+        Returns: {
+          credits_added: number
+          message: string
+          success: boolean
+        }[]
+      }
+      deduct_credits: {
+        Args: {
+          p_action_type: Database["public"]["Enums"]["credit_action_type"]
+          p_description?: string
+          p_metadata?: Json
+          p_user_id: string
+        }
+        Returns: {
+          message: string
+          remaining_credits: number
+          success: boolean
+        }[]
+      }
+      get_action_credit_cost: {
+        Args: {
+          p_action_type: Database["public"]["Enums"]["credit_action_type"]
+        }
+        Returns: number
+      }
+      get_user_total_credits: { Args: { p_user_id: string }; Returns: number }
+      user_has_credits: {
+        Args: { p_amount: number; p_user_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      credit_action_type:
+        | "question_answer"
+        | "page_creation"
+        | "component_generation"
+        | "code_export"
+        | "ai_chat"
+        | "image_generation"
+        | "deployment"
+      credit_transaction_type:
+        | "subscription"
+        | "topup"
+        | "daily_bonus"
+        | "rollover"
+        | "usage"
+        | "refund"
+        | "admin_adjustment"
+      subscription_plan_type: "free" | "pro" | "business" | "enterprise"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -176,6 +471,26 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      credit_action_type: [
+        "question_answer",
+        "page_creation",
+        "component_generation",
+        "code_export",
+        "ai_chat",
+        "image_generation",
+        "deployment",
+      ],
+      credit_transaction_type: [
+        "subscription",
+        "topup",
+        "daily_bonus",
+        "rollover",
+        "usage",
+        "refund",
+        "admin_adjustment",
+      ],
+      subscription_plan_type: ["free", "pro", "business", "enterprise"],
+    },
   },
 } as const
