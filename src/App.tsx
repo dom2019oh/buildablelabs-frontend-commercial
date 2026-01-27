@@ -10,6 +10,10 @@ import Pricing from "./pages/Pricing";
 import Login from "./pages/Login";
 import SignUp from "./pages/SignUp";
 import Dashboard from "./pages/Dashboard";
+import DashboardUsage from "./pages/DashboardUsage";
+import DashboardBilling from "./pages/DashboardBilling";
+import DashboardSettings from "./pages/DashboardSettings";
+import DashboardProject from "./pages/DashboardProject";
 import Docs from "./pages/Docs";
 import Explore from "./pages/Explore";
 import ProjectEditor from "./pages/ProjectEditor";
@@ -31,6 +35,10 @@ const App = () => (
             <Route path="/log-in" element={<Login />} />
             <Route path="/sign-up" element={<SignUp />} />
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/dashboard/usage" element={<ProtectedRoute><DashboardUsage /></ProtectedRoute>} />
+            <Route path="/dashboard/billing" element={<ProtectedRoute><DashboardBilling /></ProtectedRoute>} />
+            <Route path="/dashboard/settings" element={<ProtectedRoute><DashboardSettings /></ProtectedRoute>} />
+            <Route path="/dashboard/project/:projectId" element={<ProtectedRoute><DashboardProject /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
             <Route path="/docs" element={<Docs />} />
             <Route path="/explore" element={<Explore />} />
