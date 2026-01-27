@@ -1,10 +1,10 @@
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
-import ProjectsView from '@/components/dashboard/ProjectsView';
+import BillingView from '@/components/dashboard/BillingView';
 
-export default function Dashboard() {
+export default function DashboardBilling() {
   return (
     <DashboardLayout>
-      <ProjectsView />
+      <BillingView />
     </DashboardLayout>
   );
 }

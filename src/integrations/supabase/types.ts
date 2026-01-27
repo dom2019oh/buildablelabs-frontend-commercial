@@ -134,6 +134,124 @@ export type Database = {
         }
         Relationships: []
       }
+      project_builds: {
+        Row: {
+          build_logs: string | null
+          completed_at: string | null
+          created_at: string
+          duration_seconds: number | null
+          error_message: string | null
+          id: string
+          project_id: string
+          started_at: string
+          status: Database["public"]["Enums"]["build_status"]
+          user_id: string
+        }
+        Insert: {
+          build_logs?: string | null
+          completed_at?: string | null
+          created_at?: string
+          duration_seconds?: number | null
+          error_message?: string | null
+          id?: string
+          project_id: string
+          started_at?: string
+          status?: Database["public"]["Enums"]["build_status"]
+          user_id: string
+        }
+        Update: {
+          build_logs?: string | null
+          completed_at?: string | null
+          created_at?: string
+          duration_seconds?: number | null
+          error_message?: string | null
+          id?: string
+          project_id?: string
+          started_at?: string
+          status?: Database["public"]["Enums"]["build_status"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_builds_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_prompts: {
+        Row: {
+          created_at: string
+          id: string
+          project_id: string
+          prompt_text: string
+          response_summary: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          project_id: string
+          prompt_text: string
+          response_summary?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          project_id?: string
+          prompt_text?: string
+          response_summary?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_prompts_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      projects: {
+        Row: {
+          created_at: string
+          deployed_url: string | null
+          description: string | null
+          id: string
+          is_archived: boolean
+          name: string
+          status: Database["public"]["Enums"]["project_status"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          deployed_url?: string | null
+          description?: string | null
+          id?: string
+          is_archived?: boolean
+          name: string
+          status?: Database["public"]["Enums"]["project_status"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          deployed_url?: string | null
+          description?: string | null
+          id?: string
+          is_archived?: boolean
+          name?: string
+          status?: Database["public"]["Enums"]["project_status"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       subscription_plans: {
         Row: {
           allows_custom_domain: boolean
@@ -328,6 +446,7 @@ export type Database = {
       }
     }
     Enums: {
+      build_status: "pending" | "building" | "completed" | "failed"
       credit_action_type:
         | "question_answer"
         | "page_creation"
@@ -344,6 +463,7 @@ export type Database = {
         | "usage"
         | "refund"
         | "admin_adjustment"
+      project_status: "building" | "ready" | "failed"
       subscription_plan_type: "free" | "pro" | "business" | "enterprise"
     }
     CompositeTypes: {
@@ -472,6 +592,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      build_status: ["pending", "building", "completed", "failed"],
       credit_action_type: [
         "question_answer",
         "page_creation",
@@ -490,6 +611,7 @@ export const Constants = {
         "refund",
         "admin_adjustment",
       ],
+      project_status: ["building", "ready", "failed"],
       subscription_plan_type: ["free", "pro", "business", "enterprise"],
     },
   },

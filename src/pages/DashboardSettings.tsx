@@ -1,10 +1,10 @@
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
-import ProjectsView from '@/components/dashboard/ProjectsView';
+import SettingsView from '@/components/dashboard/SettingsView';
 
-export default function Dashboard() {
+export default function DashboardSettings() {
   return (
     <DashboardLayout>
-      <ProjectsView />
+      <SettingsView />
     </DashboardLayout>
   );
 }
