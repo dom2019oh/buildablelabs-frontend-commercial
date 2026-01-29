@@ -31,9 +31,14 @@ export default function ProjectWorkspace() {
   const [activeView, setActiveView] = useState<'preview' | 'code' | 'logs'>('preview');
   const [currentRoute, setCurrentRoute] = useState('/');
   const [isPublishing, setIsPublishing] = useState(false);
+  const [previewKey, setPreviewKey] = useState(0);
 
   // Available routes (dynamic - would be fetched from project structure in real app)
   const availableRoutes = ['/', '/about', '/contact', '/dashboard', '/settings'];
+
+  const handleRefreshPreview = useCallback(() => {
+    setPreviewKey((prev) => prev + 1);
+  }, []);
 
   const handleSendMessage = useCallback(async (content: string) => {
     await sendWithAIResponse(content);
@@ -102,6 +107,7 @@ export default function ProjectWorkspace() {
         onViewChange={setActiveView}
         onPublish={handlePublish}
         isPublishing={isPublishing}
+        onRefreshPreview={handleRefreshPreview}
       />
 
       {/* Main Content */}
@@ -153,6 +159,7 @@ export default function ProjectWorkspace() {
         {/* Preview Panel */}
         <div className="flex-1 h-full">
           <LivePreview
+            key={previewKey}
             projectId={projectId!}
             deployedUrl={project.deployed_url}
             currentRoute={currentRoute}
