@@ -8,13 +8,20 @@ import {
   Copy, 
   MoreHorizontal,
   Sparkles,
-  MessageSquare,
   PanelLeftClose,
-  Loader2
+  Loader2,
+  Paperclip,
+  Image as ImageIcon
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { ProjectMessage } from '@/hooks/useProjectMessages';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 interface ProjectChatProps {
   messages: ProjectMessage[];
@@ -73,13 +80,13 @@ export default function ProjectChat({
       {/* Chat Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
         <div className="flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-primary" />
-          <span className="font-semibold text-sm">{projectName}</span>
+          <Sparkles className="h-4 w-4 text-primary" />
+          <span className="font-medium text-sm">{projectName}</span>
         </div>
         <Button
           variant="ghost"
           size="icon"
-          className="h-8 w-8"
+          className="h-7 w-7"
           onClick={onCollapse}
         >
           <PanelLeftClose className="h-4 w-4" />
@@ -94,11 +101,11 @@ export default function ProjectChat({
           </div>
         ) : messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center px-4">
-            <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
-              <Sparkles className="h-8 w-8 text-primary" />
+            <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+              <Sparkles className="h-7 w-7 text-primary" />
             </div>
             <h3 className="text-lg font-semibold mb-2">Welcome to your project!</h3>
-            <p className="text-muted-foreground text-sm max-w-xs">
+            <p className="text-muted-foreground text-sm max-w-[280px]">
               I'm Buildify, your AI-powered product builder. Describe what you want to build, and I'll help you create it.
             </p>
           </div>
@@ -111,38 +118,40 @@ export default function ProjectChat({
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
                 className={cn(
-                  'rounded-xl p-4',
+                  'rounded-lg p-3',
                   message.role === 'user'
-                    ? 'bg-primary/10 ml-8'
-                    : 'bg-muted/50 mr-4'
+                    ? 'bg-muted/50 ml-6'
+                    : 'bg-transparent'
                 )}
               >
                 {message.role === 'assistant' && (
                   <div className="flex items-center gap-2 mb-2">
-                    <Sparkles className="h-4 w-4 text-primary" />
-                    <span className="text-sm font-medium text-primary">Buildify</span>
+                    <div className="h-5 w-5 rounded-full bg-primary/10 flex items-center justify-center">
+                      <Sparkles className="h-3 w-3 text-primary" />
+                    </div>
+                    <span className="text-xs font-medium text-muted-foreground">Buildify</span>
                   </div>
                 )}
-                <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
                 
                 {message.role === 'assistant' && (
-                  <div className="flex items-center gap-1 mt-3 pt-3 border-t border-border/50">
-                    <Button variant="ghost" size="icon" className="h-7 w-7">
-                      <ThumbsUp className="h-3.5 w-3.5" />
+                  <div className="flex items-center gap-0.5 mt-3">
+                    <Button variant="ghost" size="icon" className="h-6 w-6">
+                      <ThumbsUp className="h-3 w-3" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7">
-                      <ThumbsDown className="h-3.5 w-3.5" />
+                    <Button variant="ghost" size="icon" className="h-6 w-6">
+                      <ThumbsDown className="h-3 w-3" />
                     </Button>
                     <Button 
                       variant="ghost" 
                       size="icon" 
-                      className="h-7 w-7"
+                      className="h-6 w-6"
                       onClick={() => copyToClipboard(message.content)}
                     >
-                      <Copy className="h-3.5 w-3.5" />
+                      <Copy className="h-3 w-3" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 ml-auto">
-                      <MoreHorizontal className="h-3.5 w-3.5" />
+                    <Button variant="ghost" size="icon" className="h-6 w-6 ml-auto">
+                      <MoreHorizontal className="h-3 w-3" />
                     </Button>
                   </div>
                 )}
@@ -155,11 +164,13 @@ export default function ProjectChat({
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-muted/50 rounded-xl p-4 mr-4"
+            className="rounded-lg p-3"
           >
             <div className="flex items-center gap-2 mb-2">
-              <Sparkles className="h-4 w-4 text-primary" />
-              <span className="text-sm font-medium text-primary">Buildify</span>
+              <div className="h-5 w-5 rounded-full bg-primary/10 flex items-center justify-center">
+                <Sparkles className="h-3 w-3 text-primary" />
+              </div>
+              <span className="text-xs font-medium text-muted-foreground">Buildify</span>
             </div>
             <div className="flex items-center gap-2">
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -172,17 +183,31 @@ export default function ProjectChat({
       </div>
 
       {/* Input Area */}
-      <div className="p-4 border-t border-border">
-        <div className="bg-muted/30 rounded-xl border border-border/50 focus-within:border-border focus-within:ring-1 focus-within:ring-ring/20">
-          <div className="flex items-center gap-1 px-3 pt-2">
-            <Button variant="ghost" size="icon" className="h-8 w-8">
-              <Plus className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-8 w-8">
-              <MessageSquare className="h-4 w-4" />
-            </Button>
-          </div>
-          <div className="flex items-end gap-2 px-3 pb-3 pt-1">
+      <div className="p-3 border-t border-border">
+        <div className="bg-muted/30 rounded-lg border border-border/50 focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20">
+          <div className="flex items-end gap-2 p-2">
+            {/* Attachment buttons */}
+            <div className="flex items-center gap-0.5 pb-1">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-7 w-7">
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  <DropdownMenuItem>
+                    <Paperclip className="h-4 w-4 mr-2" />
+                    Attach file
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <ImageIcon className="h-4 w-4 mr-2" />
+                    Upload image
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+            
+            {/* Text input */}
             <textarea
               ref={textareaRef}
               value={input}
@@ -191,17 +216,19 @@ export default function ProjectChat({
               placeholder="Ask the AI to build, change, or improve this project…"
               rows={1}
               disabled={isSending}
-              className="flex-1 bg-transparent resize-none text-sm placeholder:text-muted-foreground focus:outline-none min-h-[24px] max-h-[150px] py-1"
+              className="flex-1 bg-transparent resize-none text-sm placeholder:text-muted-foreground focus:outline-none min-h-[28px] max-h-[150px] py-1.5"
             />
-            <div className="flex items-center gap-2">
+            
+            {/* Send section */}
+            <div className="flex items-center gap-1.5 pb-1">
               <span className="text-xs text-muted-foreground">Chat</span>
               <Button
                 size="icon"
-                className="h-8 w-8"
+                className="h-7 w-7"
                 onClick={handleSend}
                 disabled={!input.trim() || isSending}
               >
-                <Send className="h-4 w-4" />
+                <Send className="h-3.5 w-3.5" />
               </Button>
             </div>
           </div>

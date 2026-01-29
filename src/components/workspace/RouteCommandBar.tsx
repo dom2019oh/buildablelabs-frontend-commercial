@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { ChevronDown, Search } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface RouteCommandBarProps {
@@ -91,9 +91,8 @@ export default function RouteCommandBar({
   };
 
   return (
-    <div className="relative w-full">
-      <div className="flex items-center bg-muted/50 rounded-lg border border-border/50 focus-within:border-border focus-within:ring-1 focus-within:ring-ring/20">
-        <Search className="h-4 w-4 ml-3 text-muted-foreground" />
+    <div className="relative flex-1">
+      <div className="flex items-center">
         <input
           ref={inputRef}
           type="text"
@@ -102,21 +101,21 @@ export default function RouteCommandBar({
           onFocus={() => setIsOpen(true)}
           onKeyDown={handleKeyDown}
           placeholder="/"
-          className="flex-1 bg-transparent px-2 py-2 text-sm outline-none placeholder:text-muted-foreground"
+          className="flex-1 bg-transparent px-1.5 py-0.5 text-sm outline-none placeholder:text-muted-foreground min-w-0"
         />
         <button
           type="button"
           onClick={() => setIsOpen(!isOpen)}
-          className="px-2 py-2 text-muted-foreground hover:text-foreground"
+          className="p-0.5 text-muted-foreground hover:text-foreground"
         >
-          <ChevronDown className={cn('h-4 w-4 transition-transform', isOpen && 'rotate-180')} />
+          <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', isOpen && 'rotate-180')} />
         </button>
       </div>
 
       {isOpen && filteredRoutes.length > 0 && (
         <div
           ref={dropdownRef}
-          className="absolute top-full left-0 right-0 mt-1 bg-popover border border-border rounded-lg shadow-lg z-50 max-h-64 overflow-auto"
+          className="absolute top-full left-0 right-0 mt-2 bg-popover border border-border rounded-md shadow-lg z-50 max-h-64 overflow-auto"
         >
           {filteredRoutes.map((route, index) => (
             <button
