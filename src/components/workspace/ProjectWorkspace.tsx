@@ -18,6 +18,7 @@ import CodeViewer from './CodeViewer';
 import VersionHistoryPanel from './VersionHistoryPanel';
 import ComponentLibraryPanel from './ComponentLibraryPanel';
 import LogsPanel from './LogsPanel';
+import PublishDialog from './PublishDialog';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export default function ProjectWorkspace() {
@@ -80,6 +81,7 @@ export default function ProjectWorkspace() {
   const [lastFilesCreated, setLastFilesCreated] = useState<string[]>([]);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
+  const [isPublishDialogOpen, setIsPublishDialogOpen] = useState(false);
   const [currentVersionNumber, setCurrentVersionNumber] = useState(0);
   const [isRestoring, setIsRestoring] = useState(false);
 
@@ -399,22 +401,31 @@ export default function ProjectWorkspace() {
       {/* Top Bar */}
       <WorkspaceTopBar
         projectName={project.name}
+        projectId={projectId!}
         currentRoute={currentRoute}
         onRouteChange={setCurrentRoute}
         availableRoutes={availableRoutes}
         activeView={activeView}
         onViewChange={setActiveView}
-        onPublish={handlePublish}
+        onPublish={() => setIsPublishDialogOpen(true)}
         isPublishing={isPublishing}
         onRefreshPreview={handleRefreshPreview}
         onUndo={handleUndo}
         onRedo={handleRedo}
         onOpenHistory={() => setIsHistoryOpen(true)}
-        onOpenLibrary={() => setIsLibraryOpen(true)}
         canUndo={currentVersionNumber > 1}
         canRedo={currentVersionNumber < latestVersion}
         currentVersion={currentVersionNumber}
         totalVersions={versions.length}
+      />
+
+      {/* Publish Dialog */}
+      <PublishDialog
+        isOpen={isPublishDialogOpen}
+        onClose={() => setIsPublishDialogOpen(false)}
+        projectId={projectId!}
+        projectName={project.name}
+        previewHtml={previewHtml || ''}
       />
 
       {/* Version History Panel */}

@@ -1,5 +1,3 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { 
   Globe, 
   Code2, 
@@ -12,9 +10,7 @@ import {
   Redo2,
   Monitor,
   RefreshCw,
-  ChevronDown,
-  History,
-  Library
+  History
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -24,29 +20,22 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import RouteCommandBar from './RouteCommandBar';
-import buildableLogo from '@/assets/buildify-logo.png';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
-} from '@/components/ui/dropdown-menu';
+import ProjectDropdown from './ProjectDropdown';
 
 interface WorkspaceTopBarProps {
   projectName: string;
+  projectId: string;
   currentRoute: string;
   onRouteChange: (route: string) => void;
   availableRoutes: string[];
   activeView: 'preview' | 'code' | 'logs';
   onViewChange: (view: 'preview' | 'code' | 'logs') => void;
-  onPublish: () => Promise<void>;
+  onPublish: () => void;
   isPublishing?: boolean;
   onRefreshPreview?: () => void;
   onUndo?: () => void;
   onRedo?: () => void;
   onOpenHistory?: () => void;
-  onOpenLibrary?: () => void;
   canUndo?: boolean;
   canRedo?: boolean;
   currentVersion?: number;
@@ -55,6 +44,7 @@ interface WorkspaceTopBarProps {
 
 export default function WorkspaceTopBar({
   projectName,
+  projectId,
   currentRoute,
   onRouteChange,
   availableRoutes,
@@ -66,7 +56,6 @@ export default function WorkspaceTopBar({
   onUndo,
   onRedo,
   onOpenHistory,
-  onOpenLibrary,
   canUndo = false,
   canRedo = false,
   currentVersion = 0,
@@ -82,28 +71,8 @@ export default function WorkspaceTopBar({
     <div className="h-12 border-b border-border bg-background flex items-center px-3 gap-2 sticky top-0 z-50">
       {/* Left Zone - Project Name & History Controls */}
       <div className="flex items-center gap-2">
-        {/* Project dropdown */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="gap-1.5 h-8 px-2">
-              <img src={buildableLogo} alt="Buildable" className="h-5 w-5" />
-              <span className="font-medium text-sm max-w-[140px] truncate">{projectName}</span>
-              <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-48">
-            <DropdownMenuItem onClick={onOpenLibrary} className="gap-2 cursor-pointer">
-              <Library className="h-4 w-4" />
-              Component Library
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
-              <Link to="/dashboard" className="gap-2">
-                Back to Dashboard
-              </Link>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {/* Project dropdown with credits */}
+        <ProjectDropdown projectName={projectName} projectId={projectId} />
 
         {/* Divider */}
         <div className="h-6 w-px bg-border" />

@@ -7,7 +7,6 @@ import {
   ThumbsDown, 
   Copy, 
   MoreHorizontal,
-  Sparkles,
   PanelLeftClose,
   Loader2,
   Paperclip,
@@ -25,6 +24,7 @@ import { cn } from '@/lib/utils';
 import type { ProjectMessage } from '@/hooks/useProjectMessages';
 import MarkdownRenderer from './MarkdownRenderer';
 import ThinkingIndicator from './ThinkingIndicator';
+import buildableLogo from '@/assets/buildify-logo.png';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -62,7 +62,7 @@ function ModelBadge({ model }: { model: string }) {
       icon: Palette, 
       className: 'bg-blue-500/10 text-blue-600 border-blue-500/20' 
     },
-  }[model] || { label: model, icon: Sparkles, className: '' };
+  }[model] || { label: model, icon: Brain, className: '' };
 
   const Icon = config.icon;
 
@@ -128,7 +128,7 @@ export default function ProjectChat({
       {/* Chat Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
         <div className="flex items-center gap-2">
-          <Sparkles className="h-4 w-4 text-primary" />
+          <img src={buildableLogo} alt="Buildable" className="h-5 w-5" />
           <span className="font-medium text-sm">{projectName}</span>
         </div>
         <Button
@@ -149,8 +149,8 @@ export default function ProjectChat({
           </div>
         ) : messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center px-4">
-            <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
-              <Sparkles className="h-8 w-8 text-primary" />
+            <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+              <img src={buildableLogo} alt="Buildable" className="h-12 w-12" />
             </div>
             <h3 className="text-lg font-semibold mb-2">Welcome to your project!</h3>
             <p className="text-muted-foreground text-sm max-w-[280px]">
@@ -174,10 +174,10 @@ export default function ProjectChat({
               >
                 {message.role === 'assistant' && (
                   <div className="flex items-center gap-2 mb-2">
-                    <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center">
-                      <Sparkles className="h-4 w-4 text-primary" />
+                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                      <img src={buildableLogo} alt="Buildable" className="h-5 w-5" />
                     </div>
-                    <span className="text-sm font-medium text-muted-foreground">Buildable</span>
+                    <span className="text-sm font-medium">Buildable</span>
                     {message.metadata?.modelUsed && (
                       <ModelBadge model={message.metadata.modelUsed as string} />
                     )}
@@ -301,56 +301,31 @@ export default function ProjectChat({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input Area */}
+      {/* Simplified Input Area - Like Lovable */}
       <div className="p-3 border-t border-border">
-        <div className="bg-muted/30 rounded-lg border border-border/50 focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20">
-          <div className="flex items-end gap-2 p-2">
-            {/* Attachment buttons */}
-            <div className="flex items-center gap-0.5 pb-1">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-7 w-7">
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start">
-                  <DropdownMenuItem>
-                    <Paperclip className="h-4 w-4 mr-2" />
-                    Attach file
-                  </DropdownMenuItem>
-                  <DropdownMenuItem>
-                    <ImageIcon className="h-4 w-4 mr-2" />
-                    Upload image
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-            
-            {/* Text input */}
-            <textarea
-              ref={textareaRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Ask the AI to build, change, or improve this project…"
-              rows={1}
-              disabled={isSending}
-              className="flex-1 bg-transparent resize-none text-sm placeholder:text-muted-foreground focus:outline-none min-h-[28px] max-h-[150px] py-1.5"
-            />
-            
-            {/* Send section */}
-            <div className="flex items-center gap-1.5 pb-1">
-              <span className="text-xs text-muted-foreground">Chat</span>
-              <Button
-                size="icon"
-                className="h-7 w-7"
-                onClick={handleSend}
-                disabled={!input.trim() || isSending}
-              >
-                <Send className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-          </div>
+        <div className="relative bg-muted/30 rounded-xl border border-border/50 focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/10 transition-all">
+          <textarea
+            ref={textareaRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Ask Buildable anything..."
+            rows={1}
+            disabled={isSending}
+            className="w-full bg-transparent resize-none text-sm placeholder:text-muted-foreground focus:outline-none min-h-[44px] max-h-[150px] py-3 px-4 pr-12"
+          />
+          <Button
+            size="icon"
+            className="absolute right-2 bottom-2 h-8 w-8 rounded-lg"
+            onClick={handleSend}
+            disabled={!input.trim() || isSending}
+          >
+            {isSending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Send className="h-4 w-4" />
+            )}
+          </Button>
         </div>
       </div>
     </div>
