@@ -325,3 +325,125 @@ export function generatePreviewHtml(componentCode: string, cssCode?: string): st
 </body>
 </html>`;
 }
+
+// Compile TSX component to static HTML for preview
+export function compileComponentToHtml(tsxCode: string): string {
+  try {
+    // Extract the component's JSX return statement
+    const returnMatch = tsxCode.match(/return\s*\(\s*([\s\S]*?)\s*\);?\s*(?:\}|$)/);
+    if (!returnMatch) {
+      // Try arrow function with implicit return
+      const arrowMatch = tsxCode.match(/=>\s*\(\s*([\s\S]*?)\s*\)\s*;?\s*$/);
+      if (!arrowMatch) {
+        return '<div class="flex items-center justify-center h-screen text-white"><p>Preview loading...</p></div>';
+      }
+      return convertJsxToStaticHtml(arrowMatch[1], tsxCode);
+    }
+    
+    return convertJsxToStaticHtml(returnMatch[1], tsxCode);
+  } catch (error) {
+    console.error('Failed to compile component:', error);
+    return '<div class="flex items-center justify-center h-screen text-white"><p>Preview error</p></div>';
+  }
+}
+
+// Convert JSX to static HTML with data expansion
+function convertJsxToStaticHtml(jsx: string, fullCode: string): string {
+  let html = jsx;
+  
+  // 1. Find and expand array maps (e.g., {features.map((feature, index) => ...)})
+  const mapMatches = html.matchAll(/\{(\w+)\.map\(\((\w+)(?:,\s*(\w+))?\)\s*=>\s*\(([\s\S]*?)\)\)\}/g);
+  
+  for (const match of Array.from(mapMatches)) {
+    const arrayName = match[1];
+    const itemName = match[2];
+    const indexName = match[3];
+    const template = match[4];
+    
+    // Find the array definition in the code
+    const arrayMatch = fullCode.match(new RegExp(`const\\s+${arrayName}\\s*=\\s*\\[([\\s\\S]*?)\\];`, 'm'));
+    
+    if (arrayMatch) {
+      try {
+        // Parse the array items (simplified - handles basic objects)
+        const arrayContent = arrayMatch[1];
+        const items = parseArrayItems(arrayContent);
+        
+        // Expand the map into static HTML
+        let expandedHtml = '';
+        items.forEach((item, index) => {
+          let itemHtml = template;
+          
+          // Replace item property references
+          Object.entries(item).forEach(([key, value]) => {
+            // Replace {item.property} patterns
+            itemHtml = itemHtml.replace(new RegExp(`\\{${itemName}\\.${key}\\}`, 'g'), String(value));
+            // Replace {item["property"]} patterns
+            itemHtml = itemHtml.replace(new RegExp(`\\{${itemName}\\["${key}"\\]\\}`, 'g'), String(value));
+          });
+          
+          // Replace index references
+          if (indexName) {
+            itemHtml = itemHtml.replace(new RegExp(`\\{${indexName}\\}`, 'g'), String(index));
+          }
+          
+          // Handle icon components - convert to placeholder div
+          itemHtml = itemHtml.replace(/<(\w+)\.icon\s+className="([^"]+)"\s*\/>/g, 
+            '<div class="$2 flex items-center justify-center"><span>★</span></div>');
+          itemHtml = itemHtml.replace(/<(\w+)Icon\s+className="([^"]+)"\s*\/>/g,
+            '<div class="$2 flex items-center justify-center"><span>★</span></div>');
+          
+          expandedHtml += itemHtml;
+        });
+        
+        html = html.replace(match[0], expandedHtml);
+      } catch (e) {
+        console.error('Failed to expand map:', e);
+      }
+    }
+  }
+  
+  // 2. Convert JSX syntax to HTML
+  html = html
+    // Convert className to class
+    .replace(/className=/g, 'class=')
+    // Remove JSX expressions we couldn't handle
+    .replace(/\{[^{}]*\}/g, '')
+    // Convert self-closing tags properly
+    .replace(/<(\w+)([^>]*)\s*\/>/g, '<$1$2></$1>')
+    // Remove event handlers
+    .replace(/on\w+={[^}]*}/g, '')
+    // Clean up multiple spaces
+    .replace(/\s+/g, ' ')
+    .trim();
+  
+  return html;
+}
+
+// Parse array items from string (simplified parser)
+function parseArrayItems(arrayContent: string): Record<string, unknown>[] {
+  const items: Record<string, unknown>[] = [];
+  
+  // Match object literals: { ... }
+  const objectMatches = arrayContent.matchAll(/\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}/g);
+  
+  for (const match of Array.from(objectMatches)) {
+    const obj: Record<string, unknown> = {};
+    const content = match[1];
+    
+    // Extract key-value pairs
+    const pairMatches = content.matchAll(/(\w+):\s*(?:"([^"]+)"|'([^']+)'|(\w+))/g);
+    
+    for (const pair of Array.from(pairMatches)) {
+      const key = pair[1];
+      const value = pair[2] || pair[3] || pair[4];
+      obj[key] = value;
+    }
+    
+    if (Object.keys(obj).length > 0) {
+      items.push(obj);
+    }
+  }
+  
+  return items;
+}

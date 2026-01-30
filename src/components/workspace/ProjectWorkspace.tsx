@@ -8,7 +8,7 @@ import { useProject } from '@/hooks/useProjects';
 import { useProjectMessages } from '@/hooks/useProjectMessages';
 import { useStreamingAI } from '@/hooks/useStreamingAI';
 import { useProjectFiles } from '@/hooks/useProjectFiles';
-import { useProjectFilesStore, parseCodeFromResponse, generatePreviewHtml, stripCodeBlocksFromResponse } from '@/stores/projectFilesStore';
+import { useProjectFilesStore, parseCodeFromResponse, generatePreviewHtml, stripCodeBlocksFromResponse, compileComponentToHtml } from '@/stores/projectFilesStore';
 import WorkspaceTopBar from './WorkspaceTopBar';
 import ProjectChat from './ProjectChat';
 import LivePreview from './LivePreview';
@@ -61,6 +61,7 @@ export default function ProjectWorkspace() {
   const [isPublishing, setIsPublishing] = useState(false);
   const [previewKey, setPreviewKey] = useState(0);
   const [streamingMessage, setStreamingMessage] = useState<string>('');
+  const [lastFilesCreated, setLastFilesCreated] = useState<string[]>([]);
 
   // Available routes
   const availableRoutes = ['/', '/about', '/contact', '/dashboard', '/settings'];
@@ -99,6 +100,9 @@ export default function ProjectWorkspace() {
         const parsedFiles = parseCodeFromResponse(fullContent);
         const fileNames = parsedFiles.map(f => f.path);
         
+        // Track files created for UI notification
+        setLastFilesCreated(fileNames);
+        
         if (parsedFiles.length > 0) {
           // Add all files to the store
           parsedFiles.forEach(file => {
@@ -113,13 +117,16 @@ export default function ProjectWorkspace() {
             console.error('Failed to auto-save files:', saveError);
           }
 
-          // Generate preview HTML from the main component file
+          // Generate preview HTML from the main component file using improved compiler
           const componentFile = parsedFiles.find(f => 
             f.path.endsWith('.tsx') || f.path.endsWith('.jsx')
           );
           
           if (componentFile) {
-            const previewHtml = generateAdvancedPreview(componentFile.content, parsedFiles);
+            // Use the new compiler that properly handles arrays/maps
+            const compiledHtml = compileComponentToHtml(componentFile.content);
+            const cssFile = parsedFiles.find(f => f.path.endsWith('.css'));
+            const previewHtml = generatePreviewHtml(compiledHtml, cssFile?.content);
             setPreviewHtml(previewHtml);
             handleRefreshPreview();
           }
@@ -188,14 +195,10 @@ export default function ProjectWorkspace() {
       
       // Regenerate preview if it's a component file
       if (selectedFile.endsWith('.tsx') || selectedFile.endsWith('.jsx')) {
-        const jsxMatch = newCode.match(/return\s*\(\s*([\s\S]*?)\s*\);?\s*\}$/);
-        if (jsxMatch) {
-          const jsx = jsxMatch[1];
-          const html = convertJsxToHtml(jsx);
-          const previewDoc = generatePreviewHtml(html);
-          setPreviewHtml(previewDoc);
-          handleRefreshPreview();
-        }
+        const compiledHtml = compileComponentToHtml(newCode);
+        const previewDoc = generatePreviewHtml(compiledHtml);
+        setPreviewHtml(previewDoc);
+        handleRefreshPreview();
       }
       
       toast({
@@ -284,9 +287,15 @@ export default function ProjectWorkspace() {
                 messages={displayMessages}
                 isLoading={isMessagesLoading}
                 isSending={isStreaming}
+                isStreaming={isStreaming}
+                streamingMetadata={streamingMetadata ? { 
+                  modelUsed: streamingMetadata.modelUsed as string,
+                  taskType: streamingMetadata.taskType as string 
+                } : undefined}
                 onSendMessage={handleSendMessage}
                 onCollapse={() => setIsChatCollapsed(true)}
                 projectName={project.name}
+                filesCreated={lastFilesCreated}
               />
             </motion.div>
           )}
@@ -382,94 +391,4 @@ export default function ProjectWorkspace() {
     </div>
   );
 }
-
-// Helper to convert JSX-like syntax to HTML for preview
-function convertJsxToHtml(jsx: string): string {
-  return jsx
-    // Convert className to class
-    .replace(/className=/g, 'class=')
-    // Remove JSX expressions (keep text content)
-    .replace(/\{[^{}]*\}/g, '')
-    // Convert self-closing tags
-    .replace(/<(\w+)([^>]*)\s*\/>/g, '<$1$2></$1>')
-    // Remove event handlers
-    .replace(/on\w+={[^}]*}/g, '')
-    // Clean up extra whitespace
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-// Generate advanced preview from component code
-function generateAdvancedPreview(
-  componentCode: string, 
-  allFiles: Array<{ path: string; content: string }>
-): string {
-  // Find CSS files for additional styles
-  const cssFiles = allFiles.filter(f => f.path.endsWith('.css'));
-  const additionalStyles = cssFiles.map(f => f.content).join('\n');
-  
-  // Try to extract JSX from the component
-  let jsx = '';
-  
-  // Match return statement with JSX
-  const returnMatch = componentCode.match(/return\s*\(\s*([\s\S]*?)\s*\);?\s*(?:\}|$)/);
-  if (returnMatch) {
-    jsx = returnMatch[1];
-  } else {
-    // Try arrow function with implicit return
-    const arrowMatch = componentCode.match(/=>\s*\(\s*([\s\S]*?)\s*\)\s*;?\s*$/);
-    if (arrowMatch) {
-      jsx = arrowMatch[1];
-    }
-  }
-  
-  if (!jsx) {
-    // Fallback: just show a placeholder
-    jsx = '<div class="flex items-center justify-center h-screen text-white"><p>Preview loading...</p></div>';
-  }
-  
-  // Convert JSX to HTML
-  const html = convertJsxToHtml(jsx);
-  
-  // Build complete HTML document
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Preview</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          colors: {
-            border: 'hsl(240 3.7% 15.9%)',
-            background: 'hsl(240 10% 3.9%)',
-            foreground: 'hsl(0 0% 98%)',
-            primary: { DEFAULT: 'hsl(0 72.2% 50.6%)', foreground: 'hsl(0 85.7% 97.3%)' },
-            secondary: { DEFAULT: 'hsl(240 3.7% 15.9%)', foreground: 'hsl(0 0% 98%)' },
-            muted: { DEFAULT: 'hsl(240 3.7% 15.9%)', foreground: 'hsl(240 5% 64.9%)' },
-            accent: { DEFAULT: 'hsl(240 3.7% 15.9%)', foreground: 'hsl(0 0% 98%)' },
-          }
-        }
-      }
-    }
-  </script>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: linear-gradient(135deg, #000 0%, #1a0000 50%, #4a0000 100%);
-      color: #e5e5e5;
-      min-height: 100vh;
-    }
-    ${additionalStyles}
-  </style>
-</head>
-<body>
-  <div id="root">${html}</div>
-</body>
-</html>`;
-}
+// Note: Preview generation functions moved to projectFilesStore.ts
