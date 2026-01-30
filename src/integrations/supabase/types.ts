@@ -134,6 +134,57 @@ export type Database = {
         }
         Relationships: []
       }
+      file_versions: {
+        Row: {
+          created_at: string
+          files: Json
+          id: string
+          label: string | null
+          message_id: string | null
+          preview_html: string | null
+          project_id: string
+          user_id: string
+          version_number: number
+        }
+        Insert: {
+          created_at?: string
+          files?: Json
+          id?: string
+          label?: string | null
+          message_id?: string | null
+          preview_html?: string | null
+          project_id: string
+          user_id: string
+          version_number?: number
+        }
+        Update: {
+          created_at?: string
+          files?: Json
+          id?: string
+          label?: string | null
+          message_id?: string | null
+          preview_html?: string | null
+          project_id?: string
+          user_id?: string
+          version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "file_versions_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "project_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "file_versions_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -330,6 +381,7 @@ export type Database = {
           id: string
           is_archived: boolean
           name: string
+          preview_html: string | null
           status: Database["public"]["Enums"]["project_status"]
           updated_at: string
           user_id: string
@@ -341,6 +393,7 @@ export type Database = {
           id?: string
           is_archived?: boolean
           name: string
+          preview_html?: string | null
           status?: Database["public"]["Enums"]["project_status"]
           updated_at?: string
           user_id: string
@@ -352,6 +405,7 @@ export type Database = {
           id?: string
           is_archived?: boolean
           name?: string
+          preview_html?: string | null
           status?: Database["public"]["Enums"]["project_status"]
           updated_at?: string
           user_id?: string

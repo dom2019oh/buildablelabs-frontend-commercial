@@ -4,16 +4,18 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { PanelLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { useProject } from '@/hooks/useProjects';
+import { useProject, useUpdateProject } from '@/hooks/useProjects';
 import { useProjectMessages } from '@/hooks/useProjectMessages';
 import { useStreamingAI } from '@/hooks/useStreamingAI';
 import { useProjectFiles } from '@/hooks/useProjectFiles';
+import { useFileVersions } from '@/hooks/useFileVersions';
 import { useProjectFilesStore, parseCodeFromResponse, generatePreviewHtml, stripCodeBlocksFromResponse, compileComponentToHtml } from '@/stores/projectFilesStore';
 import WorkspaceTopBar from './WorkspaceTopBar';
 import ProjectChat from './ProjectChat';
 import LivePreview from './LivePreview';
 import FileExplorer from './FileExplorer';
 import CodeViewer from './CodeViewer';
+import VersionHistoryPanel from './VersionHistoryPanel';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export default function ProjectWorkspace() {
@@ -41,6 +43,17 @@ export default function ProjectWorkspace() {
 
   // Project files - with database persistence
   const { saveFiles, isLoading: isFilesLoading } = useProjectFiles(projectId);
+  
+  // Version history
+  const { 
+    versions, 
+    latestVersion, 
+    createVersion, 
+    getVersionByNumber 
+  } = useFileVersions(projectId);
+  
+  // Update project mutation for saving preview
+  const updateProject = useUpdateProject();
 
   // Project files store (in-memory)
   const {
@@ -52,6 +65,7 @@ export default function ProjectWorkspace() {
     setPreviewHtml,
     previewHtml,
     files,
+    clearFiles,
   } = useProjectFilesStore();
 
   // UI State
@@ -62,9 +76,26 @@ export default function ProjectWorkspace() {
   const [previewKey, setPreviewKey] = useState(0);
   const [streamingMessage, setStreamingMessage] = useState<string>('');
   const [lastFilesCreated, setLastFilesCreated] = useState<string[]>([]);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [currentVersionNumber, setCurrentVersionNumber] = useState(0);
+  const [isRestoring, setIsRestoring] = useState(false);
 
   // Available routes
   const availableRoutes = ['/', '/about', '/contact', '/dashboard', '/settings'];
+  
+  // Load preview from project on mount
+  useEffect(() => {
+    if (project?.preview_html && !previewHtml) {
+      setPreviewHtml(project.preview_html);
+    }
+  }, [project?.preview_html, previewHtml, setPreviewHtml]);
+  
+  // Update current version when versions change
+  useEffect(() => {
+    if (latestVersion > 0) {
+      setCurrentVersionNumber(latestVersion);
+    }
+  }, [latestVersion]);
 
   const handleRefreshPreview = useCallback(() => {
     setPreviewKey((prev) => prev + 1);
@@ -126,9 +157,29 @@ export default function ProjectWorkspace() {
             // Use the new compiler that properly handles arrays/maps
             const compiledHtml = compileComponentToHtml(componentFile.content);
             const cssFile = parsedFiles.find(f => f.path.endsWith('.css'));
-            const previewHtml = generatePreviewHtml(compiledHtml, cssFile?.content);
-            setPreviewHtml(previewHtml);
+            const newPreviewHtml = generatePreviewHtml(compiledHtml, cssFile?.content);
+            setPreviewHtml(newPreviewHtml);
             handleRefreshPreview();
+            
+            // SAVE PREVIEW TO DATABASE
+            if (projectId) {
+              updateProject.mutate({
+                id: projectId,
+                preview_html: newPreviewHtml,
+              });
+            }
+          }
+
+          // CREATE VERSION SNAPSHOT
+          try {
+            await createVersion.mutateAsync({
+              files: parsedFiles,
+              previewHtml: previewHtml || undefined,
+              label: `AI Generation: ${content.slice(0, 50)}${content.length > 50 ? '...' : ''}`,
+            });
+            console.log('Version snapshot created');
+          } catch (versionError) {
+            console.error('Failed to create version:', versionError);
           }
 
           // Switch to code view to show the files
@@ -162,7 +213,7 @@ export default function ProjectWorkspace() {
         setStreamingMessage('');
       }
     );
-  }, [messages, projectId, streamMessage, sendMessage, addFile, setPreviewHtml, handleRefreshPreview, toast, saveFiles]);
+  }, [messages, projectId, streamMessage, sendMessage, addFile, setPreviewHtml, handleRefreshPreview, toast, saveFiles, updateProject, createVersion, previewHtml, setSelectedFile]);
 
   const handlePublish = useCallback(async () => {
     setIsPublishing(true);
@@ -207,6 +258,90 @@ export default function ProjectWorkspace() {
       });
     }
   }, [selectedFile, handleRefreshPreview, toast]);
+
+  // Version history handlers
+  const handleUndo = useCallback(() => {
+    if (currentVersionNumber > 1) {
+      const prevVersion = getVersionByNumber(currentVersionNumber - 1);
+      if (prevVersion) {
+        handleRestoreVersion(prevVersion);
+      }
+    }
+  }, [currentVersionNumber, getVersionByNumber]);
+
+  const handleRedo = useCallback(() => {
+    const nextVersion = getVersionByNumber(currentVersionNumber + 1);
+    if (nextVersion) {
+      handleRestoreVersion(nextVersion);
+    }
+  }, [currentVersionNumber, getVersionByNumber]);
+
+  const handlePreviewVersion = useCallback((version: { preview_html: string | null }) => {
+    if (version.preview_html) {
+      setPreviewHtml(version.preview_html);
+      setActiveView('preview');
+      handleRefreshPreview();
+    }
+  }, [setPreviewHtml, handleRefreshPreview]);
+
+  const handleRestoreVersion = useCallback(async (version: { 
+    version_number: number; 
+    files: Array<{ path: string; content: string }>; 
+    preview_html: string | null;
+  }) => {
+    setIsRestoring(true);
+    try {
+      // First, save current state as a new version (backup)
+      const currentFiles = Array.from(files.values()).map(f => ({ path: f.path, content: f.content }));
+      if (currentFiles.length > 0) {
+        await createVersion.mutateAsync({
+          files: currentFiles,
+          previewHtml: previewHtml || undefined,
+          label: `Backup before restoring to v${version.version_number}`,
+        });
+      }
+
+      // Clear and restore files
+      clearFiles();
+      version.files.forEach(file => {
+        addFile(file.path, file.content);
+      });
+
+      // Restore preview
+      if (version.preview_html) {
+        setPreviewHtml(version.preview_html);
+        
+        // Save to database
+        if (projectId) {
+          await updateProject.mutateAsync({
+            id: projectId,
+            preview_html: version.preview_html,
+          });
+        }
+      }
+
+      // Save restored files to database
+      await saveFiles.mutateAsync(version.files);
+
+      setCurrentVersionNumber(version.version_number);
+      handleRefreshPreview();
+      setIsHistoryOpen(false);
+
+      toast({
+        title: '✅ Version Restored',
+        description: `Restored to version ${version.version_number}`,
+      });
+    } catch (error) {
+      console.error('Failed to restore version:', error);
+      toast({
+        title: 'Restore Failed',
+        description: 'Could not restore the selected version',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsRestoring(false);
+    }
+  }, [files, previewHtml, createVersion, clearFiles, addFile, setPreviewHtml, projectId, updateProject, saveFiles, handleRefreshPreview, toast]);
 
   // Get selected file content
   const selectedFileData = selectedFile ? getFile(selectedFile) : null;
@@ -269,6 +404,31 @@ export default function ProjectWorkspace() {
         onPublish={handlePublish}
         isPublishing={isPublishing}
         onRefreshPreview={handleRefreshPreview}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
+        onOpenHistory={() => setIsHistoryOpen(true)}
+        canUndo={currentVersionNumber > 1}
+        canRedo={currentVersionNumber < latestVersion}
+        currentVersion={currentVersionNumber}
+        totalVersions={versions.length}
+      />
+
+      {/* Version History Panel */}
+      <VersionHistoryPanel
+        isOpen={isHistoryOpen}
+        onClose={() => setIsHistoryOpen(false)}
+        versions={versions.map(v => ({
+          id: v.id,
+          version_number: v.version_number,
+          label: v.label,
+          files: v.files as Array<{ path: string; content: string }>,
+          preview_html: v.preview_html,
+          created_at: v.created_at,
+        }))}
+        currentVersion={currentVersionNumber}
+        onPreviewVersion={handlePreviewVersion}
+        onRestoreVersion={handleRestoreVersion}
+        isRestoring={isRestoring}
       />
 
       {/* Main Content */}

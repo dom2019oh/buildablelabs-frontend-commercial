@@ -179,6 +179,33 @@ export function useProject(projectId: string | undefined) {
   });
 }
 
+// Standalone hook for updating a project (used outside of useProjects context)
+export function useUpdateProject() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async ({ id, ...updates }: Partial<Project> & { id: string }) => {
+      const { data, error } = await supabase
+        .from('projects')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data as Project;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+      queryClient.invalidateQueries({ queryKey: ['project', data.id] });
+    },
+    onError: (error) => {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    },
+  });
+}
+
 export function useProjectPrompts(projectId: string | undefined) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
