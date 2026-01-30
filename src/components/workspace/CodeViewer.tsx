@@ -60,7 +60,7 @@ export default function CodeViewer({
 
   const handleEditorMount: OnMount = (editor, monaco) => {
     // Define custom dark theme matching VS Code Dark+
-    monaco.editor.defineTheme('buildify-dark', {
+    monaco.editor.defineTheme('buildable-dark', {
       base: 'vs-dark',
       inherit: true,
       rules: [
@@ -109,7 +109,7 @@ export default function CodeViewer({
       },
     });
     
-    monaco.editor.setTheme('buildify-dark');
+    monaco.editor.setTheme('buildable-dark');
     
     // Configure TypeScript/JavaScript for JSX/TSX
     monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
@@ -273,7 +273,7 @@ export default function CodeViewer({
             acceptSuggestionOnEnter: 'on',
             snippetSuggestions: isEditing ? 'top' : 'none',
           }}
-          theme="buildify-dark"
+          theme="buildable-dark"
           loading={
             <div className="flex items-center justify-center h-full text-muted-foreground">
               <div className="flex items-center gap-2">
