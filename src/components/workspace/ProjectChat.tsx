@@ -14,13 +14,15 @@ import {
   Image as ImageIcon,
   Brain,
   Code2,
-  Palette
+  Palette,
+  FileCode
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import type { ProjectMessage } from '@/hooks/useProjectMessages';
 import MarkdownRenderer from './MarkdownRenderer';
+import ThinkingIndicator from './ThinkingIndicator';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -32,9 +34,12 @@ interface ProjectChatProps {
   messages: ProjectMessage[];
   isLoading: boolean;
   isSending: boolean;
+  isStreaming?: boolean;
+  streamingMetadata?: { modelUsed?: string; taskType?: string };
   onSendMessage: (content: string) => Promise<void>;
   onCollapse: () => void;
   projectName: string;
+  filesCreated?: string[];
 }
 
 // Model badge component to show which AI model responded
@@ -74,9 +79,12 @@ export default function ProjectChat({
   messages,
   isLoading,
   isSending,
+  isStreaming = false,
+  streamingMetadata,
   onSendMessage,
   onCollapse,
   projectName,
+  filesCreated = [],
 }: ProjectChatProps) {
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -205,24 +213,46 @@ export default function ProjectChat({
           </AnimatePresence>
         )}
         
-        {isSending && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="rounded-lg p-3"
-          >
-            <div className="flex items-center gap-2 mb-2">
-              <div className="h-5 w-5 rounded-full bg-primary/10 flex items-center justify-center">
-                <Sparkles className="h-3 w-3 text-primary" />
+        {/* Thinking Indicator - replaces basic spinner */}
+        <ThinkingIndicator 
+          isVisible={isSending || isStreaming} 
+          taskType={streamingMetadata?.taskType}
+          modelUsed={streamingMetadata?.modelUsed}
+        />
+
+        {/* Files Created Notification */}
+        <AnimatePresence>
+          {filesCreated.length > 0 && !isSending && !isStreaming && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="rounded-lg p-3 bg-emerald-500/10 border border-emerald-500/20"
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <FileCode className="h-4 w-4 text-emerald-500" />
+                <span className="text-xs font-medium text-emerald-400">
+                  {filesCreated.length} file{filesCreated.length > 1 ? 's' : ''} created
+                </span>
               </div>
-              <span className="text-xs font-medium text-muted-foreground">Buildify</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <span className="text-sm text-muted-foreground">Thinking...</span>
-            </div>
-          </motion.div>
-        )}
+              <div className="flex flex-wrap gap-1">
+                {filesCreated.slice(0, 5).map((file) => (
+                  <span
+                    key={file}
+                    className="text-[10px] px-2 py-0.5 rounded bg-muted text-muted-foreground font-mono"
+                  >
+                    {file.split('/').pop()}
+                  </span>
+                ))}
+                {filesCreated.length > 5 && (
+                  <span className="text-[10px] px-2 py-0.5 text-muted-foreground">
+                    +{filesCreated.length - 5} more
+                  </span>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
         
         <div ref={messagesEndRef} />
       </div>

@@ -1,6 +1,6 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import Editor, { OnMount } from '@monaco-editor/react';
-import { Check, Copy, Edit2, Save, X } from 'lucide-react';
+import { Check, Copy, Edit2, Save, X, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -43,6 +43,14 @@ export default function CodeViewer({
   const [copied, setCopied] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editedCode, setEditedCode] = useState(code);
+  const [pendingChanges, setPendingChanges] = useState(false);
+
+  // Reset edited code when file changes
+  useEffect(() => {
+    setEditedCode(code);
+    setIsEditing(false);
+    setPendingChanges(false);
+  }, [code]);
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(isEditing ? editedCode : code);
@@ -120,11 +128,19 @@ export default function CodeViewer({
   const handleStartEdit = () => {
     setEditedCode(code);
     setIsEditing(true);
+    setPendingChanges(false);
   };
 
   const handleCancelEdit = () => {
+    if (pendingChanges) {
+      // Show confirmation if there are pending changes
+      if (!confirm('Discard unsaved changes?')) {
+        return;
+      }
+    }
     setEditedCode(code);
     setIsEditing(false);
+    setPendingChanges(false);
   };
 
   const handleSaveEdit = () => {
@@ -132,6 +148,12 @@ export default function CodeViewer({
       onSave(editedCode);
     }
     setIsEditing(false);
+    setPendingChanges(false);
+  };
+
+  const handleEditorChange = (value: string | undefined) => {
+    setEditedCode(value || '');
+    setPendingChanges(value !== code);
   };
 
   const monacoLanguage = getMonacoLanguage(language);
@@ -214,7 +236,7 @@ export default function CodeViewer({
           height="100%"
           language={monacoLanguage}
           value={isEditing ? editedCode : code}
-          onChange={(value) => setEditedCode(value || '')}
+          onChange={handleEditorChange}
           onMount={handleEditorMount}
           options={{
             readOnly: !isEditing,
