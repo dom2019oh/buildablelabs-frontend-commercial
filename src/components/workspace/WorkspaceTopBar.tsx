@@ -12,10 +12,16 @@ import {
   Redo2,
   Monitor,
   RefreshCw,
-  ChevronDown
+  ChevronDown,
+  History
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import RouteCommandBar from './RouteCommandBar';
 import buildifyLogo from '@/assets/buildify-logo.png';
 import {
@@ -35,6 +41,13 @@ interface WorkspaceTopBarProps {
   onPublish: () => Promise<void>;
   isPublishing?: boolean;
   onRefreshPreview?: () => void;
+  onUndo?: () => void;
+  onRedo?: () => void;
+  onOpenHistory?: () => void;
+  canUndo?: boolean;
+  canRedo?: boolean;
+  currentVersion?: number;
+  totalVersions?: number;
 }
 
 export default function WorkspaceTopBar({
@@ -47,6 +60,13 @@ export default function WorkspaceTopBar({
   onPublish,
   isPublishing = false,
   onRefreshPreview,
+  onUndo,
+  onRedo,
+  onOpenHistory,
+  canUndo = false,
+  canRedo = false,
+  currentVersion = 0,
+  totalVersions = 0,
 }: WorkspaceTopBarProps) {
   const viewButtons = [
     { id: 'preview' as const, icon: Globe, label: 'Preview' },
@@ -79,13 +99,62 @@ export default function WorkspaceTopBar({
 
         {/* Undo/Redo buttons */}
         <div className="flex items-center gap-0.5">
-          <Button variant="ghost" size="icon" className="h-8 w-8" disabled>
-            <Undo2 className="h-4 w-4" />
-          </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8" disabled>
-            <Redo2 className="h-4 w-4" />
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-8 w-8" 
+                disabled={!canUndo}
+                onClick={onUndo}
+              >
+                <Undo2 className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Undo (Ctrl+Z)</p>
+            </TooltipContent>
+          </Tooltip>
+          
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-8 w-8" 
+                disabled={!canRedo}
+                onClick={onRedo}
+              >
+                <Redo2 className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Redo (Ctrl+Y)</p>
+            </TooltipContent>
+          </Tooltip>
         </div>
+
+        {/* History button */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="h-8 gap-1.5 px-2"
+              onClick={onOpenHistory}
+            >
+              <History className="h-4 w-4" />
+              {totalVersions > 0 && (
+                <span className="text-xs text-muted-foreground">
+                  v{currentVersion}/{totalVersions}
+                </span>
+              )}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Version History</p>
+          </TooltipContent>
+        </Tooltip>
 
         {/* View toggle group */}
         <div className="flex items-center bg-muted rounded-md p-0.5">
