@@ -13,7 +13,8 @@ import {
   Monitor,
   RefreshCw,
   ChevronDown,
-  History
+  History,
+  Library
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -29,6 +30,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 
 interface WorkspaceTopBarProps {
@@ -44,6 +46,7 @@ interface WorkspaceTopBarProps {
   onUndo?: () => void;
   onRedo?: () => void;
   onOpenHistory?: () => void;
+  onOpenLibrary?: () => void;
   canUndo?: boolean;
   canRedo?: boolean;
   currentVersion?: number;
@@ -63,6 +66,7 @@ export default function WorkspaceTopBar({
   onUndo,
   onRedo,
   onOpenHistory,
+  onOpenLibrary,
   canUndo = false,
   canRedo = false,
   currentVersion = 0,
@@ -87,9 +91,16 @@ export default function WorkspaceTopBar({
               <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
+          <DropdownMenuContent align="start" className="w-48">
+            <DropdownMenuItem onClick={onOpenLibrary} className="gap-2 cursor-pointer">
+              <Library className="h-4 w-4" />
+              Component Library
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
-              <Link to="/dashboard">Back to Dashboard</Link>
+              <Link to="/dashboard" className="gap-2">
+                Back to Dashboard
+              </Link>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

@@ -16,6 +16,7 @@ import LivePreview from './LivePreview';
 import FileExplorer from './FileExplorer';
 import CodeViewer from './CodeViewer';
 import VersionHistoryPanel from './VersionHistoryPanel';
+import ComponentLibraryPanel from './ComponentLibraryPanel';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export default function ProjectWorkspace() {
@@ -77,6 +78,7 @@ export default function ProjectWorkspace() {
   const [streamingMessage, setStreamingMessage] = useState<string>('');
   const [lastFilesCreated, setLastFilesCreated] = useState<string[]>([]);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [isLibraryOpen, setIsLibraryOpen] = useState(false);
   const [currentVersionNumber, setCurrentVersionNumber] = useState(0);
   const [isRestoring, setIsRestoring] = useState(false);
 
@@ -407,6 +409,7 @@ export default function ProjectWorkspace() {
         onUndo={handleUndo}
         onRedo={handleRedo}
         onOpenHistory={() => setIsHistoryOpen(true)}
+        onOpenLibrary={() => setIsLibraryOpen(true)}
         canUndo={currentVersionNumber > 1}
         canRedo={currentVersionNumber < latestVersion}
         currentVersion={currentVersionNumber}
@@ -429,6 +432,46 @@ export default function ProjectWorkspace() {
         onPreviewVersion={handlePreviewVersion}
         onRestoreVersion={handleRestoreVersion}
         isRestoring={isRestoring}
+      />
+
+      {/* Component Library Panel */}
+      <ComponentLibraryPanel
+        isOpen={isLibraryOpen}
+        onClose={() => setIsLibraryOpen(false)}
+        onInsertComponent={async (component) => {
+          // Convert component name to file path
+          const fileName = component.name.replace(/\s+/g, '') + '.tsx';
+          const filePath = `components/${fileName}`;
+          
+          // Add file to store
+          addFile(filePath, component.code);
+          
+          // Save to database
+          try {
+            await saveFiles.mutateAsync([{ path: filePath, content: component.code }]);
+            
+            // Create a version snapshot
+            await createVersion.mutateAsync({
+              files: [{ path: filePath, content: component.code }],
+              label: `Added ${component.name} from library`,
+            });
+            
+            toast({
+              title: '✅ Component Added',
+              description: `${component.name} has been added to your project`,
+            });
+            
+            // Switch to code view and select the file
+            setActiveView('code');
+            setSelectedFile(filePath);
+          } catch (error) {
+            toast({
+              title: 'Failed to add component',
+              description: 'There was an error adding the component',
+              variant: 'destructive',
+            });
+          }
+        }}
       />
 
       {/* Main Content */}
