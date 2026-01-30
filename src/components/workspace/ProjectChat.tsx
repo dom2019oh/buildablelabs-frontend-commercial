@@ -140,7 +140,7 @@ export default function ProjectChat({
       </div>
 
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
         {isLoading ? (
           <div className="flex items-center justify-center h-full">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />

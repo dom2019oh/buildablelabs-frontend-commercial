@@ -163,7 +163,7 @@ export default function ThinkingIndicator({ isVisible, taskType, modelUsed, comp
 
           {/* Step-by-Step Log Lines */}
           <div className="border-t border-border/50 bg-muted/20">
-            <div className="px-4 py-2 space-y-1.5 max-h-32 overflow-y-auto">
+            <div className="px-4 py-2 space-y-1.5 max-h-32 overflow-y-auto custom-scrollbar">
               <AnimatePresence>
                 {visibleSteps.map((stepIndex) => {
                   const step = STEP_MESSAGES[stepIndex];
