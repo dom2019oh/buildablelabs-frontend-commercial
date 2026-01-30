@@ -11,9 +11,13 @@ import {
   PanelLeftClose,
   Loader2,
   Paperclip,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Brain,
+  Code2,
+  Palette
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import type { ProjectMessage } from '@/hooks/useProjectMessages';
 import {
@@ -30,6 +34,39 @@ interface ProjectChatProps {
   onSendMessage: (content: string) => Promise<void>;
   onCollapse: () => void;
   projectName: string;
+}
+
+// Model badge component to show which AI model responded
+function ModelBadge({ model }: { model: string }) {
+  const config = {
+    openai: { 
+      label: 'GPT-4o', 
+      icon: Brain, 
+      className: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' 
+    },
+    claude: { 
+      label: 'Claude', 
+      icon: Code2, 
+      className: 'bg-orange-500/10 text-orange-600 border-orange-500/20' 
+    },
+    gemini: { 
+      label: 'Gemini', 
+      icon: Palette, 
+      className: 'bg-blue-500/10 text-blue-600 border-blue-500/20' 
+    },
+  }[model] || { label: model, icon: Sparkles, className: '' };
+
+  const Icon = config.icon;
+
+  return (
+    <Badge 
+      variant="outline" 
+      className={cn('text-[10px] px-1.5 py-0 h-4 gap-1 font-normal', config.className)}
+    >
+      <Icon className="h-2.5 w-2.5" />
+      {config.label}
+    </Badge>
+  );
 }
 
 export default function ProjectChat({
@@ -130,6 +167,9 @@ export default function ProjectChat({
                       <Sparkles className="h-3 w-3 text-primary" />
                     </div>
                     <span className="text-xs font-medium text-muted-foreground">Buildify</span>
+                    {message.metadata?.modelUsed && (
+                      <ModelBadge model={message.metadata.modelUsed as string} />
+                    )}
                   </div>
                 )}
                 <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
