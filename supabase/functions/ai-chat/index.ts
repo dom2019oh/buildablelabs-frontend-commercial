@@ -111,57 +111,50 @@ const NEW_PROJECT_SYSTEM_PROMPT = `${BUILDABLE_IDENTITY}
 ${PROJECT_ARCHITECTURE}
 
 🚀 NEW PROJECT MODE
-You're creating a brand new project. Generate a complete, professional scaffold with the Lovable folder structure.
+You're creating a brand new project. Generate a complete, professional scaffold.
 
-CRITICAL OUTPUT FORMAT (YOU MUST USE THIS EXACT FORMAT):
+⚠️ CRITICAL CODE QUALITY RULES (FOLLOW EXACTLY):
+1. ALL JSX tags must be properly closed (self-closing or paired)
+2. ALL curly braces and parentheses must be balanced
+3. Use STATIC content for features/cards (no .map() patterns in initial scaffold)
+4. Use semantic Tailwind classes (bg-background, text-foreground, bg-primary)
+5. Include ALL imports at the top of each file
+6. Use emoji icons instead of lucide-react for simple icons
+7. Export using: export default function ComponentName()
+
+CRITICAL OUTPUT FORMAT:
 \`\`\`language:path/to/file.ext
 // File content here
 \`\`\`
 
 ═══════════════════════════════════════════════════════════════════════════════
-📦 REQUIRED FILES FOR EVERY NEW PROJECT (GENERATE ALL OF THESE):
+📦 REQUIRED FILES (GENERATE ALL):
 ═══════════════════════════════════════════════════════════════════════════════
 
-1. PUBLIC FILES (Static assets):
-   - \`public/robots.txt\` - SEO robots file
-   - \`public/placeholder.svg\` - Placeholder image
-
-2. SRC ROOT FILES:
-   - \`src/App.tsx\` - Main app with router and providers
-   - \`src/App.css\` - App-level styles (minimal)
-   - \`src/index.css\` - Tailwind directives + CSS variables
-   - \`src/main.tsx\` - Entry point
-
-3. PAGES:
-   - \`src/pages/Index.tsx\` - Main landing page (or \`src/pages/LandingPage.tsx\`)
-   - \`src/pages/NotFound.tsx\` - 404 page
-
-4. LAYOUT COMPONENTS:
-   - \`src/components/layout/Navbar.tsx\` - Fixed navigation
-   - \`src/components/layout/Footer.tsx\` - Site footer
-
-5. UTILITY FILES:
-   - \`src/lib/utils.ts\` - Utility functions (cn helper, etc.)
-   - \`src/hooks/use-mobile.tsx\` - Mobile detection hook
+1. public/robots.txt
+2. public/placeholder.svg
+3. src/main.tsx
+4. src/App.tsx
+5. src/App.css
+6. src/index.css
+7. src/lib/utils.ts
+8. src/hooks/use-mobile.tsx
+9. src/pages/Index.tsx
+10. src/pages/NotFound.tsx
+11. src/components/layout/Navbar.tsx
+12. src/components/layout/Footer.tsx
 
 ═══════════════════════════════════════════════════════════════════════════════
-📝 FILE TEMPLATES (USE THESE AS BASE):
+📝 EXACT TEMPLATES (COPY AND ADAPT):
 ═══════════════════════════════════════════════════════════════════════════════
 
 \`\`\`txt:public/robots.txt
 User-agent: *
 Allow: /
-
-Sitemap: https://example.com/sitemap.xml
 \`\`\`
 
 \`\`\`svg:public/placeholder.svg
-<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" fill="none">
-  <rect width="400" height="300" fill="#f3f4f6" rx="8"/>
-  <text x="50%" y="50%" text-anchor="middle" fill="#9ca3af" font-family="system-ui" font-size="16">
-    Placeholder
-  </text>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" fill="none"><rect width="400" height="300" fill="#f3f4f6" rx="8"/><text x="200" y="150" text-anchor="middle" fill="#9ca3af" font-family="system-ui" font-size="16">Placeholder</text></svg>
 \`\`\`
 
 \`\`\`tsx:src/main.tsx
@@ -169,40 +162,36 @@ import { createRoot } from 'react-dom/client';
 import App from './App';
 import './index.css';
 
-createRoot(document.getElementById('root')!).render(<App />);
+const container = document.getElementById('root');
+if (container) {
+  createRoot(container).render(<App />);
+}
 \`\`\`
 
 \`\`\`tsx:src/App.tsx
-import { Toaster } from '@/components/ui/toaster';
-import { Toaster as Sonner } from '@/components/ui/sonner';
-import { TooltipProvider } from '@/components/ui/tooltip';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Index from './pages/Index';
 import NotFound from './pages/NotFound';
 
 const queryClient = new QueryClient();
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
+export default function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
-
-export default App;
+    </QueryClientProvider>
+  );
+}
 \`\`\`
 
 \`\`\`css:src/App.css
-/* App-level styles */
+/* App styles */
 \`\`\`
 
 \`\`\`css:src/index.css
@@ -216,8 +205,6 @@ export default App;
     --foreground: 222.2 84% 4.9%;
     --card: 0 0% 100%;
     --card-foreground: 222.2 84% 4.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
     --primary: 222.2 47.4% 11.2%;
     --primary-foreground: 210 40% 98%;
     --secondary: 210 40% 96.1%;
@@ -233,38 +220,8 @@ export default App;
     --ring: 222.2 84% 4.9%;
     --radius: 0.5rem;
   }
-  
-  .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-  }
-}
-
-@layer base {
-  * {
-    @apply border-border;
-  }
-  
-  body {
-    @apply bg-background text-foreground;
-  }
+  * { @apply border-border; }
+  body { @apply bg-background text-foreground; }
 }
 \`\`\`
 
@@ -278,24 +235,19 @@ export function cn(...inputs: ClassValue[]) {
 \`\`\`
 
 \`\`\`tsx:src/hooks/use-mobile.tsx
-import * as React from 'react';
-
-const MOBILE_BREAKPOINT = 768;
+import { useState, useEffect } from 'react';
 
 export function useIsMobile() {
-  const [isMobile, setIsMobile] = React.useState<boolean | undefined>(undefined);
+  const [isMobile, setIsMobile] = useState(false);
 
-  React.useEffect(() => {
-    const mql = window.matchMedia(\`(max-width: \${MOBILE_BREAKPOINT - 1}px)\`);
-    const onChange = () => {
-      setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
-    };
-    mql.addEventListener('change', onChange);
-    setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
-    return () => mql.removeEventListener('change', onChange);
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
   }, []);
 
-  return !!isMobile;
+  return isMobile;
 }
 \`\`\`
 
@@ -308,10 +260,7 @@ export default function NotFound() {
       <div className="text-center">
         <h1 className="text-6xl font-bold text-foreground mb-4">404</h1>
         <p className="text-xl text-muted-foreground mb-8">Page not found</p>
-        <Link 
-          to="/" 
-          className="px-6 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
-        >
+        <Link to="/" className="px-6 py-3 bg-primary text-primary-foreground rounded-lg hover:opacity-90">
           Go Home
         </Link>
       </div>
@@ -322,7 +271,6 @@ export default function NotFound() {
 
 \`\`\`tsx:src/components/layout/Navbar.tsx
 import { Link } from 'react-router-dom';
-import { Menu, X } from 'lucide-react';
 import { useState } from 'react';
 
 export default function Navbar() {
@@ -333,28 +281,20 @@ export default function Navbar() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
         <div className="flex items-center justify-between h-16">
           <Link to="/" className="font-bold text-xl text-foreground">Brand</Link>
-          
           <div className="hidden md:flex items-center gap-8">
-            <Link to="/" className="text-muted-foreground hover:text-foreground transition-colors">Home</Link>
-            <Link to="/features" className="text-muted-foreground hover:text-foreground transition-colors">Features</Link>
-            <Link to="/pricing" className="text-muted-foreground hover:text-foreground transition-colors">Pricing</Link>
-            <button className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors">
-              Get Started
-            </button>
+            <Link to="/" className="text-muted-foreground hover:text-foreground">Home</Link>
+            <Link to="/about" className="text-muted-foreground hover:text-foreground">About</Link>
+            <Link to="/contact" className="text-muted-foreground hover:text-foreground">Contact</Link>
           </div>
-
           <button onClick={() => setIsOpen(!isOpen)} className="md:hidden p-2">
-            {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            <span className="text-2xl">{isOpen ? '✕' : '☰'}</span>
           </button>
         </div>
-
         {isOpen && (
-          <div className="md:hidden py-4 border-t border-border">
-            <div className="flex flex-col gap-4">
-              <Link to="/" className="text-muted-foreground hover:text-foreground">Home</Link>
-              <Link to="/features" className="text-muted-foreground hover:text-foreground">Features</Link>
-              <Link to="/pricing" className="text-muted-foreground hover:text-foreground">Pricing</Link>
-            </div>
+          <div className="md:hidden py-4 border-t border-border flex flex-col gap-4">
+            <Link to="/" className="text-muted-foreground hover:text-foreground">Home</Link>
+            <Link to="/about" className="text-muted-foreground hover:text-foreground">About</Link>
+            <Link to="/contact" className="text-muted-foreground hover:text-foreground">Contact</Link>
           </div>
         )}
       </div>
@@ -386,55 +326,59 @@ export default function Footer() {
 \`\`\`tsx:src/pages/Index.tsx
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
-import { ArrowRight, Star } from 'lucide-react';
 
 export default function Index() {
-  const features = [
-    { title: 'Lightning Fast', description: 'Built for speed and performance' },
-    { title: 'Secure by Design', description: 'Enterprise-grade security' },
-    { title: 'Easy to Use', description: 'Intuitive interface for everyone' },
-  ];
-
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      
-      <section className="pt-32 pb-20 px-4 sm:px-6">
-        <div className="max-w-4xl mx-auto text-center">
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-foreground mb-6">
-            Build Something Amazing
-          </h1>
-          <p className="text-lg sm:text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-            Create beautiful, professional applications with our powerful platform.
-          </p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <button className="flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors">
-              Get Started <ArrowRight className="w-4 h-4" />
-            </button>
-            <button className="px-6 py-3 border border-border text-foreground rounded-lg hover:bg-muted transition-colors">
-              Learn More
-            </button>
+      <main className="pt-16">
+        <section className="py-20 px-4 sm:px-6">
+          <div className="max-w-4xl mx-auto text-center">
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-foreground mb-6">
+              Welcome to Our Site
+            </h1>
+            <p className="text-lg sm:text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
+              A beautiful, professional website built with modern technologies.
+            </p>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+              <button className="px-6 py-3 bg-primary text-primary-foreground rounded-lg hover:opacity-90">
+                Get Started
+              </button>
+              <button className="px-6 py-3 border border-border text-foreground rounded-lg hover:bg-muted">
+                Learn More
+              </button>
+            </div>
           </div>
-        </div>
-      </section>
-
-      <section className="py-20 px-4 sm:px-6 bg-muted/30">
-        <div className="max-w-6xl mx-auto">
-          <h2 className="text-3xl font-bold text-center text-foreground mb-12">Why Choose Us</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {features.map((feature, index) => (
-              <div key={index} className="p-6 bg-card rounded-xl border border-border">
+        </section>
+        <section className="py-20 px-4 sm:px-6 bg-muted/30">
+          <div className="max-w-6xl mx-auto">
+            <h2 className="text-3xl font-bold text-center text-foreground mb-12">Our Features</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              <div className="p-6 bg-card rounded-xl border border-border">
                 <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mb-4">
-                  <Star className="w-6 h-6 text-primary" />
+                  <span className="text-2xl">⚡</span>
                 </div>
-                <h3 className="text-xl font-semibold text-foreground mb-2">{feature.title}</h3>
-                <p className="text-muted-foreground">{feature.description}</p>
+                <h3 className="text-xl font-semibold text-foreground mb-2">Lightning Fast</h3>
+                <p className="text-muted-foreground">Built for speed and performance.</p>
               </div>
-            ))}
+              <div className="p-6 bg-card rounded-xl border border-border">
+                <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mb-4">
+                  <span className="text-2xl">🔒</span>
+                </div>
+                <h3 className="text-xl font-semibold text-foreground mb-2">Secure</h3>
+                <p className="text-muted-foreground">Enterprise-grade security built in.</p>
+              </div>
+              <div className="p-6 bg-card rounded-xl border border-border">
+                <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mb-4">
+                  <span className="text-2xl">✨</span>
+                </div>
+                <h3 className="text-xl font-semibold text-foreground mb-2">Easy to Use</h3>
+                <p className="text-muted-foreground">Intuitive interface for everyone.</p>
+              </div>
+            </div>
           </div>
-        </div>
-      </section>
-
+        </section>
+      </main>
       <Footer />
     </div>
   );
@@ -442,13 +386,9 @@ export default function Index() {
 \`\`\`
 
 ═══════════════════════════════════════════════════════════════════════════════
-
-RESPONSE FORMAT:
-1. Brief acknowledgment (1-2 sentences)
-2. Generate ALL required scaffold files above (adapted to user's request)
-3. Quick summary of what was created
-
-IMPORTANT: Adapt the page content to what the user asks for, but ALWAYS include the full scaffold structure.`;
+ADAPT the Index.tsx content to match the user's request (bakery, portfolio, etc.)
+Use STATIC content (no .map loops) and EMOJI icons for reliability.
+═══════════════════════════════════════════════════════════════════════════════`;
 
 // ============================================================================
 // INCREMENTAL CHANGES - Surgical updates to existing code
@@ -874,6 +814,132 @@ function buildProjectContext(files: ProjectFile[]): string {
 }
 
 // ============================================================================
+// CODE VALIDATION & AUTO-FIX
+// ============================================================================
+interface ValidationResult {
+  isValid: boolean;
+  errors: string[];
+  fixedCode?: string;
+}
+
+// Validate generated code for common issues
+function validateGeneratedCode(response: string): ValidationResult {
+  const errors: string[] = [];
+  
+  // Extract code blocks
+  const codeBlockRegex = /```(\w+)?:?([^\n]*)\n([\s\S]*?)```/g;
+  let match;
+  
+  while ((match = codeBlockRegex.exec(response)) !== null) {
+    const language = match[1] || '';
+    const content = match[3];
+    
+    // Skip non-code blocks
+    if (!['tsx', 'ts', 'jsx', 'js', 'css'].includes(language)) continue;
+    
+    // Check for common JSX/TSX errors
+    if (language === 'tsx' || language === 'jsx') {
+      // Check for unclosed tags
+      const openTags = (content.match(/<(\w+)[^>]*(?<!\/\s*)>/g) || []).length;
+      const closeTags = (content.match(/<\/\w+>/g) || []).length;
+      const selfClosing = (content.match(/<\w+[^>]*\/>/g) || []).length;
+      
+      if (Math.abs(openTags - closeTags - selfClosing) > 2) {
+        errors.push('Possible unclosed JSX tags detected');
+      }
+      
+      // Check for missing imports
+      if (content.includes('className=') && !content.includes("import") && !content.includes("export default")) {
+        // This is likely a component file
+      }
+      
+      // Check for syntax errors in JSX expressions
+      const jsxExpressions = content.match(/\{[^}]*$/gm);
+      if (jsxExpressions) {
+        errors.push('Unclosed JSX expression detected');
+      }
+      
+      // Check for return statement in components
+      if (content.includes('export default function') || content.includes('const ') && content.includes('= () =>')) {
+        if (!content.includes('return') && !content.includes('=>')) {
+          errors.push('Component may be missing return statement');
+        }
+      }
+    }
+    
+    // Check for unbalanced brackets
+    const openBrackets = (content.match(/\{/g) || []).length;
+    const closeBrackets = (content.match(/\}/g) || []).length;
+    if (openBrackets !== closeBrackets) {
+      errors.push(`Unbalanced curly braces: ${openBrackets} open, ${closeBrackets} close`);
+    }
+    
+    const openParens = (content.match(/\(/g) || []).length;
+    const closeParens = (content.match(/\)/g) || []).length;
+    if (openParens !== closeParens) {
+      errors.push(`Unbalanced parentheses: ${openParens} open, ${closeParens} close`);
+    }
+  }
+  
+  return {
+    isValid: errors.length === 0,
+    errors,
+  };
+}
+
+// Auto-fix common code issues using AI review
+async function autoFixCode(
+  originalResponse: string,
+  errors: string[],
+  apiKey: string
+): Promise<string> {
+  const fixPrompt = `You are a code reviewer. The following code has these issues:
+${errors.map(e => `- ${e}`).join('\n')}
+
+Original code:
+${originalResponse}
+
+Please fix ALL the issues and return the COMPLETE corrected code.
+Keep the same format with \`\`\`language:path/to/file.ext
+Ensure all JSX tags are properly closed, all brackets are balanced, and all imports are correct.
+Return ONLY the fixed code, no explanations.`;
+
+  try {
+    const response = await fetch(LOVABLE_AI_GATEWAY, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: MODELS.code,
+        messages: [{ role: "user", content: fixPrompt }],
+        max_tokens: 12000,
+        temperature: 0.3, // Lower temperature for more deterministic fixes
+      }),
+    });
+
+    if (!response.ok) {
+      console.error("Auto-fix failed, returning original");
+      return originalResponse;
+    }
+
+    const data = await response.json();
+    const fixedCode = data.choices?.[0]?.message?.content;
+    
+    if (fixedCode && fixedCode.includes('```')) {
+      console.log("Auto-fix applied successfully");
+      return fixedCode;
+    }
+    
+    return originalResponse;
+  } catch (error) {
+    console.error("Auto-fix error:", error);
+    return originalResponse;
+  }
+}
+
+// ============================================================================
 // AI CALL FUNCTIONS
 // ============================================================================
 async function callLovableAI(messages: Message[], model: string, systemPrompt: string, apiKey: string): Promise<string> {
@@ -898,7 +964,24 @@ async function callLovableAI(messages: Message[], model: string, systemPrompt: s
   }
 
   const data = await response.json();
-  return data.choices?.[0]?.message?.content || "";
+  let generatedCode = data.choices?.[0]?.message?.content || "";
+  
+  // Validate generated code
+  const validation = validateGeneratedCode(generatedCode);
+  
+  if (!validation.isValid) {
+    console.log("Code validation failed:", validation.errors);
+    // Auto-fix the code
+    generatedCode = await autoFixCode(generatedCode, validation.errors, apiKey);
+    
+    // Re-validate after fix
+    const revalidation = validateGeneratedCode(generatedCode);
+    if (!revalidation.isValid) {
+      console.log("Code still has issues after auto-fix:", revalidation.errors);
+    }
+  }
+  
+  return generatedCode;
 }
 
 async function callLovableAIStream(opts: {
