@@ -134,6 +134,78 @@ export type Database = {
         }
         Relationships: []
       }
+      file_operations: {
+        Row: {
+          ai_model: string | null
+          ai_reasoning: string | null
+          applied: boolean
+          applied_at: string | null
+          created_at: string
+          file_path: string
+          id: string
+          new_content: string | null
+          operation: Database["public"]["Enums"]["file_operation_type"]
+          previous_content: string | null
+          previous_path: string | null
+          session_id: string | null
+          user_id: string
+          validated: boolean
+          validation_errors: Json | null
+          workspace_id: string
+        }
+        Insert: {
+          ai_model?: string | null
+          ai_reasoning?: string | null
+          applied?: boolean
+          applied_at?: string | null
+          created_at?: string
+          file_path: string
+          id?: string
+          new_content?: string | null
+          operation: Database["public"]["Enums"]["file_operation_type"]
+          previous_content?: string | null
+          previous_path?: string | null
+          session_id?: string | null
+          user_id: string
+          validated?: boolean
+          validation_errors?: Json | null
+          workspace_id: string
+        }
+        Update: {
+          ai_model?: string | null
+          ai_reasoning?: string | null
+          applied?: boolean
+          applied_at?: string | null
+          created_at?: string
+          file_path?: string
+          id?: string
+          new_content?: string | null
+          operation?: Database["public"]["Enums"]["file_operation_type"]
+          previous_content?: string | null
+          previous_path?: string | null
+          session_id?: string | null
+          user_id?: string
+          validated?: boolean
+          validation_errors?: Json | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "file_operations_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "generation_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "file_operations_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       file_versions: {
         Row: {
           created_at: string
@@ -181,6 +253,83 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      generation_sessions: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          credits_used: number | null
+          duration_ms: number | null
+          error_message: string | null
+          files_generated: number | null
+          files_planned: number | null
+          id: string
+          metadata: Json | null
+          model_used: string | null
+          plan: Json | null
+          plan_created_at: string | null
+          prompt: string
+          started_at: string | null
+          status: Database["public"]["Enums"]["generation_session_status"]
+          tokens_used: number | null
+          user_id: string
+          validation_errors: Json | null
+          validation_passed: boolean | null
+          workspace_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          credits_used?: number | null
+          duration_ms?: number | null
+          error_message?: string | null
+          files_generated?: number | null
+          files_planned?: number | null
+          id?: string
+          metadata?: Json | null
+          model_used?: string | null
+          plan?: Json | null
+          plan_created_at?: string | null
+          prompt: string
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["generation_session_status"]
+          tokens_used?: number | null
+          user_id: string
+          validation_errors?: Json | null
+          validation_passed?: boolean | null
+          workspace_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          credits_used?: number | null
+          duration_ms?: number | null
+          error_message?: string | null
+          files_generated?: number | null
+          files_planned?: number | null
+          id?: string
+          metadata?: Json | null
+          model_used?: string | null
+          plan?: Json | null
+          plan_created_at?: string | null
+          prompt?: string
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["generation_session_status"]
+          tokens_used?: number | null
+          user_id?: string
+          validation_errors?: Json | null
+          validation_passed?: boolean | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "generation_sessions_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
             referencedColumns: ["id"]
           },
         ]
@@ -553,6 +702,109 @@ export type Database = {
         }
         Relationships: []
       }
+      workspace_files: {
+        Row: {
+          content: string
+          created_at: string
+          file_path: string
+          file_type: string | null
+          hash: string | null
+          id: string
+          is_generated: boolean
+          metadata: Json | null
+          size_bytes: number | null
+          updated_at: string
+          user_id: string
+          workspace_id: string
+        }
+        Insert: {
+          content?: string
+          created_at?: string
+          file_path: string
+          file_type?: string | null
+          hash?: string | null
+          id?: string
+          is_generated?: boolean
+          metadata?: Json | null
+          size_bytes?: number | null
+          updated_at?: string
+          user_id: string
+          workspace_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          file_path?: string
+          file_type?: string | null
+          hash?: string | null
+          id?: string
+          is_generated?: boolean
+          metadata?: Json | null
+          size_bytes?: number | null
+          updated_at?: string
+          user_id?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_files_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workspaces: {
+        Row: {
+          config: Json
+          created_at: string
+          id: string
+          last_activity_at: string | null
+          metadata: Json
+          preview_status: string | null
+          preview_url: string | null
+          project_id: string
+          status: Database["public"]["Enums"]["workspace_status"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          config?: Json
+          created_at?: string
+          id?: string
+          last_activity_at?: string | null
+          metadata?: Json
+          preview_status?: string | null
+          preview_url?: string | null
+          project_id: string
+          status?: Database["public"]["Enums"]["workspace_status"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          config?: Json
+          created_at?: string
+          id?: string
+          last_activity_at?: string | null
+          metadata?: Json
+          preview_status?: string | null
+          preview_url?: string | null
+          project_id?: string
+          status?: Database["public"]["Enums"]["workspace_status"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspaces_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: true
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -572,6 +824,7 @@ export type Database = {
           success: boolean
         }[]
       }
+      apply_file_operation: { Args: { p_operation_id: string }; Returns: Json }
       check_ai_rate_limit: {
         Args: {
           p_max_requests?: number
@@ -611,6 +864,10 @@ export type Database = {
         }
         Returns: number
       }
+      get_or_create_workspace: {
+        Args: { p_project_id: string; p_user_id: string }
+        Returns: string
+      }
       get_user_total_credits: { Args: { p_user_id: string }; Returns: number }
       user_has_credits: {
         Args: { p_amount: number; p_user_id: string }
@@ -635,8 +892,23 @@ export type Database = {
         | "usage"
         | "refund"
         | "admin_adjustment"
+      file_operation_type: "create" | "update" | "delete" | "rename" | "move"
+      generation_session_status:
+        | "pending"
+        | "planning"
+        | "scaffolding"
+        | "generating"
+        | "validating"
+        | "completed"
+        | "failed"
       project_status: "building" | "ready" | "failed"
       subscription_plan_type: "free" | "pro" | "business" | "enterprise"
+      workspace_status:
+        | "initializing"
+        | "ready"
+        | "generating"
+        | "error"
+        | "archived"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -783,8 +1055,25 @@ export const Constants = {
         "refund",
         "admin_adjustment",
       ],
+      file_operation_type: ["create", "update", "delete", "rename", "move"],
+      generation_session_status: [
+        "pending",
+        "planning",
+        "scaffolding",
+        "generating",
+        "validating",
+        "completed",
+        "failed",
+      ],
       project_status: ["building", "ready", "failed"],
       subscription_plan_type: ["free", "pro", "business", "enterprise"],
+      workspace_status: [
+        "initializing",
+        "ready",
+        "generating",
+        "error",
+        "archived",
+      ],
     },
   },
 } as const

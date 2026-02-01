@@ -16,7 +16,8 @@ import DashboardSettings from "./pages/DashboardSettings";
 import DashboardProject from "./pages/DashboardProject";
 import Docs from "./pages/Docs";
 import Explore from "./pages/Explore";
-import ProjectEditor from "./pages/ProjectEditor";
+// Use the new backend-driven workspace (V2)
+import ProjectWorkspaceV2 from "./components/workspace/ProjectWorkspaceV2";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
@@ -42,7 +43,8 @@ const App = () => (
             <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
             <Route path="/docs" element={<Docs />} />
             <Route path="/explore" element={<Explore />} />
-            <Route path="/project/:projectId" element={<ProtectedRoute><ProjectEditor /></ProtectedRoute>} />
+            {/* Use the new backend-driven workspace */}
+            <Route path="/project/:projectId" element={<ProtectedRoute><ProjectWorkspaceV2 /></ProtectedRoute>} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
