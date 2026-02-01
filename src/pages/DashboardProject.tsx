@@ -1,5 +1,5 @@
-import ProjectWorkspace from '@/components/workspace/ProjectWorkspace';
+import ProjectWorkspaceV3 from '@/components/workspace/ProjectWorkspaceV3';
 
 export default function DashboardProject() {
-  return <ProjectWorkspace />;
+  return <ProjectWorkspaceV3 />;
 }
