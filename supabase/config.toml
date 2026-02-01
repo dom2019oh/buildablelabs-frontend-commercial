@@ -1,1 +1,10 @@
 project_id = "jbhoyxnnyprjebdbeuxi"
+
+[functions.ai-chat]
+verify_jwt = false
+
+[functions.workspace-api]
+verify_jwt = false
+
+[functions.buildable-generate]
+verify_jwt = false
