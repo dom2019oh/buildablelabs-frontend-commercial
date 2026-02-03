@@ -16,6 +16,9 @@ const rotatingWords = [
   "Store!",
   "Blog!",
   "Tool!",
+  "API!",
+  "Chatbot!",
+  "Landing Page!",
 ];
 
 export default function Index() {
@@ -60,6 +63,7 @@ export default function Index() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 1, ease: "easeOut" }}
             className="flex items-center gap-3 text-3xl sm:text-4xl md:text-5xl font-bold text-foreground mb-12"
+            style={{ fontFamily: "'Sora', sans-serif" }}
           >
             <span>Build a...</span>
             <RotatingText
@@ -69,10 +73,10 @@ export default function Index() {
               initial={{ y: "100%" }}
               animate={{ y: 0 }}
               exit={{ y: "-120%" }}
-              staggerDuration={0.025}
+              staggerDuration={0.02}
               splitLevelClassName="overflow-hidden pb-0.5 sm:pb-1 md:pb-1"
-              transition={{ type: "spring", damping: 30, stiffness: 400 }}
-              rotationInterval={2000}
+              transition={{ type: "spring", damping: 35, stiffness: 300 }}
+              rotationInterval={800}
             />
           </motion.div>
 
