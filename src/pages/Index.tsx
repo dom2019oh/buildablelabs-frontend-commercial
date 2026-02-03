@@ -76,7 +76,7 @@ export default function Index() {
               staggerDuration={0.02}
               splitLevelClassName="overflow-hidden pb-0.5 sm:pb-1 md:pb-1"
               transition={{ type: "spring", damping: 35, stiffness: 300 }}
-              rotationInterval={800}
+              rotationInterval={2000}
             />
           </motion.div>
 
