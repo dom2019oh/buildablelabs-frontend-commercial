@@ -98,11 +98,12 @@ async function backendAPI<T = unknown>(
 // FALLBACK: Edge Function API (if Railway backend unavailable)
 // =============================================================================
 
-async function edgeFunctionAPI(
+async function edgeFunctionAPI<T = Record<string, unknown>>(
   action: string,
   accessToken: string,
-  data?: Record<string, unknown>
-) {
+  data?: Record<string, unknown>,
+  retryCount = 0
+): Promise<T> {
   const response = await fetch(
     `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/workspace-api`,
     {
@@ -116,8 +117,24 @@ async function edgeFunctionAPI(
   );
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || "API request failed");
+    const error = await response.json().catch(() => ({ error: "Request failed" }));
+    const errorMessage = error.error || "API request failed";
+    
+    // If JWT expired, try to refresh the session and retry once
+    if (errorMessage.includes("JWT") && errorMessage.includes("expired") && retryCount < 1) {
+      console.log("[Workspace] JWT expired, refreshing session and retrying...");
+      const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+      
+      if (refreshError || !refreshData.session?.access_token) {
+        console.error("[Workspace] Failed to refresh session:", refreshError);
+        throw new Error("Session expired. Please log in again.");
+      }
+      
+      // Retry with the new access token
+      return edgeFunctionAPI<T>(action, refreshData.session.access_token, data, retryCount + 1);
+    }
+    
+    throw new Error(errorMessage);
   }
 
   return response.json();
@@ -329,7 +346,7 @@ export function useWorkspace(projectId: string | undefined) {
         );
         return result.file;
       } else {
-        const result = await edgeFunctionAPI("getFile", accessToken, {
+        const result = await edgeFunctionAPI<{ file: WorkspaceFile }>("getFile", accessToken, {
           workspaceId,
           data: { filePath },
         });
