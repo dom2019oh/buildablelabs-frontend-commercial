@@ -5,6 +5,7 @@ import { ArrowRight, Plus, ArrowUp } from "lucide-react";
 import FloatingLines from "@/components/FloatingLines";
 import RotatingText from "@/components/RotatingText";
 import Navbar from "@/components/Navbar";
+import ProjectsSection from "@/components/home/ProjectsSection";
 import { useAuth } from "@/hooks/useAuth";
 
 const rotatingWords = [
@@ -117,27 +118,27 @@ export default function Index() {
         <Navbar />
 
         {/* Hero Section */}
-        <section className="min-h-screen flex flex-col items-center justify-center px-6">
-          {/* Rotating Text Header */}
+        <section className={`flex flex-col items-center justify-center px-6 ${user ? 'pt-32 pb-16' : 'min-h-screen'}`}>
+          {/* Rotating Text Header - Smaller */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 1, ease: "easeOut" }}
-            className="flex items-center gap-3 text-3xl sm:text-4xl md:text-5xl font-bold text-foreground mb-6"
+            className="flex items-center gap-2 text-2xl sm:text-3xl md:text-4xl font-bold text-foreground mb-6"
             style={{ fontFamily: "'Sora', sans-serif" }}
           >
             <span>Build a...</span>
             <RotatingText
               texts={rotatingWords}
-              mainClassName="px-3 sm:px-4 md:px-5 bg-zinc-900 text-white overflow-hidden py-1 sm:py-2 md:py-3 justify-center rounded-xl border border-border/50"
+              mainClassName="px-2 sm:px-3 md:px-4 bg-zinc-900 text-white overflow-hidden py-1 sm:py-1.5 md:py-2 justify-center rounded-lg border border-border/50"
               staggerFrom="last"
               initial={{ y: "100%", opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: "-120%", opacity: 0 }}
               staggerDuration={0.02}
-              splitLevelClassName="overflow-hidden pb-0.5 sm:pb-1 md:pb-1"
+              splitLevelClassName="overflow-hidden pb-0.5 sm:pb-1"
               transition={{ type: "spring", damping: 35, stiffness: 300 }}
-              rotationInterval={2000}
+              rotationInterval={4000}
             />
           </motion.div>
 
@@ -213,32 +214,30 @@ export default function Index() {
             </form>
           </motion.div>
 
-          {/* CTA Buttons */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.6, delay: 2 }}
-            className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-8"
-          >
-            {user ? (
-              <Link to="/dashboard" className="glass-button flex items-center gap-2">
-                Go to Dashboard
-                <ArrowRight className="w-4 h-4" />
-              </Link>
-            ) : (
+          {/* CTA Buttons - Only show for non-logged users */}
+          {!user && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.6, delay: 2 }}
+              className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-8"
+            >
               <Link to="/sign-up" className="glass-button flex items-center gap-2">
                 Try Buildable
                 <ArrowRight className="w-4 h-4" />
               </Link>
-            )}
-            <Link to="/docs" className="glass-button flex items-center gap-2">
-              Learn More
-            </Link>
-          </motion.div>
+              <Link to="/docs" className="glass-button flex items-center gap-2">
+                Learn More
+              </Link>
+            </motion.div>
+          )}
         </section>
 
+        {/* Projects Section - Only for logged in users */}
+        {user && <ProjectsSection />}
+
         {/* Footer */}
-        <footer className="absolute bottom-0 left-0 right-0 py-6 px-6 border-t border-border/30">
+        <footer className={`py-6 px-6 border-t border-border/30 ${user ? '' : 'absolute bottom-0 left-0 right-0'}`}>
           <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">© 2026 Buildable. All rights reserved.</span>
