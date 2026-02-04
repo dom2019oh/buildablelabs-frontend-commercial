@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { PanelLeft, Eye, Loader2 } from 'lucide-react';
+import { PanelLeft, Eye, Loader2, Database, Gauge } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useProject, useUpdateProject } from '@/hooks/useProjects';
@@ -10,17 +10,19 @@ import { useBuildableAI } from '@/hooks/useBuildableAI';
 import { useWorkspace } from '@/hooks/useWorkspace';
 import { useFileVersions } from '@/hooks/useFileVersions';
 import { useProjectFilesStore, generatePreviewHtml, compileComponentToHtml, stripCodeBlocksFromResponse } from '@/stores/projectFilesStore';
-import WorkspaceTopBar from './WorkspaceTopBar';
-import ProjectChat from './ProjectChat';
+import WorkspaceTopBarV2 from './WorkspaceTopBarV2';
+import ChatPanelV2 from './ChatPanelV2';
 import LivePreview from './LivePreview';
 import WebContainerPreview from './WebContainerPreview';
 import FileExplorer from './FileExplorer';
 import CodeViewer from './CodeViewer';
 import VersionHistoryPanel from './VersionHistoryPanel';
-import PublishDialog from './PublishDialog';
-import ThinkingIndicator from './ThinkingIndicator';
+import ThinkingIndicatorV2 from './ThinkingIndicatorV2';
+import PreviewShowcase from './PreviewShowcase';
 import { Skeleton } from '@/components/ui/skeleton';
-// Tabs removed - no longer used
+
+// Interface modes type
+type InterfaceMode = 'preview' | 'database' | 'code' | 'performance';
 
 export default function ProjectWorkspaceV3() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -86,17 +88,17 @@ export default function ProjectWorkspaceV3() {
 
   // UI State
   const [isChatCollapsed, setIsChatCollapsed] = useState(false);
-  const [activeView, setActiveView] = useState<'preview' | 'code' | 'logs'>('preview');
+  const [activeMode, setActiveMode] = useState<InterfaceMode>('preview');
   const [previewMode, setPreviewMode] = useState<'static' | 'sandbox'>('static');
   const [webContainerSupported, setWebContainerSupported] = useState(true);
   const [currentRoute, setCurrentRoute] = useState('/');
-  const [isPublishing, setIsPublishing] = useState(false);
   const [previewKey, setPreviewKey] = useState(0);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  const [isPublishDialogOpen, setIsPublishDialogOpen] = useState(false);
   const [currentVersionNumber, setCurrentVersionNumber] = useState(0);
   const [isRestoring, setIsRestoring] = useState(false);
   const [sandboxStatus, setSandboxStatus] = useState<string>('idle');
+  const [deviceSize, setDeviceSize] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
+  const [currentActions, setCurrentActions] = useState<string[]>([]);
 
   const availableRoutes = ['/', '/about', '/contact', '/dashboard', '/settings'];
   
@@ -236,9 +238,9 @@ export default function ProjectWorkspaceV3() {
           },
         });
 
-        // Switch to preview view
+        // Switch to preview mode
         if (files.length > 0) {
-          setActiveView('preview');
+          setActiveMode('preview');
           setSelectedFile(files[0].path);
         }
       },
@@ -255,7 +257,7 @@ export default function ProjectWorkspaceV3() {
 
   const handleFileSelect = useCallback((file: { path: string }) => {
     setSelectedFile(file.path);
-    setActiveView('code');
+    setActiveMode('code');
   }, [setSelectedFile]);
 
   const handleFileSave = useCallback((newCode: string) => {
@@ -387,34 +389,26 @@ export default function ProjectWorkspaceV3() {
   }
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden bg-background">
-      {/* Top Bar */}
-      <WorkspaceTopBar
+    <div className="h-screen flex flex-col overflow-hidden bg-zinc-900">
+      {/* Top Bar - New V2 version */}
+      <WorkspaceTopBarV2
         projectName={project.name}
         projectId={projectId!}
         currentRoute={currentRoute}
         onRouteChange={setCurrentRoute}
         availableRoutes={availableRoutes}
-        activeView={activeView}
-        onViewChange={setActiveView}
-        onPublish={() => setIsPublishDialogOpen(true)}
-        isPublishing={isPublishing}
+        activeMode={activeMode}
+        onModeChange={setActiveMode}
         onRefreshPreview={handleRefreshPreview}
-        onUndo={handleUndo}
-        onRedo={handleRedo}
-        onOpenHistory={() => setIsHistoryOpen(true)}
-        canUndo={currentVersionNumber > 1}
-        canRedo={currentVersionNumber < latestVersion}
-        currentVersion={currentVersionNumber}
-        totalVersions={versions.length}
-      />
-
-      {/* Publish Dialog */}
-      <PublishDialog
-        isOpen={isPublishDialogOpen}
-        onClose={() => setIsPublishDialogOpen(false)}
-        projectId={projectId!}
-        projectName={project.name}
+        onOpenInNewTab={() => {
+          const url = `https://${project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.buildablelabs.dev`;
+          window.open(url, '_blank');
+        }}
+        onToggleHistory={() => setIsHistoryOpen(!isHistoryOpen)}
+        onCollapseChat={() => setIsChatCollapsed(!isChatCollapsed)}
+        isChatCollapsed={isChatCollapsed}
+        deviceSize={deviceSize}
+        onDeviceSizeChange={setDeviceSize}
         previewHtml={previewHtml || ''}
       />
 
@@ -434,7 +428,7 @@ export default function ProjectWorkspaceV3() {
         onPreviewVersion={(version) => {
           if (version.preview_html) {
             setPreviewHtml(version.preview_html);
-            setActiveView('preview');
+            setActiveMode('preview');
             handleRefreshPreview();
           }
         }}
@@ -444,7 +438,7 @@ export default function ProjectWorkspaceV3() {
 
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Chat Panel */}
+        {/* Chat Panel - New V2 version */}
         <AnimatePresence initial={false}>
           {!isChatCollapsed && (
             <motion.div
@@ -452,9 +446,9 @@ export default function ProjectWorkspaceV3() {
               animate={{ width: 400, opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
               transition={{ duration: 0.2, ease: 'easeInOut' }}
-              className="h-full overflow-hidden flex-shrink-0"
+              className="h-full overflow-hidden flex-shrink-0 border-r border-zinc-800"
             >
-              <ProjectChat
+              <ChatPanelV2
                 messages={displayMessages}
                 isLoading={isMessagesLoading}
                 isSending={isGenerating}
@@ -464,12 +458,10 @@ export default function ProjectWorkspaceV3() {
                   taskType: 'generation' 
                 } : undefined}
                 onSendMessage={handleSendMessage}
-                onCollapse={() => setIsChatCollapsed(true)}
                 projectName={project.name}
-                filesCreated={generatedFiles.map(f => f.path)}
+                projectId={projectId!}
                 lastError={aiError}
-                onRetry={() => {}}
-                isRetrying={false}
+                currentActions={currentActions}
               />
             </motion.div>
           )}
@@ -498,12 +490,12 @@ export default function ProjectWorkspaceV3() {
         </AnimatePresence>
 
         {/* Main Panel */}
-        <div className="flex-1 h-full flex">
-          {activeView === 'code' ? (
+        <div className="flex-1 h-full flex bg-zinc-900">
+          {activeMode === 'code' ? (
             <>
               {/* File Explorer */}
-              <div className="w-60 border-r border-border bg-muted/30">
-                <div className="h-10 flex items-center px-3 border-b border-border">
+              <div className="w-60 border-r border-zinc-800 bg-zinc-900">
+                <div className="h-10 flex items-center px-3 border-b border-zinc-800">
                   <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
                     Explorer
                   </span>
@@ -533,11 +525,27 @@ export default function ProjectWorkspaceV3() {
                 )}
               </div>
             </>
+          ) : activeMode === 'database' ? (
+            <div className="flex-1 h-full flex items-center justify-center bg-zinc-900">
+              <div className="text-center">
+                <Database className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                <h3 className="text-lg font-medium mb-2">Cloud Database</h3>
+                <p className="text-muted-foreground text-sm">Database management coming soon</p>
+              </div>
+            </div>
+          ) : activeMode === 'performance' ? (
+            <div className="flex-1 h-full flex items-center justify-center bg-zinc-900">
+              <div className="text-center">
+                <Gauge className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                <h3 className="text-lg font-medium mb-2">Performance & Speed</h3>
+                <p className="text-muted-foreground text-sm">Performance metrics coming soon</p>
+              </div>
+            </div>
           ) : (
             /* Preview Panel */
-            <div className="flex-1 h-full flex flex-col">
-              {/* Preview Header */}
-              <div className="h-10 flex items-center justify-between px-3 border-b border-border bg-muted/30">
+            <div className="flex-1 h-full flex flex-col bg-zinc-900">
+              {/* Preview Header - Minimal */}
+              <div className="h-10 flex items-center justify-between px-3 border-b border-zinc-800">
                 <div className="flex items-center gap-2">
                   <Eye className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm font-medium">Preview</span>
@@ -562,16 +570,20 @@ export default function ProjectWorkspaceV3() {
                 {/* Simple Thinking Indicator - Bottom overlay */}
                 {isGenerating && (
                   <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10">
-                    <div className="bg-background/95 backdrop-blur-sm border border-border rounded-full shadow-lg">
-                      <ThinkingIndicator 
+                    <div className="bg-zinc-900/95 backdrop-blur-sm border border-zinc-700 rounded-2xl shadow-lg px-4 py-2">
+                      <ThinkingIndicatorV2 
                         isVisible={true}
                         taskType="generation"
+                        currentActions={currentActions}
                       />
                     </div>
                   </div>
                 )}
 
-                {previewMode === 'sandbox' ? (
+                {/* Show showcase when no content */}
+                {!previewHtml && messages.length === 0 && !isGenerating ? (
+                  <PreviewShowcase isVisible={true} />
+                ) : previewMode === 'sandbox' ? (
                   <WebContainerPreview
                     projectId={projectId!}
                     files={sandboxFiles}
@@ -591,6 +603,10 @@ export default function ProjectWorkspaceV3() {
                     title="Project Preview"
                     className="w-full h-full border-0 bg-white"
                     sandbox="allow-scripts"
+                    style={{
+                      maxWidth: deviceSize === 'mobile' ? '390px' : deviceSize === 'tablet' ? '768px' : '100%',
+                      margin: deviceSize !== 'desktop' ? '0 auto' : undefined,
+                    }}
                   />
                 ) : (
                   <LivePreview
