@@ -207,6 +207,75 @@ export function useBuildableAI(projectId: string | undefined) {
         throw new Error(errorData.error || 'Generation failed');
       }
 
+      // ---------------------------------------------------------------------
+      // NOTE: The backend currently returns a single JSON payload (not SSE).
+      // Fall back to JSON-mode if response is not an event stream.
+      // ---------------------------------------------------------------------
+      const contentType = response.headers.get('content-type') || '';
+      const isJson = contentType.includes('application/json');
+
+      if (isJson) {
+        const payload = await response.json().catch(() => null) as null | {
+          success?: boolean;
+          sessionId?: string | null;
+          filesGenerated?: number;
+          filePaths?: string[];
+          modelsUsed?: string[];
+          validationPassed?: boolean;
+          repairAttempts?: number;
+          errors?: string[];
+          aiMessage?: string;
+          routes?: string[];
+          suggestions?: string[];
+        };
+
+        const filesGenerated = payload?.filesGenerated ?? 0;
+        const filePaths = payload?.filePaths ?? [];
+        const modelsUsed = payload?.modelsUsed ?? [];
+
+        const metadata: GenerationMetadata = {
+          sessionId: payload?.sessionId ?? null,
+          workspaceId,
+          status: payload?.success ? 'completed' : 'failed',
+          model: modelsUsed.join(' → ') || 'unknown',
+          filesGenerated,
+          filePaths,
+          aiMessage: payload?.aiMessage,
+          routes: payload?.routes,
+          suggestions: payload?.suggestions,
+        };
+
+        setState(prev => ({
+          ...prev,
+          isGenerating: false,
+          metadata,
+          aiMessage: payload?.aiMessage ?? '',
+          routes: payload?.routes ?? ['/'],
+          suggestions: payload?.suggestions ?? [],
+          phase: {
+            phase: payload?.success ? 'complete' : 'error',
+            message: payload?.success
+              ? `Generated ${filesGenerated} file(s)`
+              : (payload?.errors?.[0] || 'Generation failed'),
+            progress: 100,
+          },
+          // Files are persisted via realtime inserts; we don't rely on parsing code blocks.
+          streamingContent: payload?.aiMessage ?? '',
+          generatedFiles: prev.generatedFiles,
+          error: payload?.success ? null : (payload?.errors?.join('\n') || 'Generation failed'),
+        }));
+
+        if (payload?.success && filesGenerated > 0) {
+          toast({
+            title: '✅ Generation Complete',
+            description: `Created ${filesGenerated} file(s)`,
+          });
+        }
+
+        onComplete?.([], metadata);
+        return;
+      }
+
       const reader = response.body?.getReader();
       if (!reader) {
         throw new Error('No response body');
