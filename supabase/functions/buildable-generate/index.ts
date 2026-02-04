@@ -15,10 +15,11 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const OPENAI_CHAT_COMPLETIONS = "https://api.openai.com/v1/chat/completions";
+// Use Lovable AI Gateway for access to all models
+const LOVABLE_AI_GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
-// Use GPT-4o for high quality generation
-const MODEL = "gpt-4o";
+// Model for code generation
+const MODEL = "google/gemini-2.5-pro";
 
 // deno-lint-ignore no-explicit-any
 type DB = SupabaseClient<any, "public", any>;
@@ -747,21 +748,57 @@ async function streamGeneration(
     { role: "user", content: prompt }
   ];
 
-  // Call OpenAI with GPT-4o
-  const aiResponse = await fetch(OPENAI_CHAT_COMPLETIONS, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${openaiApiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      messages,
-      stream: true,
-      max_tokens: 16000,
-      temperature: 0.7,
-    }),
-  });
+  // Try Lovable AI Gateway first, fall back to OpenAI
+  const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
+  let aiResponse: Response | null = null;
+  let modelUsed = MODEL;
+
+  if (lovableApiKey) {
+    console.log(`[Generate] Trying Lovable Gateway with model ${MODEL}`);
+    try {
+      aiResponse = await fetch(LOVABLE_AI_GATEWAY, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${lovableApiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: MODEL,
+          messages,
+          stream: true,
+          max_tokens: 16000,
+          temperature: 0.6,
+        }),
+      });
+
+      if (!aiResponse.ok) {
+        console.log(`[Generate] Lovable Gateway failed (${aiResponse.status}), falling back to OpenAI`);
+        aiResponse = null;
+      }
+    } catch (e) {
+      console.log(`[Generate] Lovable Gateway error, falling back to OpenAI:`, e);
+    }
+  }
+
+  // Fallback to OpenAI
+  if (!aiResponse) {
+    console.log(`[Generate] Using OpenAI with model gpt-4o`);
+    modelUsed = "gpt-4o";
+    aiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${openaiApiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gpt-4o",
+        messages,
+        stream: true,
+        max_tokens: 16000,
+        temperature: 0.6,
+      }),
+    });
+  }
 
   if (!aiResponse.ok) {
     const error = await aiResponse.text();
@@ -797,7 +834,7 @@ async function streamGeneration(
         sessionId,
         workspaceId,
         status: "generating",
-        model: MODEL,
+        model: modelUsed,
       };
       controller.enqueue(encoder.encode(`data: ${JSON.stringify(metadata)}\n\n`));
     },
