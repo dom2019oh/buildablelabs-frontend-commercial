@@ -660,10 +660,8 @@ export default function ProjectWorkspaceV3() {
                   </div>
                 )}
 
-                {/* Priority: 1) PreviewShowcase for empty state, 2) Preview HTML if available, 3) Sandbox/LivePreview */}
-                {messages.length === 0 && !isGenerating && !previewHtml ? (
-                  <PreviewShowcase isVisible={true} />
-                ) : previewHtml ? (
+                {/* Priority: 1) Preview HTML if available, 2) PreviewShowcase for empty state */}
+                {previewHtml ? (
                   <iframe
                     key={previewKey}
                     srcDoc={previewHtml}
@@ -675,6 +673,18 @@ export default function ProjectWorkspaceV3() {
                       margin: deviceSize !== 'desktop' ? '0 auto' : undefined,
                     }}
                   />
+                ) : messages.length === 0 && !isGenerating ? (
+                  <PreviewShowcase isVisible={true} />
+                ) : isGenerating ? (
+                  <div className="w-full h-full flex items-center justify-center bg-zinc-900">
+                    <div className="text-center">
+                      <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center">
+                        <Loader2 className="w-8 h-8 text-primary animate-spin" />
+                      </div>
+                      <h3 className="text-lg font-medium mb-2">Building your project...</h3>
+                      <p className="text-muted-foreground text-sm">This will only take a moment</p>
+                    </div>
+                  </div>
                 ) : previewMode === 'sandbox' ? (
                   <WebContainerPreview
                     projectId={projectId!}
