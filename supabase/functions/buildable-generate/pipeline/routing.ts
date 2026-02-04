@@ -18,8 +18,8 @@ export const AI_PROVIDERS: Record<ProviderKey, ModelConfig> = {
     name: "Grok (xAI)",
     baseUrl: "https://api.x.ai/v1/chat/completions",
     models: {
-      fast: "grok-2-latest",
-      code: "grok-2-latest",
+      fast: "grok-3-mini-fast",
+      code: "grok-3-fast",
       vision: "grok-2-vision-1212",
     },
     maxTokens: 16000,
