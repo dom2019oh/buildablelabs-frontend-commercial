@@ -102,6 +102,32 @@ export default function ProjectWorkspaceV3() {
   const [currentActions, setCurrentActions] = useState<string[]>([]);
   const [showHistoryInPreview, setShowHistoryInPreview] = useState(false);
 
+  // Pick the best file to compile into a static preview.
+  // IMPORTANT: the AI may generate only /pages/* files (e.g. Dashboard.tsx), so we can't rely on Index/App.
+  const pickPreviewEntryFile = useCallback(
+    (candidateFiles: Array<{ file_path?: string; path?: string; content: string }>) => {
+      const normalized = candidateFiles
+        .map((f) => ({
+          path: f.file_path ?? f.path ?? '',
+          content: f.content,
+        }))
+        .filter((f) => !!f.path);
+
+      const score = (p: string) => {
+        // Higher is better
+        const lower = p.toLowerCase();
+        if (lower.endsWith('src/pages/index.tsx') || lower.endsWith('src/pages/home.tsx')) return 100;
+        if (lower.endsWith('src/pages/dashboard.tsx')) return 90;
+        if (lower.includes('/src/pages/')) return 80;
+        if (lower.endsWith('app.tsx') || lower.endsWith('index.tsx') || lower.endsWith('page.tsx')) return 70;
+        return 10;
+      };
+
+      return normalized.sort((a, b) => score(b.path) - score(a.path))[0] ?? null;
+    },
+    [],
+  );
+
   // Compute available routes from page files dynamically
   const availableRoutes = useMemo(() => {
     const routes = new Set<string>(['/']);
@@ -154,20 +180,16 @@ export default function ProjectWorkspaceV3() {
         addFile(f.file_path, f.content);
       });
       
-      // Generate preview from main file
-      const mainFile = workspaceFiles.find(f => 
-        f.file_path.includes('Index.tsx') || 
-        f.file_path.includes('App.tsx') ||
-        f.file_path.includes('page.tsx')
-      );
-      
-      if (mainFile && !previewHtml) {
-        const html = compileComponentToHtml(mainFile.content);
+      // Generate/refresh preview from best available entry file
+      const entry = pickPreviewEntryFile(workspaceFiles.map(f => ({ file_path: f.file_path, content: f.content })));
+      if (entry) {
+        const html = compileComponentToHtml(entry.content);
         const fullHtml = generatePreviewHtml(html);
         setPreviewHtml(fullHtml);
+        setPreviewKey((prev) => prev + 1);
       }
     }
-  }, [workspaceFiles, addFile, setPreviewHtml, previewHtml]);
+  }, [workspaceFiles, addFile, setPreviewHtml, pickPreviewEntryFile]);
 
   // Load preview from project on mount
   useEffect(() => {
@@ -189,20 +211,16 @@ export default function ProjectWorkspaceV3() {
       // Add files to store
       generatedFiles.forEach(f => addFile(f.path, f.content));
       
-      // Find main component and generate preview
-      const mainFile = generatedFiles.find(f => 
-        f.path.includes('Index.tsx') || 
-        f.path.includes('App.tsx')
-      ) || generatedFiles[0];
-      
-      if (mainFile) {
-        const html = compileComponentToHtml(mainFile.content);
+      // Find best entry component and generate preview
+      const entry = pickPreviewEntryFile(generatedFiles.map(f => ({ path: f.path, content: f.content })));
+      if (entry) {
+        const html = compileComponentToHtml(entry.content);
         const fullHtml = generatePreviewHtml(html);
         setPreviewHtml(fullHtml);
-        setPreviewKey(prev => prev + 1);
+        setPreviewKey((prev) => prev + 1);
       }
     }
-  }, [generatedFiles, addFile, setPreviewHtml]);
+  }, [generatedFiles, addFile, setPreviewHtml, pickPreviewEntryFile]);
 
   const handleRefreshPreview = useCallback(() => {
     setPreviewKey((prev) => prev + 1);
