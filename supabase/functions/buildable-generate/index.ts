@@ -1498,6 +1498,12 @@ serve(async (req) => {
       filesGenerated: result.files.length,
       filePaths: result.files.map(f => f.path),
       modelsUsed: result.modelsUsed,
+      // Useful diagnostics (does not reveal key values)
+      providersAvailable: {
+        grok: !!Deno.env.get("GROK_API_KEY"),
+        gemini: !!Deno.env.get("GEMINI_API_KEY"),
+        openai: !!Deno.env.get("OPENAI_API_KEY"),
+      },
       validationPassed: result.validationPassed,
       repairAttempts: result.repairAttempts,
       errors: result.errors,
