@@ -347,10 +347,16 @@ export async function callAI(
 
     try {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
-      const url: string = config.baseUrl;
+      let url: string = config.baseUrl;
 
-      // All providers using OpenAI-compatible API need Bearer token
-      headers["Authorization"] = `Bearer ${apiKey}`;
+      // Provider-specific auth
+      if (provider === "gemini") {
+        // Google OpenAI-compatible endpoint expects the API key as a query param
+        url = `${config.baseUrl}?key=${apiKey}`;
+      } else {
+        // OpenAI + xAI use Bearer tokens
+        headers["Authorization"] = `Bearer ${apiKey}`;
+      }
 
       const response = await fetch(url, {
         method: "POST",
@@ -366,8 +372,12 @@ export async function callAI(
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.log(`[Router] ${config.name} failed: ${response.status} - ${errorText.slice(0, 200)}`);
-        lastError = new Error(`${config.name}: ${response.status}`);
+        const brief = errorText.slice(0, 400);
+
+        // Gemini commonly returns 429 when the key/project isn't actually billable or quota is exhausted.
+        // Treat it as a provider failure and allow the router to fall back.
+        console.log(`[Router] ${config.name} failed: ${response.status} - ${brief}`);
+        lastError = new Error(`${config.name}: ${response.status}${brief ? ` - ${brief}` : ""}`);
         attemptIndex++;
         continue;
       }
@@ -437,10 +447,14 @@ export async function callAIStreaming(
 
     try {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
-      const url: string = config.baseUrl;
+      let url: string = config.baseUrl;
 
-      // All providers using OpenAI-compatible API need Bearer token
-      headers["Authorization"] = `Bearer ${apiKey}`;
+      // Provider-specific auth
+      if (provider === "gemini") {
+        url = `${config.baseUrl}?key=${apiKey}`;
+      } else {
+        headers["Authorization"] = `Bearer ${apiKey}`;
+      }
 
       const response = await fetch(url, {
         method: "POST",
@@ -455,7 +469,8 @@ export async function callAIStreaming(
       });
 
       if (!response.ok) {
-        console.log(`[Router:Stream] ${config.name} failed: ${response.status}`);
+        const errorText = await response.text();
+        console.log(`[Router:Stream] ${config.name} failed: ${response.status} - ${errorText.slice(0, 200)}`);
         continue;
       }
 
