@@ -43,6 +43,7 @@ export default function ProjectWorkspaceV3() {
   const { 
     workspace,
     workspaceId,
+    isLoadingWorkspace,
     files: workspaceFiles, 
     isLoadingFiles,
     refetchFiles,
@@ -268,11 +269,18 @@ export default function ProjectWorkspaceV3() {
   // Main send message handler - uses buildable-generate
   const handleSendMessage = useCallback(async (content: string) => {
     if (!workspaceId) {
-      toast({
-        title: 'Workspace not ready',
-        description: 'Please wait for the workspace to initialize',
-        variant: 'destructive',
-      });
+      if (isLoadingWorkspace) {
+        toast({
+          title: 'Loading workspace...',
+          description: 'Please wait a moment and try again.',
+        });
+      } else {
+        toast({
+          title: 'Workspace not ready',
+          description: 'Could not initialize workspace. Try refreshing the page.',
+          variant: 'destructive',
+        });
+      }
       return;
     }
 

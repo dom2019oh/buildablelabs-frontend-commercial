@@ -1,47 +1,14 @@
 // =============================================================================
-// useWorkspace - Hook for interacting with the Railway backend
+// useWorkspace - Hook for workspace management with direct Supabase queries
 // =============================================================================
-// This is the primary interface between the read-only frontend and the backend.
-// All AI operations, file reading, and workspace state are managed through this hook.
-// Includes Supabase Realtime for instant updates during generation.
+// Uses direct Supabase queries for CRUD operations (reliable, no edge function needed).
+// Only uses edge functions for AI generation which requires server-side API calls.
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import type { RealtimeChannel } from "@supabase/supabase-js";
-
-// =============================================================================
-// SESSION RESILIENCE
-// =============================================================================
-// Avoid stampeding refreshes when multiple queries fire at once.
-let refreshInFlight: Promise<string | null> | null = null;
-
-async function getValidAccessToken(): Promise<string | null> {
-  const { data } = await supabase.auth.getSession();
-  const session = data.session;
-
-  if (!session?.access_token) return null;
-
-  // Proactively refresh if the session is expired or about to expire.
-  // (expires_at is seconds since epoch)
-  const expiresAtMs = (session.expires_at ?? 0) * 1000;
-  const isExpiredOrNearExpiry = expiresAtMs > 0 && Date.now() > expiresAtMs - 60_000;
-
-  if (!isExpiredOrNearExpiry) return session.access_token;
-
-  if (!refreshInFlight) {
-    refreshInFlight = (async () => {
-      const { data: refreshed, error } = await supabase.auth.refreshSession();
-      if (error) return null;
-      return refreshed.session?.access_token ?? null;
-    })().finally(() => {
-      refreshInFlight = null;
-    });
-  }
-
-  return refreshInFlight;
-}
 
 // =============================================================================
 // TYPES
@@ -90,88 +57,6 @@ export interface FileOperation {
 }
 
 // =============================================================================
-// BACKEND API CONFIGURATION
-// =============================================================================
-
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "https://api.buildablelabs.dev";
-
-// =============================================================================
-// API HELPER - Calls Railway Backend REST API
-// =============================================================================
-
-async function backendAPI<T = unknown>(
-  endpoint: string,
-  accessToken: string,
-  options: {
-    method?: "GET" | "POST" | "PUT" | "DELETE";
-    body?: Record<string, unknown>;
-  } = {}
-): Promise<T> {
-  const { method = "GET", body } = options;
-
-  const response = await fetch(`${BACKEND_URL}${endpoint}`, {
-    method,
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${accessToken}`,
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: "Request failed" }));
-    throw new Error(error.error || `API request failed: ${response.status}`);
-  }
-
-  return response.json();
-}
-
-// =============================================================================
-// FALLBACK: Edge Function API (if Railway backend unavailable)
-// =============================================================================
-
-async function edgeFunctionAPI<T = Record<string, unknown>>(
-  action: string,
-  accessToken: string,
-  data?: Record<string, unknown>,
-  retryCount = 0
-): Promise<T> {
-  const response = await fetch(
-    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/workspace-api`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify({ action, ...data }),
-    }
-  );
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: "Request failed" }));
-    const errorMessage = error.error || "API request failed";
-    
-    // If JWT expired, try to refresh the session and retry once
-    if (errorMessage.includes("JWT") && errorMessage.includes("expired") && retryCount < 1) {
-      console.log("[Workspace] JWT expired, refreshing session and retrying...");
-      const refreshedToken = await getValidAccessToken();
-
-      if (!refreshedToken || refreshedToken === accessToken) {
-        throw new Error("Session expired. Please log in again.");
-      }
-
-      // Retry with the new access token
-      return edgeFunctionAPI<T>(action, refreshedToken, data, retryCount + 1);
-    }
-    
-    throw new Error(errorMessage);
-  }
-
-  return response.json();
-}
-
-// =============================================================================
 // HOOK
 // =============================================================================
 
@@ -184,16 +69,12 @@ export function useWorkspace(projectId: string | undefined) {
   const [liveSession, setLiveSession] = useState<GenerationSession | null>(null);
   const [liveFilesCount, setLiveFilesCount] = useState(0);
   const channelRef = useRef<RealtimeChannel | null>(null);
-  
-  // Backend preference (Railway vs Edge Function)
-  // Using Edge Functions since they have access to Lovable Cloud's service_role key
-  const [useRailwayBackend] = useState(false);
 
-  // Note: do not rely on session.access_token directly during refresh races.
+  const userId = session?.user?.id;
   const isAuthed = !!session;
 
   // =========================================================================
-  // GET OR CREATE WORKSPACE
+  // GET OR CREATE WORKSPACE (direct Supabase query)
   // =========================================================================
 
   const {
@@ -204,30 +85,40 @@ export function useWorkspace(projectId: string | undefined) {
   } = useQuery({
     queryKey: ["workspace", projectId],
     queryFn: async () => {
-      const accessToken = await getValidAccessToken();
-      if (!accessToken || !projectId) return null;
-      
-      if (useRailwayBackend) {
-        // Railway Backend: POST /api/workspace
-        const result = await backendAPI<{ workspace: Workspace }>(
-          "/api/workspace",
-          accessToken,
-          { method: "POST", body: { projectId } }
-        );
-        return result.workspace;
-      } else {
-        // Fallback: Edge Function
-        const result = await edgeFunctionAPI("getOrCreateWorkspace", accessToken, { projectId });
-        return result.workspace as Workspace;
+      if (!userId || !projectId) return null;
+
+      // Use the database RPC function to get or create workspace
+      const { data: workspaceId, error: rpcError } = await supabase.rpc(
+        "get_or_create_workspace",
+        { p_project_id: projectId, p_user_id: userId }
+      );
+
+      if (rpcError) {
+        console.error("[Workspace] RPC error:", rpcError);
+        throw new Error(rpcError.message);
       }
+
+      if (!workspaceId) {
+        throw new Error("Failed to get or create workspace");
+      }
+
+      // Fetch the full workspace record
+      const { data: workspace, error: fetchError } = await supabase
+        .from("workspaces")
+        .select("*")
+        .eq("id", workspaceId)
+        .single();
+
+      if (fetchError) {
+        console.error("[Workspace] Fetch error:", fetchError);
+        throw new Error(fetchError.message);
+      }
+
+      return workspace as Workspace;
     },
-    enabled: isAuthed && !!projectId,
+    enabled: isAuthed && !!projectId && !!userId,
     staleTime: 30000,
-    retry: (failureCount, error) => {
-      // If Railway fails, could add fallback logic here
-      console.warn("Workspace fetch failed:", error);
-      return failureCount < 2;
-    },
+    retry: 2,
   });
 
   const workspace = workspaceData;
@@ -240,15 +131,12 @@ export function useWorkspace(projectId: string | undefined) {
   useEffect(() => {
     if (!workspaceId) return;
 
-    // Clean up existing channel
     if (channelRef.current) {
       supabase.removeChannel(channelRef.current);
     }
 
-    // Create a new channel for this workspace
     const channel = supabase
       .channel(`workspace-${workspaceId}`)
-      // Listen for generation session updates
       .on(
         'postgres_changes',
         {
@@ -259,13 +147,10 @@ export function useWorkspace(projectId: string | undefined) {
         },
         (payload) => {
           console.log('[Realtime] Generation session update:', payload);
-          
           if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
             const session = payload.new as GenerationSession;
             setLiveSession(session);
             setGenerationStatus(session.status);
-            
-            // Refetch data when generation completes
             if (session.status === 'completed' || session.status === 'failed') {
               queryClient.invalidateQueries({ queryKey: ["workspace-files", workspaceId] });
               queryClient.invalidateQueries({ queryKey: ["workspace-sessions", workspaceId] });
@@ -274,7 +159,6 @@ export function useWorkspace(projectId: string | undefined) {
           }
         }
       )
-      // Listen for new files being created
       .on(
         'postgres_changes',
         {
@@ -286,11 +170,9 @@ export function useWorkspace(projectId: string | undefined) {
         (payload) => {
           console.log('[Realtime] New file created:', payload.new);
           setLiveFilesCount((prev) => prev + 1);
-          // Invalidate files cache to show new file
           queryClient.invalidateQueries({ queryKey: ["workspace-files", workspaceId] });
         }
       )
-      // Listen for file updates
       .on(
         'postgres_changes',
         {
@@ -304,7 +186,6 @@ export function useWorkspace(projectId: string | undefined) {
           queryClient.invalidateQueries({ queryKey: ["workspace-files", workspaceId] });
         }
       )
-      // Listen for file operations (audit trail)
       .on(
         'postgres_changes',
         {
@@ -333,7 +214,7 @@ export function useWorkspace(projectId: string | undefined) {
   }, [workspaceId, projectId, queryClient]);
 
   // =========================================================================
-  // GET FILES (READ-ONLY)
+  // GET FILES (direct Supabase query)
   // =========================================================================
 
   const {
@@ -343,20 +224,20 @@ export function useWorkspace(projectId: string | undefined) {
   } = useQuery({
     queryKey: ["workspace-files", workspaceId],
     queryFn: async () => {
-      const accessToken = await getValidAccessToken();
-      if (!accessToken || !workspaceId) return [];
-      
-      if (useRailwayBackend) {
-        // Railway Backend: GET /api/workspace/:id/files
-        const result = await backendAPI<{ files: WorkspaceFile[] }>(
-          `/api/workspace/${workspaceId}/files`,
-          accessToken
-        );
-        return result.files;
-      } else {
-        const result = await edgeFunctionAPI("getFiles", accessToken, { workspaceId });
-        return result.files as WorkspaceFile[];
+      if (!workspaceId || !userId) return [];
+
+      const { data, error } = await supabase
+        .from("workspace_files")
+        .select("id, file_path, content, file_type, is_generated, updated_at")
+        .eq("workspace_id", workspaceId)
+        .order("file_path");
+
+      if (error) {
+        console.error("[Workspace] Files fetch error:", error);
+        return [];
       }
+
+      return (data || []) as WorkspaceFile[];
     },
     enabled: isAuthed && !!workspaceId,
     staleTime: 10000,
@@ -370,29 +251,27 @@ export function useWorkspace(projectId: string | undefined) {
 
   const getFile = useCallback(
     async (filePath: string): Promise<WorkspaceFile | null> => {
-      const accessToken = await getValidAccessToken();
-      if (!accessToken || !workspaceId) return null;
-      
-      if (useRailwayBackend) {
-        // Railway Backend: GET /api/workspace/:id/files/:path
-        const result = await backendAPI<{ file: WorkspaceFile }>(
-          `/api/workspace/${workspaceId}/files/${encodeURIComponent(filePath)}`,
-          accessToken
-        );
-        return result.file;
-      } else {
-        const result = await edgeFunctionAPI<{ file: WorkspaceFile }>("getFile", accessToken, {
-          workspaceId,
-          data: { filePath },
-        });
-        return result.file;
+      if (!workspaceId) return null;
+
+      const { data, error } = await supabase
+        .from("workspace_files")
+        .select("*")
+        .eq("workspace_id", workspaceId)
+        .eq("file_path", filePath)
+        .maybeSingle();
+
+      if (error) {
+        console.error("[Workspace] Get file error:", error);
+        return null;
       }
+
+      return data as WorkspaceFile | null;
     },
-    [workspaceId, useRailwayBackend]
+    [workspaceId]
   );
 
   // =========================================================================
-  // GET GENERATION SESSIONS
+  // GET GENERATION SESSIONS (direct Supabase query)
   // =========================================================================
 
   const {
@@ -401,20 +280,21 @@ export function useWorkspace(projectId: string | undefined) {
   } = useQuery({
     queryKey: ["workspace-sessions", workspaceId],
     queryFn: async () => {
-      const accessToken = await getValidAccessToken();
-      if (!accessToken || !workspaceId) return [];
-      
-      if (useRailwayBackend) {
-        // Railway Backend: GET /api/workspace/:id/sessions
-        const result = await backendAPI<{ sessions: GenerationSession[] }>(
-          `/api/workspace/${workspaceId}/sessions`,
-          accessToken
-        );
-        return result.sessions;
-      } else {
-        const result = await edgeFunctionAPI("getSessions", accessToken, { workspaceId });
-        return result.sessions as GenerationSession[];
+      if (!workspaceId) return [];
+
+      const { data, error } = await supabase
+        .from("generation_sessions")
+        .select("id, prompt, status, files_generated, created_at, completed_at")
+        .eq("workspace_id", workspaceId)
+        .order("created_at", { ascending: false })
+        .limit(20);
+
+      if (error) {
+        console.error("[Workspace] Sessions fetch error:", error);
+        return [];
       }
+
+      return (data || []) as GenerationSession[];
     },
     enabled: isAuthed && !!workspaceId,
     staleTime: 5000,
@@ -423,7 +303,7 @@ export function useWorkspace(projectId: string | undefined) {
   const sessions = sessionsData || [];
 
   // =========================================================================
-  // GET OPERATION HISTORY
+  // GET OPERATION HISTORY (direct Supabase query)
   // =========================================================================
 
   const {
@@ -432,20 +312,21 @@ export function useWorkspace(projectId: string | undefined) {
   } = useQuery({
     queryKey: ["workspace-operations", workspaceId],
     queryFn: async () => {
-      const accessToken = await getValidAccessToken();
-      if (!accessToken || !workspaceId) return [];
-      
-      if (useRailwayBackend) {
-        // Railway Backend: GET /api/workspace/:id/operations
-        const result = await backendAPI<{ operations: FileOperation[] }>(
-          `/api/workspace/${workspaceId}/operations`,
-          accessToken
-        );
-        return result.operations;
-      } else {
-        const result = await edgeFunctionAPI("getOperationHistory", accessToken, { workspaceId });
-        return result.operations as FileOperation[];
+      if (!workspaceId) return [];
+
+      const { data, error } = await supabase
+        .from("file_operations")
+        .select("id, operation, file_path, ai_model, applied, created_at")
+        .eq("workspace_id", workspaceId)
+        .order("created_at", { ascending: false })
+        .limit(50);
+
+      if (error) {
+        console.error("[Workspace] Operations fetch error:", error);
+        return [];
       }
+
+      return (data || []) as FileOperation[];
     },
     enabled: isAuthed && !!workspaceId,
     staleTime: 5000,
@@ -454,7 +335,7 @@ export function useWorkspace(projectId: string | undefined) {
   const operations = operationsData || [];
 
   // =========================================================================
-  // GENERATE (SEND PROMPT TO BACKEND AI)
+  // GENERATE (SEND PROMPT TO BACKEND AI) - uses edge function
   // =========================================================================
 
   const [isGenerating, setIsGenerating] = useState(false);
@@ -462,8 +343,7 @@ export function useWorkspace(projectId: string | undefined) {
 
   const generate = useCallback(
     async (prompt: string) => {
-      const accessToken = await getValidAccessToken();
-      if (!accessToken || !workspaceId) {
+      if (!workspaceId || !session?.access_token) {
         throw new Error("Not authenticated or no workspace");
       }
 
@@ -473,21 +353,16 @@ export function useWorkspace(projectId: string | undefined) {
       setLiveFilesCount(0);
 
       try {
-        let result;
-        
-        if (useRailwayBackend) {
-          // Railway Backend: POST /api/generate/:workspaceId
-          result = await backendAPI<{ success: boolean; sessionId: string; message: string }>(
-            `/api/generate/${workspaceId}`,
-            accessToken,
-            { method: "POST", body: { prompt } }
-          );
-        } else {
-          result = await edgeFunctionAPI("generate", accessToken, {
+        // Use edge function only for AI generation (needs server-side API keys)
+        const { data, error } = await supabase.functions.invoke("workspace-api", {
+          body: {
+            action: "generate",
             workspaceId,
             data: { prompt },
-          });
-        }
+          },
+        });
+
+        if (error) throw error;
 
         setGenerationStatus("complete");
         
@@ -500,9 +375,9 @@ export function useWorkspace(projectId: string | undefined) {
         ]);
 
         return {
-          success: result.success,
-          sessionId: result.sessionId,
-          filesGenerated: 0, // Will be updated via realtime
+          success: data?.success,
+          sessionId: data?.sessionId,
+          filesGenerated: data?.filesGenerated || 0,
         };
       } catch (error) {
         setGenerationError(error as Error);
@@ -512,7 +387,7 @@ export function useWorkspace(projectId: string | undefined) {
         setIsGenerating(false);
       }
     },
-    [workspaceId, useRailwayBackend, refetchFiles, refetchSessions, refetchOperations, refetchWorkspace]
+    [workspaceId, session?.access_token, refetchFiles, refetchSessions, refetchOperations, refetchWorkspace]
   );
 
   // =========================================================================
@@ -520,23 +395,11 @@ export function useWorkspace(projectId: string | undefined) {
   // =========================================================================
 
   const estimateCredits = useCallback(
-    async (prompt: string) => {
-      const accessToken = await getValidAccessToken();
-      if (!accessToken || !workspaceId) return null;
-      
-      if (useRailwayBackend) {
-        // Railway Backend: POST /api/generate/:workspaceId/estimate
-        const result = await backendAPI<{ estimatedTokens: number; estimatedCredits: number; complexity: string }>(
-          `/api/generate/${workspaceId}/estimate`,
-          accessToken,
-          { method: "POST", body: { prompt } }
-        );
-        return result;
-      }
-      
+    async (_prompt: string) => {
+      // Credit estimation not available via direct queries
       return null;
     },
-    [workspaceId, useRailwayBackend]
+    []
   );
 
   // =========================================================================
@@ -545,21 +408,16 @@ export function useWorkspace(projectId: string | undefined) {
 
   const getSessionStatus = useCallback(
     async (sessionId: string) => {
-      const accessToken = await getValidAccessToken();
-      if (!accessToken) return null;
-      
-      if (useRailwayBackend) {
-        // Railway Backend: GET /api/generate/session/:sessionId
-        const result = await backendAPI<{ session: GenerationSession }>(
-          `/api/generate/session/${sessionId}`,
-          accessToken
-        );
-        return result.session;
-      }
-      
-      return null;
+      const { data, error } = await supabase
+        .from("generation_sessions")
+        .select("*")
+        .eq("id", sessionId)
+        .maybeSingle();
+
+      if (error) return null;
+      return data as GenerationSession | null;
     },
-    [useRailwayBackend]
+    []
   );
 
   // =========================================================================
@@ -567,23 +425,11 @@ export function useWorkspace(projectId: string | undefined) {
   // =========================================================================
 
   const cancelGeneration = useCallback(
-    async (sessionId: string) => {
-      const accessToken = await getValidAccessToken();
-      if (!accessToken) return;
-      
-      if (useRailwayBackend) {
-        // Railway Backend: POST /api/generate/session/:sessionId/cancel
-        await backendAPI(
-          `/api/generate/session/${sessionId}/cancel`,
-          accessToken,
-          { method: "POST" }
-        );
-      }
-      
+    async (_sessionId: string) => {
       setIsGenerating(false);
       setGenerationStatus(null);
     },
-    [useRailwayBackend]
+    []
   );
 
   // =========================================================================
@@ -606,6 +452,7 @@ export function useWorkspace(projectId: string | undefined) {
     workspace,
     workspaceId,
     isLoading: isLoadingWorkspace,
+    isLoadingWorkspace,
     error: workspaceError,
 
     // Files (read-only)
