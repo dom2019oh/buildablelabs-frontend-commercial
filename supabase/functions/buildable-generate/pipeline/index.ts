@@ -16,13 +16,13 @@ import {
   createRollbackPoint,
   isPathWriteable 
 } from "./context.ts";
-import { validateCodeLocally } from "./validation.ts";
+import { validateFiles } from "./validation.ts";
 import { runRepairLoop } from "./repair.ts";
 import { hasAnyProvider, getAvailableProviders } from "./routing.ts";
 
 // Stage imports
 import { executeIntentStage } from "./stages/intent.ts";
-import { executePlanStage, generateDefaultPlan } from "./stages/plan.ts";
+import { executePlanStage } from "./stages/plan.ts";
 import { executeGenerateStage, getEnhancedDefaults } from "./stages/generate.ts";
 
 // =============================================================================
@@ -213,8 +213,8 @@ export async function runPipeline(context: PipelineContext): Promise<PipelineRes
     const planResult = await executePlanStage(context);
     
     if (!planResult.success || !planResult.data) {
-      logger.warn("Plan generation failed, using defaults");
-      context.plan = generateDefaultPlan(context.originalPrompt);
+      logger.warn("Plan generation failed, will use defaults");
+      // Plan stage already returns default plan on failure
     } else {
       context.plan = planResult.data;
       logger.info("Plan created", {
@@ -267,7 +267,7 @@ export async function runPipeline(context: PipelineContext): Promise<PipelineRes
         .eq("id", context.sessionId);
     }
 
-    let validation = validateCodeLocally(context.generatedFiles);
+    let validation = validateFiles(context.generatedFiles);
     context.validationResults = validation;
 
     tracer.validationResult(
