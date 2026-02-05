@@ -347,16 +347,10 @@ export async function callAI(
 
     try {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
-      let url: string = config.baseUrl;
+      const url: string = config.baseUrl;
 
-      // Provider-specific auth
-      if (provider === "gemini") {
-        // Google OpenAI-compatible endpoint expects the API key as a query param
-        url = `${config.baseUrl}?key=${apiKey}`;
-      } else {
-        // OpenAI + xAI use Bearer tokens
-        headers["Authorization"] = `Bearer ${apiKey}`;
-      }
+      // All three providers use OpenAI-compatible API with Bearer auth
+      headers["Authorization"] = `Bearer ${apiKey}`;
 
       const response = await fetch(url, {
         method: "POST",
@@ -447,14 +441,10 @@ export async function callAIStreaming(
 
     try {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
-      let url: string = config.baseUrl;
+      const url: string = config.baseUrl;
 
-      // Provider-specific auth
-      if (provider === "gemini") {
-        url = `${config.baseUrl}?key=${apiKey}`;
-      } else {
-        headers["Authorization"] = `Bearer ${apiKey}`;
-      }
+      // All three providers use OpenAI-compatible API with Bearer auth
+      headers["Authorization"] = `Bearer ${apiKey}`;
 
       const response = await fetch(url, {
         method: "POST",

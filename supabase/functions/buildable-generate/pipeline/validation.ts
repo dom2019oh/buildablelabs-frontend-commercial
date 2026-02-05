@@ -23,45 +23,7 @@ interface ErrorPattern {
 }
 
 const ERROR_PATTERNS: ErrorPattern[] = [
-  // SYNTAX errors
-  {
-    pattern: /\{[a-zA-Z]+\s*&&\s*\(\s*$/gm,
-    category: "SYNTAX",
-    message: "Orphaned JSX expression: `{condition && (` without closing `)}`",
-    fix: "Complete the conditional rendering with proper closing tags",
-    severity: "error",
-    autoFixable: false,
-  },
-  {
-    pattern: /\{[a-zA-Z]+\s*&&\s*\([^)]*$/gm,
-    category: "SYNTAX",
-    message: "Unclosed conditional JSX block",
-    fix: "Add closing parenthesis and brace: `)}`",
-    severity: "error",
-    autoFixable: false,
-  },
-  
-  // IMPORT errors
-  {
-    pattern: /from\s+['"][^'"]+['"]\s*$/gm,
-    category: "IMPORT",
-    message: "Possible incomplete import statement",
-    fix: "Ensure import statement is complete with semicolon",
-    severity: "warning",
-    autoFixable: true,
-  },
-  
-  // REACT errors
-  {
-    pattern: /^(?!.*import.*from\s+['"]react['"]).*\b(useState|useEffect|useRef|useMemo|useCallback|useContext|useReducer)\b/gm,
-    category: "REACT",
-    message: "React hooks used but may not be imported from 'react'",
-    fix: "Add: import { useState, useEffect } from 'react';",
-    severity: "error",
-    autoFixable: true,
-  },
-  
-  // STRUCTURE errors
+  // STRUCTURE errors (placeholder patterns)
   {
     pattern: /\/\/\s*\.\.\./gm,
     category: "STRUCTURE",
