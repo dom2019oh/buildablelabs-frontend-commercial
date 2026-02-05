@@ -210,6 +210,53 @@ function autoFixSimpleErrors(files: FileOperation[]): FileOperation[] {
       }
     }
 
+    // Auto-fix 4: Fix orphaned JSX conditionals {menuOpen && ( with missing )}
+    // Pattern: {identifier && ( ...content without closing )}
+    const orphanedConditionals = content.match(/\{(\w+)\s*&&\s*\(\s*(<[^>]+>[^]*?)(?=\n\s*(?:return|export|function|const|let|var|\/\/|$))/g);
+    if (orphanedConditionals) {
+      for (const match of orphanedConditionals) {
+        // Count unbalanced parentheses and braces in the match
+        const openParens = (match.match(/\(/g) || []).length;
+        const closeParens = (match.match(/\)/g) || []).length;
+        const openBraces = (match.match(/\{/g) || []).length;
+        const closeBraces = (match.match(/\}/g) || []).length;
+        
+        // If unbalanced, try to close it
+        if (openParens > closeParens || openBraces > closeBraces) {
+          const closingNeeded = ")".repeat(openParens - closeParens) + "}".repeat(openBraces - closeBraces);
+          if (closingNeeded) {
+            // Find the location and try to close it properly
+            const index = content.indexOf(match);
+            if (index >= 0) {
+              // Look for a natural closing point (end of JSX block)
+              const afterMatch = content.slice(index + match.length);
+              const nextLineBreak = afterMatch.indexOf("\n");
+              if (nextLineBreak >= 0) {
+                // Insert closing before the next significant line
+                content = content.slice(0, index + match.length) + closingNeeded + content.slice(index + match.length);
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Auto-fix 5: Balance braces and parentheses at end of file if unbalanced
+    const openBraces = (content.match(/\{/g) || []).length;
+    const closeBraces = (content.match(/\}/g) || []).length;
+    if (openBraces > closeBraces) {
+      // Add missing closing braces at the end
+      content = content.trimEnd() + "\n" + "}".repeat(openBraces - closeBraces) + "\n";
+    }
+
+    const openParens = (content.match(/\(/g) || []).length;
+    const closeParens = (content.match(/\)/g) || []).length;
+    if (openParens > closeParens) {
+      // This is trickier - try to find orphaned conditionals and close them
+      // For now, just ensure the file doesn't have a catastrophic imbalance
+      console.log(`[AutoFix] ${file.path} has ${openParens - closeParens} unclosed parentheses`);
+    }
+
     return { ...file, content };
   });
 }
