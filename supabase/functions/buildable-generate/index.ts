@@ -10,8 +10,9 @@
 //
 // Pipeline: Intent → Plan → Generate → Validate → Repair → Persona → Deploy
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { serve } from "jsr:@std/http";
+import { createClient } from "npm:@supabase/supabase-js@2";
+import type { SupabaseClient } from "npm:@supabase/supabase-js@2";
 
 // Import new pipeline orchestrator
 import { 
