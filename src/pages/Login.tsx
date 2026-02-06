@@ -16,8 +16,10 @@ export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Get the redirect destination from state or default to dashboard
-  const from = (location.state as { from?: { pathname: string } })?.from?.pathname || '/dashboard';
+  // Get the redirect destination from state or sessionStorage (OAuth) or default to dashboard
+  const stateFrom = (location.state as { from?: { pathname: string } })?.from?.pathname;
+  const storedReturn = sessionStorage.getItem('buildable_return_to');
+  const from = stateFrom || storedReturn || '/dashboard';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,6 +58,7 @@ export default function Login() {
       toast.error(error.message);
     } else {
       toast.success('Welcome back!');
+      sessionStorage.removeItem('buildable_return_to');
       navigate(from, { replace: true });
     }
   };

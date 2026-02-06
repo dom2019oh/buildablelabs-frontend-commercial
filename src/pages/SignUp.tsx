@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Mail, Lock, User, ArrowRight, Loader2 } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import buildableLogo from '@/assets/buildify-logo.png';
@@ -14,6 +14,8 @@ export default function SignUp() {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+  const returnTo = (location.state as { returnTo?: string })?.returnTo || '/dashboard';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,12 +49,18 @@ export default function SignUp() {
       toast.error(error.message);
     } else {
       toast.success('Account created successfully!');
-      navigate('/dashboard');
+      // Navigate to dashboard; ProtectedRoute will handle onboarding redirect
+      // and pass returnTo so user ends up at their intended destination
+      navigate('/dashboard', { state: { returnTo } });
     }
   };
 
   const handleGoogleSignIn = async () => {
     setGoogleLoading(true);
+    // Store returnTo in sessionStorage so we can redirect after OAuth callback
+    if (returnTo !== '/dashboard') {
+      sessionStorage.setItem('buildable_return_to', returnTo);
+    }
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
