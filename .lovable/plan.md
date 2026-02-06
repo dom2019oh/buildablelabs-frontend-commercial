@@ -1,182 +1,180 @@
 
 
-# Plan: Enhance Buildable AI Core Directive for In-Depth Full-Stack Generation
+# Sync Engine Implementation Plan
 
-## Overview
+## Problem Summary
 
-You want to enhance the Buildable AI system to generate more in-depth, visually stunning web applications — similar to how Lovable operates. Even when a user asks for a "basic landing page," the system should generate production-ready, beautifully designed full-stack applications with no compromises.
+The current architecture has a fundamental gap between the AI's text output and the application's internal state management. Today, the backend runs a blocking 8-stage pipeline that returns a single JSON payload when *everything* is done. The frontend then relies on Supabase Realtime events to see files appear, but there is no structured command protocol, no incremental file delivery, and no diffing engine. The result: the user stares at a loading state for the entire pipeline duration with no progressive feedback, and the system replaces entire files even for 1-line changes.
 
-The current system already has a solid foundation:
-- **8-stage deterministic pipeline** (Intent → Plan → Generate → Validate → Repair)
-- **Multi-model coordination** (Grok for coding, Gemini for planning, OpenAI for validation)
-- **Core directive with code quality rules** and visual standards
-
-This plan will **supercharge** the core directive and generation prompts to ensure every output is visually stunning, complete, and production-ready.
+This plan implements the 6 core improvements from the Gemini analysis, adapted to the existing Buildable architecture.
 
 ---
 
-## Phase 1: Enhance Core Directive (Lovable-Inspired)
+## Phase 1: Command Protocol (Structured "File Packets")
 
-**File:** `supabase/functions/buildable-generate/pipeline/core-directive.ts`
+**What changes:** Instead of the AI returning freeform markdown with code blocks, the pipeline will wrap every file change in a structured JSON command.
 
-### New Capabilities:
-1. **Full-Stack Mindset Directive**
-   - Generate complete applications, not basic pages
-   - Always include navigation, multiple sections, animations, and footer
-   - Even "simple" requests get the full treatment
+**Backend (`buildable-generate/pipeline/`):**
+- Define a `FileCommand` type in `types.ts`:
+  ```
+  type CommandType = "CREATE_FILE" | "UPDATE_FILE" | "DELETE_FILE" | "PATCH_FILE"
+  
+  interface FileCommand {
+    command: CommandType
+    path: string
+    content?: string        // full content for CREATE/UPDATE
+    patches?: SearchReplacePatch[]  // for PATCH_FILE
+    metadata?: { language, purpose }
+  }
+  ```
+- Update `stages/generate.ts` to emit `FileCommand[]` instead of raw `FileOperation[]`
+- Update the pipeline result type to include `commands: FileCommand[]`
 
-2. **Visual Excellence Standards** (Enhanced)
-   - Every project includes 6-12 Unsplash images automatically
-   - Hero sections with gradient overlays are mandatory
-   - Feature sections use icon cards with hover states
-   - Gallery sections with real images, not placeholders
-   - Testimonials with professional avatars
-   - Call-to-action sections with gradient backgrounds
-
-3. **Component Completeness Rules**
-   - Every Navbar must have: logo, links, mobile hamburger menu, CTA button
-   - Every Hero must have: full-bleed background, gradient overlay, headline, subheadline, 2 CTA buttons
-   - Every Feature section: 4-6 feature cards with icons
-   - Every Footer: multi-column links, social icons, copyright
-
-4. **Animation & Polish Requirements**
-   - Hover effects on all interactive elements
-   - Smooth transitions (transition-all duration-300)
-   - Gradient text for headings
-   - Backdrop blur on navigation
-   - Shadow effects on buttons
-
-5. **Persona Updates** (Jarvis-Style)
-   - Decisive language: "I'll create" not "I could create"
-   - Confident: "Done!" not "I hope this works"
-   - Never say: "it seems," "perhaps," "you might want to," "I'm sorry but"
-   - Always suggest 2-3 next steps
+**Frontend (`stores/projectFilesStore.ts`):**
+- Add a `applyCommand(cmd: FileCommand)` action to the Zustand store that switches on `cmd.command` to route to `addFile`, `updateFile`, `removeFile`, or the new `patchFile`
 
 ---
 
-## Phase 2: Enhance Generation Prompts
+## Phase 2: Streaming File Delivery (SSE Pipeline)
 
-**File:** `supabase/functions/buildable-generate/pipeline/stages/generate.ts`
+**What changes:** Convert the `buildable-generate` edge function from a blocking JSON response to an SSE stream that emits structured events as each pipeline stage completes.
 
-### Updates to CODER_SYSTEM_PROMPT:
-1. **Minimum File Requirements**
-   - New projects generate 8-12 files minimum (currently 6-10)
-   - Always include: Gallery, Testimonials, About section
+**Backend (`buildable-generate/index.ts`):**
+- Change the response to `Content-Type: text/event-stream`
+- Emit events progressively:
+  ```
+  data: {"type":"stage","stage":"intent","status":"complete"}
+  data: {"type":"stage","stage":"plan","status":"complete","data":{...}}
+  data: {"type":"file","command":"CREATE_FILE","path":"src/components/Hero.tsx","content":"..."}
+  data: {"type":"file","command":"CREATE_FILE","path":"src/components/Navbar.tsx","content":"..."}
+  data: {"type":"stage","stage":"validate","status":"complete","score":0.95}
+  data: {"type":"complete","filesGenerated":7,"aiMessage":"..."}
+  ```
+- Each file is emitted and saved to the database *as it's parsed* from the AI response, not after the entire pipeline finishes
 
-2. **Enhanced Visual Patterns**
-   - Add gradient text utility patterns
-   - Add glass-morphism card patterns  
-   - Add animated hover card patterns
-   - Add testimonial card patterns with avatars
-
-3. **Image Auto-Selection**
-   - Detect niche from prompt automatically
-   - Inject 4-8 relevant Unsplash images
-   - For unknown niches, use curated "professional" image set
-
-4. **Section Templates**
-   - Add pre-defined section patterns for:
-     - Hero (3 variants)
-     - Features (grid, list, alternating)
-     - Gallery (masonry, slider, grid)
-     - Testimonials (carousel, cards, quotes)
-     - Pricing (3-column, toggle)
-     - CTA (gradient, image, minimal)
+**Frontend (`hooks/useBuildableAI.ts`):**
+- The existing SSE parsing code (lines 279-370) is already written but currently unused because the backend returns JSON. This plan activates it.
+- Modify the SSE handler to recognize `type: "file"` events and immediately call `applyCommand()` on the Zustand store
+- Modify the SSE handler to recognize `type: "stage"` events and update the `phase` state with real progress (e.g., "Planning...", "Generating files...", "Validating...")
+- Remove the JSON fallback path once streaming is stable
 
 ---
 
-## Phase 3: Enhance Planning Stage
+## Phase 3: Recursive Tree Resolver
 
-**File:** `supabase/functions/buildable-generate/pipeline/stages/plan.ts`
+**What changes:** Harden the file tree builder to safely handle deeply nested paths and auto-create missing intermediate folders.
 
-### Updates to ARCHITECT_SYSTEM_PROMPT:
-1. **Force Rich Architecture**
-   - Even "simple" requests get full-featured plans
-   - Minimum 6 components for any project
-   - Always include gallery and testimonials sections
+**Frontend (`components/workspace/FileExplorer.tsx`):**
+- The existing `buildFileTree()` function already walks paths and creates folder nodes. This phase adds:
+  - Deduplication guard (prevent double-insertion of same path)
+  - Sorting stability (folders first, then alphabetical)
+  - A `resolveOrCreatePath(tree, segments)` helper that the store can call directly to ensure parent folders exist before placing a file
 
-2. **Expanded Image Library**
-   - 50+ curated images across 15 niches
-   - Auto-detect industry from keywords
-   - Fallback to professional/tech images
-
-3. **Enhanced Section Planning**
-   - Plans include specific sections with details
-   - Each component gets feature requirements
-   - Image assignments per section
+**Frontend (`stores/projectFilesStore.ts`):**
+- When `addFile` or `applyCommand` is called, run the path through the resolver before inserting
 
 ---
 
-## Phase 4: Strengthen Validation
+## Phase 4: Search-and-Replace Diffing Engine
 
-**File:** `supabase/functions/buildable-generate/pipeline/validation.ts`
+**What changes:** For modifications to existing files, instead of sending the entire file back, the AI can emit "patches" that surgically replace specific sections.
 
-### New Validation Rules:
-1. **Image Presence Check**
-   - Flag if Hero has no background image
-   - Warn if no Unsplash images detected
+**New types in `types.ts`:**
+```
+interface SearchReplacePatch {
+  search: string    // exact text to find
+  replace: string   // replacement text
+  context?: string  // optional surrounding context for disambiguation
+}
+```
 
-2. **Section Completeness Check**
-   - Warn if under 5 components
-   - Warn if no footer detected
-   - Warn if no CTA section
+**Backend (`pipeline/core-directive.ts`):**
+- Add a new instruction block to the system prompt for modification requests:
+  ```
+  When MODIFYING existing files, use PATCH format:
+  [PATCH:src/components/Hero.tsx]
+  <<<< SEARCH
+  <h1 className="text-4xl">Old Title</h1>
+  ====
+  <h1 className="text-4xl">New Title</h1>
+  >>>> REPLACE
+  ```
+- Only used for `modify` intent types; new projects still use full file creation
 
-3. **Polish Check**
-   - Warn if no hover effects detected
-   - Warn if no gradient usage detected
+**Backend (`stages/generate.ts`):**
+- Add a `extractPatches()` parser alongside the existing `extractFiles()` function
+- When patches are found, emit `PATCH_FILE` commands instead of `UPDATE_FILE`
 
----
-
-## Phase 5: Update Backend Documentation
-
-**File:** `docs/backend-repo/BUILDABLE_AI_README.md`
-
-Update to reflect:
-- New visual excellence standards
-- Enhanced file generation requirements
-- Updated model routing (current models)
-- New validation rules
-
-**File:** `docs/backend-repo/src/services/ai/pipeline/stages/generate.ts`
-
-Sync with the edge function version for consistency.
-
----
-
-## Technical Changes Summary
-
-| File | Changes |
-|------|---------|
-| `supabase/functions/buildable-generate/pipeline/core-directive.ts` | Add full-stack mindset, visual excellence v2, component completeness rules, animation requirements, Jarvis persona |
-| `supabase/functions/buildable-generate/pipeline/stages/generate.ts` | Enhance CODER_SYSTEM_PROMPT with richer patterns, 8-12 file minimum, expanded templates |
-| `supabase/functions/buildable-generate/pipeline/stages/plan.ts` | Force rich architecture, expanded image library (50+ images), section-level planning |
-| `supabase/functions/buildable-generate/pipeline/validation.ts` | Add image presence, section completeness, and polish validation rules |
-| `docs/backend-repo/BUILDABLE_AI_README.md` | Update documentation to reflect new standards |
-| `docs/backend-repo/src/services/ai/pipeline/stages/generate.ts` | Sync generate.ts with edge function version |
+**Frontend (`stores/projectFilesStore.ts`):**
+- Add a `patchFile(path, patches)` action that:
+  1. Gets the current file content from the Map
+  2. Applies each search/replace patch sequentially
+  3. Updates the file in the store
+  4. Rebuilds the preview
 
 ---
 
-## Expected Outcome
+## Phase 5: Single Source of Truth
 
-After implementation:
-- User asks: "Build me a bakery landing page"
-- System generates:
-  - 10+ files (Navbar, Hero, About, Features, Gallery, Menu, Testimonials, CTA, Contact, Footer)
-  - 6-8 bakery-specific Unsplash images
-  - Animations and hover effects throughout
-  - Mobile-responsive with hamburger menu
-  - Dark mode color scheme with bakery accents
-  - Gradient overlays and glass effects
-  - Complete, production-ready code
+**What changes:** Eliminate the dual-source conflict between "streaming text content" and "database files." The Zustand file store becomes the *only* truth.
 
-The result will be indistinguishable from what a senior developer would build — beautiful, functional, and complete.
+**Frontend (`hooks/useBuildableAI.ts`):**
+- Stop maintaining a separate `generatedFiles` array in the hook state
+- Instead, as SSE file events arrive, apply them directly to the Zustand store
+- The hook's role becomes: manage the stream connection, parse events, and dispatch commands to the store
+
+**Frontend (`components/workspace/ProjectWorkspaceV3.tsx`):**
+- Remove the `useEffect` that syncs `generatedFiles` from the AI hook into the store (lines 231-249) - this becomes unnecessary since files go directly into the store via commands
+- The workspace reads *only* from the Zustand store for its file tree, editor, and preview
+- On page load, hydrate the store from `workspace_files` in the database (already done via `useWorkspace`)
+
+**Context injection for AI:**
+- Before each generation request, automatically build a "File Tree Summary" from the Zustand store's current state and inject it into the conversation history as a system message
+- This ensures the AI always works with the latest code state, not what was discussed 10 messages ago
 
 ---
 
-## Deployment Notes
+## Phase 6: Persistence Bridge (Database Sync)
 
-1. Changes to edge functions deploy automatically
-2. No database changes required
-3. No new dependencies needed
-4. Backend docs are for reference only (manual sync with external repo)
+**What changes:** Ensure the Zustand store and Supabase `workspace_files` table stay in lockstep.
 
+**Current flow (no change needed for writes):** The backend already writes to `workspace_files` via `saveFilesToDatabase()`. Supabase Realtime already notifies the frontend.
+
+**Improvement: Optimistic updates:**
+- When a file command arrives via SSE, apply it to the Zustand store *immediately* (optimistic)
+- The Realtime subscription from `useWorkspace` will confirm the database write shortly after
+- If the Realtime event shows a different version, reconcile by preferring the database version
+
+**Improvement: Manual edit persistence:**
+- When the user manually edits a file in the Code editor and saves, write the change back to `workspace_files` via a direct Supabase upsert
+- This is partially implemented in `handleFileSave` but currently only updates the local store
+
+---
+
+## Technical Details
+
+### Files to Create
+1. `src/lib/syncEngine.ts` - Core sync engine: command types, `applyCommand()`, `applyPatch()`, file tree resolver, context summary builder
+
+### Files to Modify
+1. `supabase/functions/buildable-generate/pipeline/types.ts` - Add `FileCommand`, `SearchReplacePatch` types
+2. `supabase/functions/buildable-generate/index.ts` - Convert to SSE streaming response
+3. `supabase/functions/buildable-generate/pipeline/index.ts` - Emit file commands progressively via callback
+4. `supabase/functions/buildable-generate/pipeline/stages/generate.ts` - Add patch extraction for modifications
+5. `supabase/functions/buildable-generate/pipeline/core-directive.ts` - Add PATCH format instructions to system prompt
+6. `src/stores/projectFilesStore.ts` - Add `applyCommand()`, `patchFile()`, improve tree resolver
+7. `src/hooks/useBuildableAI.ts` - Activate SSE path, dispatch commands directly to store
+8. `src/components/workspace/ProjectWorkspaceV3.tsx` - Remove redundant sync effects, read only from store
+
+### Migration Strategy
+- Phase 1-2 can be implemented together (command protocol + streaming)
+- Phase 3 is a standalone hardening improvement
+- Phase 4 (diffing) can be added incrementally after the core streaming works
+- Phase 5-6 are cleanup/optimization after the streaming pipeline is live
+- The JSON fallback path in `useBuildableAI.ts` should be kept temporarily during rollout, controlled by a feature flag or content-type check (which already exists)
+
+### Risk Mitigations
+- Keep the existing JSON response path as fallback if SSE stream fails
+- Patches that fail to match (search string not found) fall back to full file replacement
+- The Zustand store's `applyCommand` validates paths before writing (reuses existing `isPathWriteable` logic)
+- Maximum patch size limit prevents memory issues
