@@ -64,8 +64,16 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   }
 
   // If onboarding not completed and not skipped, redirect to onboarding
+  // Pass the current location (or stored returnTo from OAuth) so onboarding can redirect back after completion
   if (!onboardingStatus.completed && !onboardingStatus.skipped) {
-    return <Navigate to="/onboarding" replace />;
+    const storedReturn = sessionStorage.getItem('buildable_return_to');
+    const returnTo = storedReturn || (location.state as { returnTo?: string })?.returnTo || location.pathname + location.search;
+    return <Navigate to="/onboarding" state={{ returnTo }} replace />;
+  }
+
+  // Clear stored return after successful auth + onboarding
+  if (sessionStorage.getItem('buildable_return_to')) {
+    sessionStorage.removeItem('buildable_return_to');
   }
 
   return <>{children}</>;

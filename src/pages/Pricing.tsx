@@ -223,6 +223,7 @@ function PlanCard({
       ) : (
         <Link
           to="/sign-up"
+          state={{ returnTo: '/pricing' }}
           className="block text-center py-3 rounded-lg font-medium gradient-button mb-6"
         >
           {name === 'Pro' ? 'Get Started' : 'Get Started'}

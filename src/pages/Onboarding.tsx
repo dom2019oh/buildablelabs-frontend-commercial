@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -123,6 +123,8 @@ export default function Onboarding() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showcaseIndex, setShowcaseIndex] = useState(0);
   const navigate = useNavigate();
+  const location = useLocation();
+  const returnTo = (location.state as { returnTo?: string })?.returnTo || '/dashboard';
 
   // Check if user is authenticated
   useEffect(() => {
@@ -180,7 +182,7 @@ export default function Onboarding() {
     setIsSubmitting(true);
     try {
       await saveOnboardingAnswers(answers, false, true);
-      navigate('/dashboard');
+      navigate(returnTo);
     } catch (error) {
       console.error('Failed to skip onboarding:', error);
     } finally {
@@ -192,7 +194,7 @@ export default function Onboarding() {
     setIsSubmitting(true);
     try {
       await saveOnboardingAnswers(answers, true, false);
-      navigate('/dashboard');
+      navigate(returnTo);
     } catch (error) {
       console.error('Failed to complete onboarding:', error);
     } finally {
