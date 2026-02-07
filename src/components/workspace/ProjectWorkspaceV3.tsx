@@ -227,8 +227,28 @@ export default function ProjectWorkspaceV3() {
     }
   }, [latestVersion]);
 
-  // Files are now dispatched directly to Zustand store via SSE events in useBuildableAI.
-  // No need for a separate sync effect from generatedFiles.
+  // Recompile preview when Zustand store files change during SSE delivery
+  // This ensures the preview updates in real-time as files arrive from AI generation
+  const storeFileCount = files.size;
+  useEffect(() => {
+    if (storeFileCount === 0 || !isGenerating) return;
+    
+    // Build preview from in-memory files during generation
+    const allFiles = Array.from(files.entries()).map(([path, f]) => ({
+      file_path: path,
+      content: f.content,
+    }));
+    
+    if (allFiles.length > 0) {
+      const entry = pickPreviewEntryFile(allFiles);
+      if (entry) {
+        const html = compileWorkspaceEntryToHtml(entry.path, allFiles);
+        const fullHtml = generatePreviewHtml(html);
+        setPreviewHtml(fullHtml);
+        setPreviewKey(prev => prev + 1);
+      }
+    }
+  }, [storeFileCount, isGenerating, files, pickPreviewEntryFile, setPreviewHtml]);
 
   // NEW: Recompile preview when route changes
   useEffect(() => {

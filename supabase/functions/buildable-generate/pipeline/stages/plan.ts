@@ -1,9 +1,9 @@
 // =============================================================================
-// PLAN STAGE - Architecture Planning
+// PLAN STAGE - Architecture Planning with enhanced context
 // =============================================================================
 
 import type { PipelineContext, StageResult, ArchitecturePlan } from "../types.ts";
-import { callAI } from "../routing.ts";
+import { callAI, getContextLimits, getAvailableProviders, profileRequest } from "../routing.ts";
 import { StageTracer } from "../telemetry.ts";
 
 const PLAN_PROMPT = `You are an architect for a website builder. Create implementation plans.
@@ -19,13 +19,15 @@ OUTPUT JSON:
 }
 
 IMAGE IDS BY NICHE:
-- Bakery: photo-1509440159596-0249088772ff
+- Bakery: photo-1509440159596-0249088772ff, photo-1555507036-ab1f4038808a
 - Cafe: photo-1495474472287-4d71bcdd2085
-- Restaurant: photo-1517248135467-4c7edcad34c4
-- Fitness: photo-1534438327276-14e5300c3a48
-- Tech: photo-1551288049-bebda4e38f71
-- E-commerce: photo-1472851294608-062f824d29cc
-- Portfolio: photo-1558655146-d09347e92766
+- Restaurant: photo-1517248135467-4c7edcad34c4, photo-1414235077428-338989a2e8c0
+- Fitness: photo-1534438327276-14e5300c3a48, photo-1571019613454-1cb2f99b2d8b
+- Tech/SaaS: photo-1551288049-bebda4e38f71, photo-1460925895917-afdab827c52f
+- E-commerce: photo-1472851294608-062f824d29cc, photo-1441986300917-64674bd600d8
+- Portfolio: photo-1558655146-d09347e92766, photo-1561070791-2526d30994b5
+- Real Estate: photo-1600596542815-ffad4c1539a9, photo-1600585154340-be6161a56a0c
+- Travel: photo-1507525428034-b723cf961d3e, photo-1476514525535-07fb3b4ae5f1
 
 Always include: Navbar, Hero, Features, Gallery, Testimonials, CTA, Footer.
 Return ONLY valid JSON.`;
@@ -35,15 +37,36 @@ export async function executePlanStage(ctx: PipelineContext): Promise<StageResul
   const tracer = new StageTracer(ctx);
   tracer.stageStart("plan");
 
-  const existing = ctx.existingFiles.length > 0 
-    ? ctx.existingFiles.map(f => f.path).join(", ")
-    : "None (new project)";
+  // Use provider-aware context limits for existing files
+  const available = getAvailableProviders();
+  const planningProvider = available.includes("gemini") ? "gemini" : available[0] || "grok";
+  const limits = getContextLimits(planningProvider as any);
+
+  let existingContext: string;
+  if (ctx.existingFiles.length > 0) {
+    const filesToShow = ctx.existingFiles.slice(0, limits.maxFiles);
+    existingContext = filesToShow
+      .map(f => `${f.path} (${f.content.slice(0, limits.maxCharsPerFile).length} chars)`)
+      .join(", ");
+    
+    if (ctx.existingFiles.length > limits.maxFiles) {
+      existingContext += ` ... and ${ctx.existingFiles.length - limits.maxFiles} more`;
+    }
+  } else {
+    existingContext = "None (new project)";
+  }
+
+  // Profile request for smart routing
+  const profile = profileRequest(
+    ctx.originalPrompt,
+    ctx.existingFiles.map(f => ({ path: f.path, content: f.content })),
+  );
 
   try {
     const result = await callAI("planning", [
       { role: "system", content: PLAN_PROMPT },
-      { role: "user", content: `Request: "${ctx.originalPrompt}"\nExisting: ${existing}\n\nCreate plan.` },
-    ], { temperature: 0.3, maxTokens: 2000 });
+      { role: "user", content: `Request: "${ctx.originalPrompt}"\nExisting: ${existingContext}\n\nCreate plan.` },
+    ], { temperature: 0.3, maxTokens: 4000, profile });
 
     tracer.modelCall(result.provider, result.model, "planning", result.latencyMs, result.tokensUsed);
 
@@ -78,6 +101,8 @@ function getDefaultPlan(prompt: string): ArchitecturePlan {
   else if (p.includes("tech") || p.includes("saas")) img = "photo-1551288049-bebda4e38f71";
   else if (p.includes("shop")) img = "photo-1472851294608-062f824d29cc";
   else if (p.includes("portfolio")) img = "photo-1558655146-d09347e92766";
+  else if (p.includes("real estate")) img = "photo-1600596542815-ffad4c1539a9";
+  else if (p.includes("travel")) img = "photo-1507525428034-b723cf961d3e";
 
   return {
     projectType: "landing-page",
