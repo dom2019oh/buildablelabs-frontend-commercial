@@ -15,11 +15,11 @@ const LOVABLE_AI_GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
 // Model configuration for pipeline phases
 const MODELS = {
-  architect: "google/gemini-2.5-pro",
-  code: "google/gemini-2.5-pro", 
-  validate: "google/gemini-2.5-flash",
-  ui: "google/gemini-3-flash-preview",
-  fast: "google/gemini-2.5-flash",
+  architect: "google/gemini-2.5-pro",      // Planning & reasoning (2M context)
+  code: "google/gemini-2.5-pro",           // Code generation (large output)
+  validate: "google/gemini-2.5-flash",     // Fast validation
+  ui: "google/gemini-3-flash-preview",     // UI/design (latest preview)
+  fast: "google/gemini-2.5-flash",         // Quick responses
 };
 
 // =============================================================================

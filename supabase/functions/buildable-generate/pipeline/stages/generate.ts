@@ -1,9 +1,9 @@
 // =============================================================================
-// GENERATE STAGE - Code Generation
+// GENERATE STAGE - Code Generation with ensemble AI collaboration
 // =============================================================================
 
 import type { PipelineContext, StageResult, FileOperation, ArchitecturePlan } from "../types.ts";
-import { callAI } from "../routing.ts";
+import { callAI, callAIEnsemble, getContextLimits, getAvailableProviders, profileRequest } from "../routing.ts";
 import { StageTracer } from "../telemetry.ts";
 
 // =============================================================================
@@ -55,6 +55,38 @@ function extractFiles(response: string): FileOperation[] {
 }
 
 // =============================================================================
+// BUILD CONTEXT WITH PROVIDER-AWARE LIMITS
+// =============================================================================
+
+function buildExistingFilesContext(
+  existingFiles: FileOperation[],
+  providerHint?: string,
+): string {
+  if (existingFiles.length === 0) return "";
+
+  // Use Gemini limits by default (largest context), will be narrowed by the actual provider
+  const available = getAvailableProviders();
+  const provider = providerHint || (available.includes("gemini") ? "gemini" : available[0] || "grok");
+  const limits = getContextLimits(provider as any);
+
+  let context = "\n\nEXISTING FILES (modify only what's needed):\n";
+  const filesToInclude = existingFiles.slice(0, limits.maxFiles);
+  
+  for (const f of filesToInclude) {
+    context += `\n${f.path}:\n\`\`\`\n${f.content.slice(0, limits.maxCharsPerFile)}\n\`\`\`\n`;
+  }
+
+  if (existingFiles.length > limits.maxFiles) {
+    context += `\n... and ${existingFiles.length - limits.maxFiles} more files (paths only):\n`;
+    for (const f of existingFiles.slice(limits.maxFiles)) {
+      context += `- ${f.path}\n`;
+    }
+  }
+
+  return context;
+}
+
+// =============================================================================
 // MAIN GENERATE STAGE
 // =============================================================================
 
@@ -68,21 +100,41 @@ export async function executeGenerateStage(ctx: PipelineContext): Promise<StageR
   }
 
   const isNew = ctx.existingFiles.length === 0;
-  let prompt = CODER_PROMPT;
-  
-  if (!isNew) {
-    prompt += "\n\nEXISTING FILES (modify only what's needed):\n";
-    for (const f of ctx.existingFiles.slice(0, 5)) {
-      prompt += `\n${f.path}:\n\`\`\`\n${f.content.slice(0, 1000)}\n\`\`\`\n`;
-    }
-  }
+  const available = getAvailableProviders();
+  const useEnsemble = available.length >= 2 && isNew;
+
+  // Build context with provider-aware limits
+  const fileContext = buildExistingFilesContext(ctx.existingFiles);
+  const prompt = CODER_PROMPT + fileContext;
+
+  // Profile the request for smart routing
+  const profile = profileRequest(
+    ctx.originalPrompt,
+    ctx.existingFiles.map(f => ({ path: f.path, content: f.content })),
+  );
 
   try {
-    const result = await callAI("coding", [
-      { role: "system", content: prompt },
-      ...ctx.conversationHistory.slice(-3),
-      { role: "user", content: `PLAN: ${JSON.stringify(ctx.plan)}\n\nREQUEST: ${ctx.originalPrompt}\n\nGenerate all files.` },
-    ], { temperature: 0.5, maxTokens: 16000 });
+    let result;
+
+    if (useEnsemble) {
+      // ENSEMBLE MODE: Call multiple providers in parallel for new projects
+      console.log("[Generate] Using ENSEMBLE mode (new project, multiple providers available)");
+      result = await callAIEnsemble(
+        [
+          { role: "system", content: prompt },
+          ...ctx.conversationHistory.slice(-3),
+          { role: "user", content: `PLAN: ${JSON.stringify(ctx.plan)}\n\nREQUEST: ${ctx.originalPrompt}\n\nGenerate all files.` },
+        ],
+        { temperature: 0.5, profile },
+      );
+    } else {
+      // STANDARD MODE: Single provider with fallback chain
+      result = await callAI("coding", [
+        { role: "system", content: prompt },
+        ...ctx.conversationHistory.slice(-3),
+        { role: "user", content: `PLAN: ${JSON.stringify(ctx.plan)}\n\nREQUEST: ${ctx.originalPrompt}\n\nGenerate all files.` },
+      ], { temperature: 0.5, profile });
+    }
 
     tracer.modelCall(result.provider, result.model, "coding", result.latencyMs, result.tokensUsed);
     const files = extractFiles(result.content);
@@ -91,7 +143,9 @@ export async function executeGenerateStage(ctx: PipelineContext): Promise<StageR
       return { success: false, error: "No files extracted", duration: Date.now() - start, canRetry: true };
     }
 
-    tracer.stageComplete("generate", true, Date.now() - start, { metadata: { fileCount: files.length } });
+    console.log(`[Generate] ✓ ${files.length} files from ${result.provider}/${result.model} (confidence: ${result.confidence.toFixed(2)})`);
+
+    tracer.stageComplete("generate", true, Date.now() - start, { metadata: { fileCount: files.length, ensemble: useEnsemble } });
     return { success: true, data: files, duration: Date.now() - start, canRetry: true };
   } catch (e) {
     const err = e instanceof Error ? e.message : "Generation failed";
@@ -112,6 +166,8 @@ const IMAGES: Record<string, string[]> = {
   tech: ["photo-1551288049-bebda4e38f71", "photo-1460925895917-afdab827c52f"],
   ecommerce: ["photo-1472851294608-062f824d29cc", "photo-1441986300917-64674bd600d8"],
   portfolio: ["photo-1558655146-d09347e92766", "photo-1561070791-2526d30994b5"],
+  realestate: ["photo-1600596542815-ffad4c1539a9", "photo-1600585154340-be6161a56a0c"],
+  travel: ["photo-1507525428034-b723cf961d3e", "photo-1476514525535-07fb3b4ae5f1"],
   default: ["photo-1557683316-973673baf926", "photo-1553356084-58ef4a67b2a7"],
 };
 
@@ -124,6 +180,8 @@ function detectNiche(p: string): string {
   if (l.includes("tech") || l.includes("saas")) return "tech";
   if (l.includes("shop") || l.includes("store")) return "ecommerce";
   if (l.includes("portfolio")) return "portfolio";
+  if (l.includes("real estate") || l.includes("property")) return "realestate";
+  if (l.includes("travel") || l.includes("tourism")) return "travel";
   return "default";
 }
 

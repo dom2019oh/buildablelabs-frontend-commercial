@@ -9,10 +9,10 @@ const LOVABLE_AI_GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
 // Model configuration
 const MODELS = {
-  architect: "google/gemini-2.5-pro",    // Reasoning & planning
-  code: "google/gemini-2.5-pro",         // Code generation
-  validate: "google/gemini-2.5-flash",   // Fast validation
-  ui: "google/gemini-3-flash-preview",   // UI/design tasks
+  architect: "google/gemini-2.5-pro",      // Reasoning & planning (2M context)
+  code: "google/gemini-2.5-pro",           // Code generation (large output)
+  validate: "google/gemini-2.5-flash",     // Fast validation
+  ui: "google/gemini-3-flash-preview",     // UI/design tasks (latest)
 };
 
 export interface Message {
