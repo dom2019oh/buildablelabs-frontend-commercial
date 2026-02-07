@@ -403,6 +403,19 @@ export function getContextLimits(provider: ProviderKey): { maxFiles: number; max
 }
 
 // =============================================================================
+// TIMEOUT HELPER (Edge functions have ~60s limit)
+// =============================================================================
+
+const AI_CALL_TIMEOUT_MS = 25_000; // 25 seconds max per AI call
+
+function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = AI_CALL_TIMEOUT_MS): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  return fetch(url, { ...init, signal: controller.signal }).finally(() => clearTimeout(timer));
+}
+
+// =============================================================================
 // AI CALLER WITH ROUTING
 // =============================================================================
 
@@ -443,8 +456,8 @@ export async function callAI(
     const config = AI_PROVIDERS[provider];
     const apiKey = getApiKeys()[provider]!;
 
-    // Use provider-specific maxTokens
-    const maxTokens = options.maxTokens || config.maxTokens;
+    // Cap maxTokens for edge function safety (16k is plenty for any single stage)
+    const maxTokens = Math.min(options.maxTokens || config.maxTokens, 16000);
 
     console.log(`[Router] ${task} → ${config.name} (${model}) [maxTokens: ${maxTokens}]`);
 
@@ -454,7 +467,7 @@ export async function callAI(
         "Authorization": `Bearer ${apiKey}`,
       };
 
-      const response = await fetch(config.baseUrl, {
+      const response = await fetchWithTimeout(config.baseUrl, {
         method: "POST",
         headers,
         body: JSON.stringify({
@@ -499,7 +512,8 @@ export async function callAI(
         usedFallback: attemptIndex > 0,
       };
     } catch (error) {
-      console.log(`[Router] ${config.name} error:`, error);
+      const errMsg = (error as Error).name === "AbortError" ? "Timeout (25s)" : String(error);
+      console.log(`[Router] ${config.name} error: ${errMsg}`);
       lastError = error instanceof Error ? error : new Error(String(error));
       attemptIndex++;
     }
@@ -511,8 +525,8 @@ export async function callAI(
 // =============================================================================
 // ENSEMBLE CODING - Call multiple providers, pick the best
 // =============================================================================
-// For code generation, we can run 2 providers in parallel and pick the result
-// with the highest confidence + most complete code blocks.
+// For code generation, we run 2 providers in parallel with a 25s timeout,
+// picking the result with the highest confidence + most complete code blocks.
 
 export async function callAIEnsemble(
   messages: Array<{ role: string; content: string }>,
@@ -538,13 +552,13 @@ export async function callAIEnsemble(
   // Pick top 2 providers for ensemble
   const ensembleProviders: Array<{ provider: ProviderKey; model: string }> = [];
   
-  // Always include Grok for code if available (fast)
+  // Prefer Gemini Flash for speed in edge functions (Pro is too slow)
+  if (apiKeys.gemini) {
+    ensembleProviders.push({ provider: "gemini", model: AI_PROVIDERS.gemini.models.flash });
+  }
+  // Include Grok for code if available (fast)
   if (apiKeys.grok) {
     ensembleProviders.push({ provider: "grok", model: AI_PROVIDERS.grok.models.code });
-  }
-  // Always include Gemini for code if available (high quality, large context)
-  if (apiKeys.gemini) {
-    ensembleProviders.push({ provider: "gemini", model: AI_PROVIDERS.gemini.models.code });
   }
   // Add OpenAI if we still need more
   if (ensembleProviders.length < 2 && apiKeys.openai) {
@@ -553,14 +567,15 @@ export async function callAIEnsemble(
 
   console.log(`[Ensemble] Running ${ensembleProviders.length} providers in parallel: ${ensembleProviders.map(p => p.provider).join(", ")}`);
 
-  // Call all providers in parallel
+  // Call all providers in parallel with timeouts
   const promises = ensembleProviders.map(async ({ provider, model }) => {
     const config = AI_PROVIDERS[provider];
     const apiKey = apiKeys[provider]!;
-    const maxTokens = options.maxTokens || config.maxTokens;
+    // Cap at 16k tokens for edge function speed
+    const maxTokens = Math.min(options.maxTokens || config.maxTokens, 16000);
 
     try {
-      const response = await fetch(config.baseUrl, {
+      const response = await fetchWithTimeout(config.baseUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -599,7 +614,8 @@ export async function callAIEnsemble(
         codeBlockCount: quality.codeBlockCount,
       } as AICallResult & { codeBlockCount: number };
     } catch (err) {
-      console.log(`[Ensemble] ${config.name} error:`, err);
+      const errMsg = (err as Error).name === "AbortError" ? "Timeout (25s)" : String(err);
+      console.log(`[Ensemble] ${config.name} error: ${errMsg}`);
       return null;
     }
   });
@@ -607,7 +623,9 @@ export async function callAIEnsemble(
   const results = (await Promise.all(promises)).filter(Boolean) as Array<AICallResult & { codeBlockCount: number }>;
 
   if (results.length === 0) {
-    throw new Error("All ensemble providers failed");
+    // All providers failed/timed out — fall back to standard single call with Flash
+    console.log("[Ensemble] All failed, falling back to single call");
+    return callAI("coding", messages, { ...options, maxTokens: 16000, stream: false });
   }
 
   // Pick the best result: highest confidence, then most code blocks
@@ -651,12 +669,12 @@ export async function callAIStreaming(
     const { provider, model } = candidate;
     const config = AI_PROVIDERS[provider];
     const apiKey = getApiKeys()[provider]!;
-    const maxTokens = options.maxTokens || config.maxTokens;
+    const maxTokens = Math.min(options.maxTokens || config.maxTokens, 16000);
 
     console.log(`[Router:Stream] ${task} → ${config.name} (${model}) [maxTokens: ${maxTokens}]`);
 
     try {
-      const response = await fetch(config.baseUrl, {
+      const response = await fetchWithTimeout(config.baseUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
