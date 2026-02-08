@@ -1,10 +1,11 @@
 // =============================================================================
-// PLAN STAGE - Architecture Planning with enhanced context
+// PLAN STAGE - Architecture Planning with library awareness + enhanced context
 // =============================================================================
 
-import type { PipelineContext, StageResult, ArchitecturePlan } from "../types.ts";
+import type { PipelineContext, StageResult, ArchitecturePlan, LibraryMatchRef } from "../types.ts";
 import { callAI, getContextLimits, getAvailableProviders, profileRequest } from "../routing.ts";
 import { StageTracer } from "../telemetry.ts";
+import { getLibraryCode, findLibraryMatches } from "../libraries.ts";
 
 const PLAN_PROMPT = `You are an architect for a website builder. Create implementation plans.
 
@@ -12,11 +13,21 @@ OUTPUT JSON:
 {
   "projectType": "landing-page|portfolio|ecommerce|saas",
   "theme": {"primary":"purple","style":"modern"},
-  "pages": [{"path":"src/pages/Index.tsx","purpose":"Main page"}],
-  "components": [{"path":"src/components/Hero.tsx","features":["image","gradient"]}],
+  "pages": [{"path":"src/pages/Index.tsx","purpose":"Main page","sections":["hero","features","gallery","testimonials","cta"]}],
+  "components": [{"path":"src/components/Hero.tsx","features":["image","gradient","animation"],"purpose":"Hero section with full-bleed image"}],
   "routes": ["/"],
-  "images": [{"usage":"hero","url":"https://images.unsplash.com/photo-XXX?w=1920&q=80"}]
+  "images": [{"usage":"hero","url":"https://images.unsplash.com/photo-XXX?w=1920&q=80"}],
+  "specialInstructions": "Any library assets or specific design requirements"
 }
+
+## DESIGN REQUIREMENTS FOR EVERY PLAN:
+- Hero section MUST have a full-bleed background image with gradient overlay
+- Every section MUST use py-20 to py-32 spacing (generous vertical padding)
+- Typography: Hero text-5xl to text-7xl, section headings text-3xl to text-4xl
+- All interactive elements MUST have hover effects with transitions
+- Include micro-animations: fade-in on scroll, staggered card appearances
+- Use glassmorphism for cards (backdrop-blur, bg-white/5, border-white/10)
+- Color palettes should be sophisticated, not just purple-pink
 
 IMAGE IDS BY NICHE:
 - Bakery: photo-1509440159596-0249088772ff, photo-1555507036-ab1f4038808a
@@ -30,6 +41,7 @@ IMAGE IDS BY NICHE:
 - Travel: photo-1507525428034-b723cf961d3e, photo-1476514525535-07fb3b4ae5f1
 
 Always include: Navbar, Hero, Features, Gallery, Testimonials, CTA, Footer.
+Each component MUST list its specific features and sections.
 Return ONLY valid JSON.`;
 
 export async function executePlanStage(ctx: PipelineContext): Promise<StageResult<ArchitecturePlan>> {
@@ -37,7 +49,6 @@ export async function executePlanStage(ctx: PipelineContext): Promise<StageResul
   const tracer = new StageTracer(ctx);
   tracer.stageStart("plan");
 
-  // Use provider-aware context limits for existing files
   const available = getAvailableProviders();
   const planningProvider = available.includes("gemini") ? "gemini" : available[0] || "grok";
   const limits = getContextLimits(planningProvider as any);
@@ -56,7 +67,17 @@ export async function executePlanStage(ctx: PipelineContext): Promise<StageResul
     existingContext = "None (new project)";
   }
 
-  // Profile request for smart routing
+  // Build library context if matches were found
+  let libraryContext = "";
+  if (ctx.libraryMatches && ctx.libraryMatches.length > 0) {
+    const matchDetails = ctx.libraryMatches.map(m => {
+      const fullMatch = findLibraryMatches(m.name).find(fm => fm.id === m.id);
+      const code = fullMatch ? getLibraryCode(fullMatch) : "";
+      return `- ${m.name} (${m.type}, ${m.category})${code ? `:\n${code.slice(0, 500)}` : ""}`;
+    }).join("\n");
+    libraryContext = `\n\nLIBRARY ASSETS REQUESTED:\n${matchDetails}\n\nInclude these library assets in the plan. Use their EXACT code as provided.`;
+  }
+
   const profile = profileRequest(
     ctx.originalPrompt,
     ctx.existingFiles.map(f => ({ path: f.path, content: f.content })),
@@ -65,7 +86,7 @@ export async function executePlanStage(ctx: PipelineContext): Promise<StageResul
   try {
     const result = await callAI("planning", [
       { role: "system", content: PLAN_PROMPT },
-      { role: "user", content: `Request: "${ctx.originalPrompt}"\nExisting: ${existingContext}\n\nCreate plan.` },
+      { role: "user", content: `Request: "${ctx.originalPrompt}"\nExisting: ${existingContext}${libraryContext}\n\nCreate plan.` },
     ], { temperature: 0.3, maxTokens: 4000, profile });
 
     tracer.modelCall(result.provider, result.model, "planning", result.latencyMs, result.tokensUsed);
@@ -80,19 +101,24 @@ export async function executePlanStage(ctx: PipelineContext): Promise<StageResul
       plan.routes = plan.routes || ["/"];
       plan.images = plan.images || [];
 
+      // Attach library matches to the plan
+      if (ctx.libraryMatches && ctx.libraryMatches.length > 0) {
+        plan.libraryAssets = ctx.libraryMatches;
+      }
+
       tracer.stageComplete("plan", true, Date.now() - start, {});
       return { success: true, data: plan, duration: Date.now() - start, canRetry: true };
     }
 
     throw new Error("No JSON in response");
   } catch (e) {
-    const plan = getDefaultPlan(ctx.originalPrompt);
+    const plan = getDefaultPlan(ctx.originalPrompt, ctx.libraryMatches);
     tracer.stageComplete("plan", true, Date.now() - start, { metadata: { fallback: true } });
     return { success: true, data: plan, duration: Date.now() - start, canRetry: false };
   }
 }
 
-function getDefaultPlan(prompt: string): ArchitecturePlan {
+function getDefaultPlan(prompt: string, libraryMatches?: LibraryMatchRef[]): ArchitecturePlan {
   const p = prompt.toLowerCase();
   let img = "photo-1557683316-973673baf926";
   if (p.includes("bakery")) img = "photo-1509440159596-0249088772ff";
@@ -107,17 +133,18 @@ function getDefaultPlan(prompt: string): ArchitecturePlan {
   return {
     projectType: "landing-page",
     theme: { primary: "purple", style: "modern" },
-    pages: [{ path: "src/pages/Index.tsx", purpose: "Main" }],
+    pages: [{ path: "src/pages/Index.tsx", purpose: "Main page", sections: ["hero", "features", "gallery", "testimonials", "cta"] }],
     components: [
-      { path: "src/components/layout/Navbar.tsx", features: ["logo", "menu"] },
-      { path: "src/components/Hero.tsx", features: ["image", "gradient"] },
-      { path: "src/components/Features.tsx", features: ["cards"] },
-      { path: "src/components/Gallery.tsx", features: ["grid"] },
-      { path: "src/components/Testimonials.tsx", features: ["cards"] },
-      { path: "src/components/CTA.tsx", features: ["gradient"] },
-      { path: "src/components/layout/Footer.tsx", features: ["links"] },
+      { path: "src/components/layout/Navbar.tsx", features: ["logo", "menu", "mobile-menu", "backdrop-blur", "cta-button"], purpose: "Navigation" },
+      { path: "src/components/Hero.tsx", features: ["full-bleed-image", "gradient-overlay", "gradient-text", "badge", "dual-cta"], purpose: "Hero section" },
+      { path: "src/components/Features.tsx", features: ["icon-cards", "hover-effects", "grid-layout", "descriptions"], purpose: "Features grid" },
+      { path: "src/components/Gallery.tsx", features: ["image-grid", "hover-zoom", "overlay"], purpose: "Image gallery" },
+      { path: "src/components/Testimonials.tsx", features: ["star-ratings", "avatar", "cards"], purpose: "Social proof" },
+      { path: "src/components/CTA.tsx", features: ["gradient-bg", "headline", "buttons"], purpose: "Call to action" },
+      { path: "src/components/layout/Footer.tsx", features: ["multi-column", "links", "copyright"], purpose: "Footer" },
     ],
     routes: ["/"],
     images: [{ usage: "hero", url: `https://images.unsplash.com/${img}?w=1920&q=80` }],
+    libraryAssets: libraryMatches && libraryMatches.length > 0 ? libraryMatches : undefined,
   };
 }

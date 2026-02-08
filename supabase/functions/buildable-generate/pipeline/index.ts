@@ -20,6 +20,7 @@ import {
 import { validateFiles } from "./validation.ts";
 import { runRepairLoop } from "./repair.ts";
 import { hasAnyProvider, getAvailableProviders } from "./routing.ts";
+import { getLibraryCatalog } from "./libraries.ts";
 
 // Stage imports
 import { executeIntentStage } from "./stages/intent.ts";
@@ -287,8 +288,14 @@ export async function runPipeline(
         .eq("id", context.sessionId);
     }
 
-    let validation = validateFiles(context.generatedFiles);
+    let validation = validateFiles(context.generatedFiles, context.plan);
     context.validationResults = validation;
+
+    // Check completeness against plan
+    const completeness = validation.completenessScore ?? 1;
+    if (completeness < 1 && validation.missingFiles && validation.missingFiles.length > 0) {
+      console.log(`[Pipeline] Completeness: ${(completeness * 100).toFixed(0)}% (${validation.missingFiles.length} files missing)`);
+    }
 
     tracer.validationResult(
       validation.valid,

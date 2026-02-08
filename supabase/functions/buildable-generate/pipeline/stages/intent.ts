@@ -6,10 +6,12 @@ import type {
   PipelineContext, 
   StageResult, 
   IntentResult, 
-  IntentType 
+  IntentType,
+  LibraryMatchRef,
 } from "../types.ts";
 import { callAI } from "../routing.ts";
 import { StageTracer } from "../telemetry.ts";
+import { findLibraryMatches } from "../libraries.ts";
 
 // =============================================================================
 // INTENT EXTRACTION PROMPT
@@ -26,6 +28,7 @@ const INTENT_SYSTEM_PROMPT = `You are an intent classifier for a website builder
 - style_change: Changing styling/design (e.g., "make it more modern")
 - refactor: Restructuring code without changing behavior
 - question: User is asking a question, not requesting changes
+- use_library: User is requesting a specific background, component, or page template by name
 
 ## OUTPUT FORMAT (JSON):
 {
@@ -41,46 +44,55 @@ const INTENT_SYSTEM_PROMPT = `You are an intent classifier for a website builder
 1. If no existing files, assume create_project
 2. If user mentions "add" or "create", it's likely add_page or add_component
 3. If user mentions "change", "update", "fix", it's modify_component or fix_error
-4. Confidence should be 0.0-1.0 based on clarity of intent
-5. isDestructive is true if the change removes content`;
+4. If user references a specific library asset by name (e.g., "Ocean Blue background", "Glass Navbar"), use "use_library"
+5. Confidence should be 0.0-1.0 based on clarity of intent
+6. isDestructive is true if the change removes content`;
 
 // =============================================================================
 // KEYWORD-BASED INTENT DETECTION (FAST PATH)
 // =============================================================================
 
-function detectIntentFromKeywords(prompt: string, hasExistingFiles: boolean): IntentResult | null {
+function detectIntentFromKeywords(
+  prompt: string,
+  hasExistingFiles: boolean,
+  libraryMatches: LibraryMatchRef[],
+): IntentResult | null {
   const p = prompt.toLowerCase();
-  
+
+  // Library asset detection — highest priority
+  if (libraryMatches.length > 0 && libraryMatches[0].confidence >= 0.6) {
+    const topMatch = libraryMatches[0];
+    const actionVerbs = ["use", "add", "apply", "insert", "set", "change to", "switch to", "want"];
+    const hasActionVerb = actionVerbs.some(v => p.includes(v));
+    
+    if (hasActionVerb || topMatch.confidence >= 0.8) {
+      return {
+        type: "use_library",
+        confidence: topMatch.confidence,
+        summary: `Use library asset: ${topMatch.name} (${topMatch.type})`,
+        targetFiles: [],
+        requiresNewFiles: topMatch.type === "page",
+        isDestructive: false,
+        libraryMatches,
+      };
+    }
+  }
+
   // High-confidence patterns
   const patterns: Array<{ keywords: string[]; type: IntentType; confidence: number }> = [
-    // Create project patterns
     { keywords: ["build me", "create a", "make a", "build a", "new website", "new project"], type: "create_project", confidence: 0.9 },
-    
-    // Add page patterns
     { keywords: ["add a page", "create a page", "new page for"], type: "add_page", confidence: 0.85 },
     { keywords: ["add about", "add contact", "add pricing", "add a pricing", "add a contact", "add an about"], type: "add_page", confidence: 0.85 },
-    
-    // Add component patterns
     { keywords: ["add a section", "add a hero", "add a footer", "add a navbar", "add a form", "add a button"], type: "add_component", confidence: 0.85 },
-    
-    // Modify patterns
     { keywords: ["change the", "update the", "modify the", "make the", "make it"], type: "modify_component", confidence: 0.8 },
-    
-    // Fix patterns
     { keywords: ["fix the", "doesn't work", "not working", "broken", "bug", "error"], type: "fix_error", confidence: 0.85 },
-    
-    // Style patterns
     { keywords: ["change color", "change style", "more modern", "make it look", "styling", "design"], type: "style_change", confidence: 0.8 },
-    
-    // Question patterns
     { keywords: ["how do i", "how can i", "what is", "can you explain", "tell me about"], type: "question", confidence: 0.9 },
   ];
 
   for (const pattern of patterns) {
     if (pattern.keywords.some(kw => p.includes(kw))) {
-      // Adjust for existing files
       if (!hasExistingFiles && pattern.type !== "create_project" && pattern.type !== "question") {
-        // If no existing files, treat add/modify as create
         return {
           type: "create_project",
           confidence: 0.85,
@@ -88,6 +100,7 @@ function detectIntentFromKeywords(prompt: string, hasExistingFiles: boolean): In
           targetFiles: ["src/pages/Index.tsx"],
           requiresNewFiles: true,
           isDestructive: false,
+          libraryMatches: libraryMatches.length > 0 ? libraryMatches : undefined,
         };
       }
 
@@ -98,6 +111,7 @@ function detectIntentFromKeywords(prompt: string, hasExistingFiles: boolean): In
         targetFiles: [],
         requiresNewFiles: pattern.type === "create_project" || pattern.type === "add_page" || pattern.type === "add_component",
         isDestructive: false,
+        libraryMatches: libraryMatches.length > 0 ? libraryMatches : undefined,
       };
     }
   }
@@ -111,6 +125,7 @@ function detectIntentFromKeywords(prompt: string, hasExistingFiles: boolean): In
       targetFiles: ["src/pages/Index.tsx"],
       requiresNewFiles: true,
       isDestructive: false,
+      libraryMatches: libraryMatches.length > 0 ? libraryMatches : undefined,
     };
   }
 
@@ -124,13 +139,16 @@ function detectIntentFromKeywords(prompt: string, hasExistingFiles: boolean): In
 async function detectIntentWithAI(
   prompt: string,
   existingFiles: string[],
+  libraryMatches: LibraryMatchRef[],
   tracer: StageTracer
 ): Promise<IntentResult> {
-  const startTime = Date.now();
+  const libraryContext = libraryMatches.length > 0
+    ? `\n\nDetected library references: ${libraryMatches.map(m => `${m.name} (${m.type}, confidence: ${m.confidence})`).join(", ")}`
+    : "";
 
   const userMessage = `User request: "${prompt}"
 
-Existing files in project: ${existingFiles.length > 0 ? existingFiles.slice(0, 20).join(", ") : "None (new project)"}
+Existing files in project: ${existingFiles.length > 0 ? existingFiles.slice(0, 20).join(", ") : "None (new project)"}${libraryContext}
 
 Analyze this request and return the intent as JSON.`;
 
@@ -146,12 +164,10 @@ Analyze this request and return the intent as JSON.`;
 
     tracer.modelCall(result.provider, result.model, "intent", result.latencyMs, result.tokensUsed);
 
-    // Parse JSON response
     let parsed: IntentResult;
     try {
       parsed = JSON.parse(result.content);
     } catch {
-      // Try to extract JSON from markdown
       const jsonMatch = result.content.match(/```(?:json)?\s*([\s\S]*?)```/);
       if (jsonMatch) {
         parsed = JSON.parse(jsonMatch[1]);
@@ -160,7 +176,6 @@ Analyze this request and return the intent as JSON.`;
       }
     }
 
-    // Validate and return
     return {
       type: parsed.type || "modify_component",
       confidence: typeof parsed.confidence === "number" ? parsed.confidence : 0.5,
@@ -168,11 +183,11 @@ Analyze this request and return the intent as JSON.`;
       targetFiles: Array.isArray(parsed.targetFiles) ? parsed.targetFiles : [],
       requiresNewFiles: Boolean(parsed.requiresNewFiles),
       isDestructive: Boolean(parsed.isDestructive),
+      libraryMatches: libraryMatches.length > 0 ? libraryMatches : undefined,
     };
   } catch (error) {
     console.error("[Intent] AI detection failed:", error);
     
-    // Fallback to basic detection
     return {
       type: existingFiles.length === 0 ? "create_project" : "modify_component",
       confidence: 0.5,
@@ -180,6 +195,7 @@ Analyze this request and return the intent as JSON.`;
       targetFiles: [],
       requiresNewFiles: existingFiles.length === 0,
       isDestructive: false,
+      libraryMatches: libraryMatches.length > 0 ? libraryMatches : undefined,
     };
   }
 }
@@ -199,14 +215,26 @@ export async function executeIntentStage(
   const hasExistingFiles = context.existingFiles.length > 0;
   const existingFilePaths = context.existingFiles.map(f => f.path);
 
+  // Detect library references from the prompt
+  const rawMatches = findLibraryMatches(context.originalPrompt);
+  const libraryMatches: LibraryMatchRef[] = rawMatches
+    .filter(m => m.confidence >= 0.3)
+    .map(m => ({ type: m.type, id: m.id, name: m.name, confidence: m.confidence, category: m.category }));
+
+  if (libraryMatches.length > 0) {
+    console.log(`[Intent] Library matches: ${libraryMatches.map(m => `${m.name}(${m.confidence.toFixed(2)})`).join(", ")}`);
+  }
+
+  // Store library matches on context for downstream stages
+  context.libraryMatches = libraryMatches;
+
   // Try fast keyword-based detection first
-  const keywordResult = detectIntentFromKeywords(context.originalPrompt, hasExistingFiles);
+  const keywordResult = detectIntentFromKeywords(context.originalPrompt, hasExistingFiles, libraryMatches);
   
   if (keywordResult && keywordResult.confidence >= 0.85) {
-    // High confidence from keywords, use it directly
     const duration = Date.now() - startTime;
     tracer.stageComplete("intent", true, duration, { 
-      metadata: { method: "keywords", type: keywordResult.type } 
+      metadata: { method: "keywords", type: keywordResult.type, libraryMatches: libraryMatches.length } 
     });
 
     return {
@@ -219,11 +247,11 @@ export async function executeIntentStage(
 
   // Use AI for more complex intent detection
   try {
-    const intent = await detectIntentWithAI(context.originalPrompt, existingFilePaths, tracer);
+    const intent = await detectIntentWithAI(context.originalPrompt, existingFilePaths, libraryMatches, tracer);
     const duration = Date.now() - startTime;
 
     tracer.stageComplete("intent", true, duration, { 
-      metadata: { method: "ai", type: intent.type, confidence: intent.confidence } 
+      metadata: { method: "ai", type: intent.type, confidence: intent.confidence, libraryMatches: libraryMatches.length } 
     });
 
     return {
@@ -238,7 +266,6 @@ export async function executeIntentStage(
     
     tracer.stageError("intent", errorMessage, duration);
 
-    // Return fallback intent
     const fallbackIntent: IntentResult = {
       type: hasExistingFiles ? "modify_component" : "create_project",
       confidence: 0.3,
@@ -246,10 +273,11 @@ export async function executeIntentStage(
       targetFiles: [],
       requiresNewFiles: !hasExistingFiles,
       isDestructive: false,
+      libraryMatches: libraryMatches.length > 0 ? libraryMatches : undefined,
     };
 
     return {
-      success: true, // Still succeed with fallback
+      success: true,
       data: fallbackIntent,
       duration,
       canRetry: false,

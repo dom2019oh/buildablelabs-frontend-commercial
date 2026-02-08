@@ -108,6 +108,18 @@ export interface RollbackPoint {
   stage: StageName;
 }
 
+// =============================================================================
+// LIBRARY MATCH (for library-aware pipeline)
+// =============================================================================
+
+export interface LibraryMatchRef {
+  type: "background" | "component" | "page";
+  id: string;
+  name: string;
+  confidence: number;
+  category: string;
+}
+
 export interface PipelineContext {
   // Core identifiers
   sessionId: string | null;
@@ -133,6 +145,9 @@ export interface PipelineContext {
   repairHistory: RepairAttempt[];
   rollbackPoints: RollbackPoint[];
 
+  // Library matches from intent stage
+  libraryMatches?: LibraryMatchRef[];
+
   // Context memory
   projectContext?: ProjectContext;
 
@@ -156,7 +171,8 @@ export type IntentType =
   | "fix_error"          // Fix a bug or error
   | "style_change"       // Change styling/design
   | "refactor"           // Restructure code
-  | "question";          // User asking a question (no code change)
+  | "question"           // User asking a question (no code change)
+  | "use_library";       // User requesting a library asset by name
 
 export interface IntentResult {
   type: IntentType;
@@ -165,6 +181,7 @@ export interface IntentResult {
   targetFiles: string[];
   requiresNewFiles: boolean;
   isDestructive: boolean;
+  libraryMatches?: LibraryMatchRef[];
 }
 
 // =============================================================================
@@ -222,6 +239,7 @@ export interface ArchitecturePlan {
   routes: string[];
   images?: Array<{ usage: string; url: string }>;
   specialInstructions?: string;
+  libraryAssets?: LibraryMatchRef[];
 }
 
 // =============================================================================
@@ -250,9 +268,11 @@ export interface ValidationError {
 export interface ValidationResult {
   valid: boolean;
   score: number;  // 0.0 - 1.0 quality score
+  completenessScore?: number; // 0.0 - 1.0 how complete vs plan
   criticalErrors: ValidationError[];
   warnings: ValidationError[];
   suggestions: string[];
+  missingFiles?: string[];
 }
 
 // =============================================================================

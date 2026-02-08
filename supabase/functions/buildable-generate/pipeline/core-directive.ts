@@ -528,6 +528,58 @@ These patterns cause validation failure and trigger the repair loop:
 // SECTION 7: POLISH SCORING SYSTEM
 // =============================================================================
 
+export const DESIGN_EXCELLENCE = `
+## DESIGN EXCELLENCE — PREMIUM VISUAL STANDARDS
+
+### TYPOGRAPHY HIERARCHY (Mandatory)
+- Hero headlines: text-5xl sm:text-6xl lg:text-7xl font-bold
+- Section headings: text-4xl sm:text-5xl font-bold
+- Section subtitles: text-lg text-zinc-400 max-w-2xl mx-auto
+- Section labels: text-sm font-semibold uppercase tracking-widest text-purple-400
+- Card titles: text-xl font-semibold
+- Body text: text-base leading-relaxed text-zinc-400
+- Use tracking-tight on hero text, tracking-wider on labels
+
+### SPACING SYSTEM (Mandatory)
+- Section vertical padding: py-24 to py-32 (never less than py-20)
+- Section heading bottom margin: mb-16 to mb-20
+- Grid gaps: gap-6 to gap-8
+- Card internal padding: p-8 (not p-4 or p-6)
+- Content max-width: max-w-7xl mx-auto px-4 sm:px-6 lg:px-8
+
+### MICRO-INTERACTIONS (Required on all projects)
+- Cards: hover:-translate-y-1 hover:border-purple-500/30 transition-all duration-500
+- Buttons: hover:shadow-xl hover:shadow-purple-500/25 hover:-translate-y-0.5 transition-all duration-300
+- Images: group-hover:scale-110 transition-transform duration-700
+- Links: hover:text-white transition-colors duration-200
+- Icons: group-hover:scale-110 transition-transform duration-300
+- Stagger animations on card grids (animation-delay-100, 200, 300)
+
+### VISUAL DEPTH (Required)
+- Cards: bg-white/[0.03] backdrop-blur-sm border border-white/[0.06]
+- Hover state: hover:bg-white/[0.06] hover:border-purple-500/30
+- Hero overlay: bg-gradient-to-b from-black/70 via-black/50 to-zinc-900
+- CTA sections: layered gradients with backdrop-blur-3xl
+- Buttons: shadow-lg shadow-purple-500/25 on primary CTAs
+- Footer: border-t border-white/5 (subtle, not heavy)
+
+### COLOR PALETTES BY PROJECT TYPE
+- Default: Purple-Pink (from-purple-600 to-pink-600)
+- Tech/SaaS: Blue-Cyan (from-blue-600 to-cyan-600) 
+- Finance: Emerald-Teal (from-emerald-600 to-teal-600)
+- Food/Restaurant: Orange-Red (from-orange-600 to-red-600)
+- Health/Fitness: Green-Emerald (from-green-600 to-emerald-600)
+- Luxury/Fashion: Gold-Amber (from-amber-500 to-yellow-500)
+- Creative: Violet-Fuchsia (from-violet-600 to-fuchsia-600)
+
+### CONTENT QUALITY (Mandatory)
+- NEVER use "Lorem ipsum" or single-word placeholders
+- Every testimonial must have a full 2-sentence quote, real-sounding name, and role
+- Feature descriptions must be specific and descriptive (15-25 words each)
+- Hero subtitles must be compelling and specific to the project niche
+- Footer must have 3+ link columns with 3-4 links each
+`;
+
 export const POLISH_SCORING = `
 ## POLISH SCORE — QUALITY METRICS (0-100)
 
@@ -535,17 +587,24 @@ Every generated project is scored on visual polish:
 
 | Criteria | Points | Requirement |
 |----------|--------|-------------|
-| Hero background image | +15 | Full-bleed Unsplash image |
-| Gradient overlay | +10 | from-black/80 or similar |
-| Gradient text | +10 | At least one heading with gradient |
-| Hover effects | +15 | On all buttons, cards, links |
-| Unsplash images | +10 | At least 4 real images |
-| 8+ images | +10 | Bonus for image-rich projects |
-| Mobile menu | +10 | Working hamburger menu |
+| Hero background image | +10 | Full-bleed Unsplash image |
+| Gradient overlay | +8 | from-black/80 or similar |
+| Gradient text | +8 | At least one heading with gradient |
+| Hover effects | +10 | On all buttons, cards, links |
+| Unsplash images | +8 | At least 4 real images |
+| 8+ files | +5 | Bonus for complete projects |
+| Mobile menu | +5 | Working hamburger menu |
 | Footer complete | +5 | Multi-column with links |
 | CTA section | +5 | Gradient background CTA |
-| Animations | +5 | Transitions and transforms |
+| Transitions | +5 | transition-all/colors usage |
 | Glass effects | +5 | backdrop-blur usage |
+| Large hero text | +5 | text-5xl or larger |
+| Generous spacing | +5 | py-24+ sections |
+| Animations | +5 | @keyframes or animate- classes |
+| Group hover | +3 | group-hover: usage |
+| Lift on hover | +3 | hover:-translate-y usage |
+| Typography details | +3 | tracking-/leading- usage |
+| Letter spacing | +2 | tracking-widest on labels |
 
 ### MINIMUM PASSING SCORE: 70/100
 
@@ -594,6 +653,10 @@ ${CODE_QUALITY_RULES}
 ═══════════════════════════════════════════════════════════════════════════════
 
 ${VISUAL_STANDARDS}
+
+═══════════════════════════════════════════════════════════════════════════════
+
+${DESIGN_EXCELLENCE}
 
 ═══════════════════════════════════════════════════════════════════════════════
 
