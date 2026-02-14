@@ -54,9 +54,9 @@ export default function Navbar() {
     >
       <div className="w-full max-w-6xl mx-auto flex items-center justify-between">
         {/* Logo on the left */}
-        <Link to="/" className="flex items-center gap-2.5">
-          <img src={buildableLogo} alt="Buildable" className="h-8 w-8 object-contain" />
-          <img src={buildableText} alt="Buildable" className="h-14 object-contain -ml-1" />
+        <Link to="/" className="flex items-center gap-2">
+          <img src={buildableLogo} alt="Buildable" className="h-7 w-7 object-contain" />
+          <img src={buildableText} alt="Buildable" className="h-7 object-contain" />
         </Link>
 
         {/* Links and account on the right */}
