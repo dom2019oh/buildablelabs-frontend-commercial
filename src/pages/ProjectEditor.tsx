@@ -16,7 +16,7 @@ import {
   Zap,
   Sparkles
 } from 'lucide-react';
-import buildableLogo from '@/assets/buildify-logo.png';
+import buildableLogo from '@/assets/buildable-logo.png';
 
 interface Message {
   id: string;

@@ -1,7 +1,7 @@
 import { Link, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Home, FolderKanban, BarChart3, CreditCard, Settings, Layout, Component, Palette } from "lucide-react";
-import buildableLogo from "@/assets/buildify-logo.png";
+import buildableLogo from "@/assets/buildable-logo.png";
 import { cn } from "@/lib/utils";
 
 const navItems = [
