@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Mail, Lock, User, ArrowRight, Loader2 } from 'lucide-react';
 import Navbar from '@/components/Navbar';
-import buildableLogo from '@/assets/buildify-logo.png';
+import buildableLogo from '@/assets/buildable-logo.png';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -57,7 +57,6 @@ export default function SignUp() {
 
   const handleGoogleSignIn = async () => {
     setGoogleLoading(true);
-    // Store returnTo in sessionStorage so we can redirect after OAuth callback
     if (returnTo !== '/dashboard') {
       sessionStorage.setItem('buildable_return_to', returnTo);
     }

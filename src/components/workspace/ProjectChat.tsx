@@ -22,7 +22,7 @@ import type { ProjectMessage } from '@/hooks/useProjectMessages';
 import MarkdownRenderer from './MarkdownRenderer';
 import ThinkingIndicator from './ThinkingIndicator';
 import AIErrorMessage from './AIErrorMessage';
-import buildableLogo from '@/assets/buildify-logo.png';
+import buildableLogo from '@/assets/buildable-logo.png';
 import {
   DropdownMenu,
   DropdownMenuContent,

@@ -23,7 +23,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { useCredits } from '@/hooks/useCredits';
-import buildableLogo from '@/assets/buildify-logo.png';
+import buildableLogo from '@/assets/buildable-logo.png';
 
 interface ProjectDropdownProps {
   projectName: string;
