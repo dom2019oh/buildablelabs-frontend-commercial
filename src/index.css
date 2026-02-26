@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Sora:wght@500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300..700;1,9..40,300..400&family=Instrument+Serif:ital@0;1&family=Syne:wght@400..800&display=swap');
 
 /* Self-hosted Funnel Display font */
 @font-face {
@@ -136,18 +136,27 @@
     background: hsl(240 6% 40%);
   }
 
-  /* Funnel Display for headings and brand text */
+  /* Syne for bold display headings — geometric, modern, striking */
   h1, h2 {
-    font-family: 'Funnel Display', sans-serif;
+    font-family: 'Syne', sans-serif;
   }
 
   .font-brand {
-    font-family: 'Funnel Display', sans-serif;
+    font-family: 'Syne', sans-serif;
+  }
+
+  .font-syne {
+    font-family: 'Syne', sans-serif;
+  }
+
+  /* Instrument Serif for editorial italic accents */
+  .font-instrument {
+    font-family: 'Instrument Serif', serif;
   }
 
   body {
     @apply bg-background text-foreground font-sans antialiased;
-    font-family: 'Inter', system-ui, sans-serif;
+    font-family: 'DM Sans', system-ui, sans-serif;
   }
 }
 
@@ -295,4 +304,47 @@
 
 .animate-fade-in {
   animation: fadeIn 0.5s ease-out forwards;
+}
+
+/* ── Nebula orb animations ── */
+@keyframes nebula1 {
+  0%   { transform: translate(0, 0) scale(1);     opacity: 0.65; }
+  50%  { transform: translate(4%, 6%) scale(1.1); opacity: 0.9;  }
+  100% { transform: translate(2%, 3%) scale(1.06); opacity: 0.75; }
+}
+
+@keyframes nebula2 {
+  0%   { transform: translate(0, 0) scale(1.06);   opacity: 0.5; }
+  50%  { transform: translate(-5%, -4%) scale(0.94); opacity: 0.8; }
+  100% { transform: translate(-2%, -2%) scale(1);  opacity: 0.65; }
+}
+
+@keyframes nebula3 {
+  0%   { transform: translate(0, 0) scale(0.96);  opacity: 0.55; }
+  50%  { transform: translate(4%, 5%) scale(1.1); opacity: 0.82; }
+  100% { transform: translate(2%, 2%) scale(1.04); opacity: 0.65; }
+}
+
+.nebula-orb-1 { animation: nebula1 20s ease-in-out infinite alternate; }
+.nebula-orb-2 { animation: nebula2 24s ease-in-out infinite alternate; }
+.nebula-orb-3 { animation: nebula3 17s ease-in-out infinite alternate; }
+
+/* ── Prompt bar animated rim glow ── */
+@keyframes promptGlowSpin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* ── SplitText gradient variant ── */
+/* Apply gradient to each char/word span produced by GSAP SplitText */
+.gradient-split .split-char,
+.gradient-split .split-word {
+  background: linear-gradient(135deg, #c084fc 0%, #818cf8 42%, #2dd4bf 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  /* Extend gradient across the full expected text width so stagger looks seamless */
+  background-size: 600px 100%;
+  background-repeat: no-repeat;
 }

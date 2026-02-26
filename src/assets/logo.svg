@@ -1,0 +1,21 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" fill="none">
+  <defs>
+    <!-- Faithful recreation of the uploaded logo: pure black SW → light gray NE -->
+    <linearGradient id="g" x1="5%" y1="95%" x2="95%" y2="5%">
+      <stop offset="0%"   stop-color="#000000"/>
+      <stop offset="48%"  stop-color="#707070"/>
+      <stop offset="100%" stop-color="#e0e0e0"/>
+    </linearGradient>
+  </defs>
+  <path
+    d="
+      M 50 2
+      C 48.5 21, 29 41.5, 2 50
+      C 29 58.5, 48.5 79, 50 98
+      C 51.5 79, 71 58.5, 98 50
+      C 71 41.5, 51.5 21, 50 2
+      Z
+    "
+    fill="url(#g)"
+  />
+</svg>
