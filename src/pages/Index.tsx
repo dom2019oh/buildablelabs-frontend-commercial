@@ -364,6 +364,8 @@ function FeatureTicker() {
 
 // ─── How It Works ─────────────────────────────────────────────────────────────
 // ─── How It Works — individual step (scroll-reveal) ──────────────────────────
+const PARTICLE_COUNT = 8;
+
 function HowItWorksStep({
   icon,
   title,
@@ -377,6 +379,7 @@ function HowItWorksStep({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { once: true, margin: "-100px" });
+  const [particlesActive, setParticlesActive] = useState(false);
 
   return (
     <motion.div
@@ -393,8 +396,8 @@ function HowItWorksStep({
           transition={{ duration: 0.45, ease: [0.34, 1.56, 0.64, 1] }}
           className="w-11 h-11 rounded-full flex items-center justify-center shrink-0"
           style={{
-            background: "linear-gradient(135deg, #7c3aed 0%, #3b82f6 100%)",
-            boxShadow: "0 0 24px rgba(124,58,237,0.45)",
+            background: "#000",
+            boxShadow: "0 0 0 1.5px rgba(255,255,255,0.12)",
             color: "#fff",
             zIndex: 1,
           }}
@@ -402,18 +405,82 @@ function HowItWorksStep({
           {icon}
         </motion.div>
 
-        {/* Connecting line to next step */}
+        {/* Connecting line + shooting comet */}
         {!isLast && (
-          <motion.div
-            initial={{ scaleY: 0 }}
-            animate={inView ? { scaleY: 1 } : {}}
-            transition={{ duration: 1.1, delay: 0.3, ease: "easeInOut" }}
-            className="w-px flex-1 mt-2 origin-top"
-            style={{
-              background: "linear-gradient(to bottom, rgba(124,58,237,0.5) 0%, rgba(59,130,246,0.15) 100%)",
-              minHeight: "80px",
-            }}
-          />
+          <div
+            className="relative flex-1 mt-2"
+            style={{ width: "2px", minHeight: "80px", background: "rgba(255,255,255,0.07)" }}
+          >
+            {/* Shooting comet */}
+            {inView && (
+              <motion.div
+                initial={{ top: 0 }}
+                animate={{ top: "100%" }}
+                transition={{ duration: 0.75, delay: 0.55, ease: [0.4, 0, 0.8, 1] }}
+                onAnimationComplete={() => setParticlesActive(true)}
+                style={{
+                  position: "absolute",
+                  left: "50%",
+                  transform: "translateX(-50%)",
+                  width: "3px",
+                  height: "36px",
+                  background: "linear-gradient(to bottom, transparent 0%, rgba(255,255,255,0.95) 100%)",
+                  borderRadius: "9999px",
+                  pointerEvents: "none",
+                  zIndex: 2,
+                }}
+              />
+            )}
+
+            {/* Particle burst + logo flash at bottom */}
+            <AnimatePresence>
+              {particlesActive && (
+                <div style={{ position: "absolute", bottom: 0, left: "50%", pointerEvents: "none" }}>
+                  {Array.from({ length: PARTICLE_COUNT }).map((_, i) => {
+                    const angle = (i / PARTICLE_COUNT) * 2 * Math.PI;
+                    return (
+                      <motion.div
+                        key={i}
+                        initial={{ x: 0, y: 0, opacity: 1, scale: 1 }}
+                        animate={{
+                          x: Math.cos(angle) * 22,
+                          y: Math.sin(angle) * 22,
+                          opacity: 0,
+                          scale: 0.2,
+                        }}
+                        exit={{}}
+                        transition={{ duration: 0.55, ease: "easeOut" }}
+                        style={{
+                          position: "absolute",
+                          width: 4,
+                          height: 4,
+                          background: "#fff",
+                          borderRadius: "50%",
+                          transform: "translate(-50%, -50%)",
+                        }}
+                      />
+                    );
+                  })}
+                  {/* Buildable logo sparkle flash */}
+                  <motion.img
+                    src={logoPng}
+                    initial={{ scale: 0, opacity: 1 }}
+                    animate={{ scale: 2.4, opacity: 0 }}
+                    exit={{}}
+                    transition={{ duration: 0.65, ease: "easeOut" }}
+                    style={{
+                      position: "absolute",
+                      width: 18,
+                      height: 18,
+                      transform: "translate(-50%, -50%)",
+                      filter: "brightness(0) invert(1)",
+                      pointerEvents: "none",
+                    }}
+                  />
+                </div>
+              )}
+            </AnimatePresence>
+          </div>
         )}
       </div>
 
@@ -432,7 +499,7 @@ function HowItWorksStep({
         </h3>
         <p
           className="text-base leading-relaxed mb-6"
-          style={{ fontFamily: "'DM Sans', sans-serif", color: "rgba(214,224,240,0.88)", maxWidth: "430px" }}
+          style={{ fontFamily: "'DM Sans', sans-serif", color: "rgba(255,255,255,0.92)", maxWidth: "430px" }}
         >
           {desc}
         </p>
