@@ -42,6 +42,7 @@ import {
   Cake,
   Globe,
   MessageSquare,
+  Github,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import wordmarkSvg from "@/assets/buildable-wordmark.svg";
@@ -1039,6 +1040,191 @@ const SUGGESTION_PILLS: { icon: React.ElementType<{ className?: string }>; label
   { icon: Gift,     label: "Giveaway bot" },
 ];
 
+// ─── Footer ───────────────────────────────────────────────────────────────────
+function SiteFooter() {
+  const LEGAL_LINKS = [
+    { label: "Privacy Policy", href: "/privacy" },
+    { label: "Terms of Service", href: "/terms" },
+    { label: "Contact", href: "/contact" },
+  ];
+
+  const SOCIALS: { label: string; href: string; icon: React.ReactNode }[] = [
+    {
+      label: "Discord",
+      href: "#",
+      icon: (
+        <svg viewBox="0 0 24 24" fill="currentColor" width="17" height="17">
+          <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057c.002.022.012.043.028.054a19.9 19.9 0 0 0 5.993 3.03.077.077 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z" />
+        </svg>
+      ),
+    },
+    {
+      label: "X / Twitter",
+      href: "#",
+      icon: (
+        <svg viewBox="0 0 24 24" fill="currentColor" width="15" height="15">
+          <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.737-8.845L1.254 2.25H8.08l4.259 5.623 5.905-5.623Zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+        </svg>
+      ),
+    },
+    {
+      label: "GitHub",
+      href: "#",
+      icon: <Github size={17} />,
+    },
+  ];
+
+  return (
+    <footer
+      style={{
+        borderTop: "1px solid rgba(255,255,255,0.1)",
+        position: "relative",
+        zIndex: 10,
+        background: "rgba(0,0,0,0.3)",
+        backdropFilter: "blur(12px)",
+      }}
+    >
+      {/* Main footer grid */}
+      <div className="max-w-6xl mx-auto px-8 pt-16 pb-12">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-12">
+
+          {/* ── Brand column ── */}
+          <div className="md:col-span-2">
+            <div className="flex items-center gap-2.5 mb-5">
+              <img src={logoPng} className="h-7 w-7" alt="Buildable logo" />
+              <img
+                src={wordmarkSvg}
+                className="h-[18px]"
+                alt="Buildable"
+                style={{ filter: "brightness(0) invert(1)", opacity: 0.9 }}
+              />
+            </div>
+            <p
+              style={{
+                fontFamily: "'DM Sans', sans-serif",
+                color: "rgba(255,255,255,0.52)",
+                fontSize: "0.9rem",
+                lineHeight: 1.75,
+                maxWidth: "270px",
+              }}
+            >
+              Build Discord bots by just typing. No code, no servers — just your imagination and a prompt.
+            </p>
+
+            {/* Social icons */}
+            <div className="flex items-center gap-3 mt-7">
+              {SOCIALS.map((s) => (
+                <a
+                  key={s.label}
+                  href={s.href}
+                  aria-label={s.label}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    width: 36,
+                    height: 36,
+                    borderRadius: "50%",
+                    background: "rgba(255,255,255,0.06)",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    color: "rgba(255,255,255,0.65)",
+                    transition: "background 0.2s, color 0.2s, border-color 0.2s",
+                  }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLAnchorElement).style.background = "rgba(255,255,255,0.14)";
+                    (e.currentTarget as HTMLAnchorElement).style.color = "#fff";
+                    (e.currentTarget as HTMLAnchorElement).style.borderColor = "rgba(255,255,255,0.25)";
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLAnchorElement).style.background = "rgba(255,255,255,0.06)";
+                    (e.currentTarget as HTMLAnchorElement).style.color = "rgba(255,255,255,0.65)";
+                    (e.currentTarget as HTMLAnchorElement).style.borderColor = "rgba(255,255,255,0.1)";
+                  }}
+                >
+                  {s.icon}
+                </a>
+              ))}
+            </div>
+          </div>
+
+          {/* ── Nav columns from NAV_ENTRIES ── */}
+          {NAV_ENTRIES.map((entry) => (
+            <div key={entry.label}>
+              <h4
+                style={{
+                  fontFamily: "'Syne', sans-serif",
+                  fontSize: "0.68rem",
+                  letterSpacing: "0.16em",
+                  textTransform: "uppercase",
+                  color: "rgba(255,255,255,0.35)",
+                  marginBottom: "1.1rem",
+                  fontWeight: 700,
+                }}
+              >
+                {entry.label}
+              </h4>
+              <ul style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                {entry.items.map((item) => (
+                  <li key={item.label}>
+                    <Link
+                      to={item.href}
+                      style={{
+                        fontFamily: "'DM Sans', sans-serif",
+                        fontSize: "0.9rem",
+                        color: "rgba(255,255,255,0.62)",
+                        textDecoration: "none",
+                        transition: "color 0.18s",
+                      }}
+                      onMouseEnter={(e) => ((e.target as HTMLElement).style.color = "#fff")}
+                      onMouseLeave={(e) => ((e.target as HTMLElement).style.color = "rgba(255,255,255,0.62)")}
+                    >
+                      {item.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Bottom bar ── */}
+      <div style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }}>
+        <div className="max-w-6xl mx-auto px-8 py-5 flex flex-col md:flex-row items-center justify-between gap-4">
+          <span
+            style={{
+              fontFamily: "'DM Sans', sans-serif",
+              fontSize: "0.8rem",
+              color: "rgba(255,255,255,0.3)",
+            }}
+          >
+            © 2026 Buildable Labs. All rights reserved.
+          </span>
+          <div className="flex items-center gap-6">
+            {LEGAL_LINKS.map((l) => (
+              <Link
+                key={l.href}
+                to={l.href}
+                style={{
+                  fontFamily: "'DM Sans', sans-serif",
+                  fontSize: "0.8rem",
+                  color: "rgba(255,255,255,0.35)",
+                  textDecoration: "none",
+                  transition: "color 0.18s",
+                }}
+                onMouseEnter={(e) => ((e.target as HTMLElement).style.color = "rgba(255,255,255,0.75)")}
+                onMouseLeave={(e) => ((e.target as HTMLElement).style.color = "rgba(255,255,255,0.35)")}
+              >
+                {l.label}
+              </Link>
+            ))}
+          </div>
+        </div>
+      </div>
+    </footer>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function Index() {
   const [prompt, setPrompt] = useState("");
@@ -1374,36 +1560,7 @@ export default function Index() {
         <FeaturesGrid />
 
         {/* ══════════════ FOOTER ══════════════ */}
-        <footer
-          className="py-6 px-8 md:px-12"
-          style={{ borderTop: "1px solid rgba(255,255,255,0.04)", position: "relative", zIndex: 10 }}
-        >
-          <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-3">
-            <span
-              className="text-xs text-slate-700"
-              style={{ fontFamily: "'DM Sans', sans-serif" }}
-            >
-              © 2026 Buildable Labs. All rights reserved.
-            </span>
-            <div className="flex items-center gap-7">
-              {[
-                { label: "Docs", to: "/docs" },
-                { label: "Pricing", to: "/pricing" },
-                { label: "Explore", to: "/explore" },
-                { label: "Privacy", to: "/privacy" },
-              ].map((l) => (
-                <Link
-                  key={l.to}
-                  to={l.to}
-                  className="text-xs text-slate-700 hover:text-slate-300 transition-colors duration-200"
-                  style={{ fontFamily: "'DM Sans', sans-serif" }}
-                >
-                  {l.label}
-                </Link>
-              ))}
-            </div>
-          </div>
-        </footer>
+        <SiteFooter />
       </div>
     </div>
   );
