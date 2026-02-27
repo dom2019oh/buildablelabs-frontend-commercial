@@ -363,234 +363,166 @@ function FeatureTicker() {
 }
 
 // ─── How It Works ─────────────────────────────────────────────────────────────
+// ─── How It Works — individual step (scroll-reveal) ──────────────────────────
+function HowItWorksStep({
+  icon,
+  title,
+  desc,
+  isLast,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  desc: string;
+  isLast: boolean;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const inView = useInView(ref, { once: true, margin: "-120px" });
+
+  return (
+    <motion.div
+      ref={ref}
+      className="relative flex gap-7"
+      style={{ paddingBottom: isLast ? 0 : "7rem" }}
+    >
+      {/* Left column: dot + connecting line */}
+      <div className="relative flex flex-col items-center" style={{ width: "44px", flexShrink: 0 }}>
+        {/* Circle dot with icon */}
+        <motion.div
+          initial={{ scale: 0, opacity: 0 }}
+          animate={inView ? { scale: 1, opacity: 1 } : {}}
+          transition={{ duration: 0.45, ease: [0.34, 1.56, 0.64, 1] }}
+          className="w-11 h-11 rounded-full flex items-center justify-center shrink-0"
+          style={{
+            background: "linear-gradient(135deg, #7c3aed 0%, #3b82f6 100%)",
+            boxShadow: "0 0 24px rgba(124,58,237,0.45)",
+            color: "#fff",
+            zIndex: 1,
+          }}
+        >
+          {icon}
+        </motion.div>
+
+        {/* Connecting line to next step */}
+        {!isLast && (
+          <motion.div
+            initial={{ scaleY: 0 }}
+            animate={inView ? { scaleY: 1 } : {}}
+            transition={{ duration: 1.1, delay: 0.3, ease: "easeInOut" }}
+            className="w-px flex-1 mt-2 origin-top"
+            style={{
+              background: "linear-gradient(to bottom, rgba(124,58,237,0.5) 0%, rgba(59,130,246,0.15) 100%)",
+              minHeight: "80px",
+            }}
+          />
+        )}
+      </div>
+
+      {/* Right column: text content */}
+      <motion.div
+        initial={{ opacity: 0, y: 28 }}
+        animate={inView ? { opacity: 1, y: 0 } : {}}
+        transition={{ duration: 0.65, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
+        className="pt-2 pb-2"
+      >
+        <h3
+          className="font-bold text-white mb-3"
+          style={{ fontFamily: "'Syne', sans-serif", fontSize: "clamp(1.4rem, 2.5vw, 2rem)", lineHeight: 1.2 }}
+        >
+          {title}
+        </h3>
+        <p
+          className="text-base leading-relaxed"
+          style={{ fontFamily: "'DM Sans', sans-serif", color: "rgba(148,163,184,0.72)", maxWidth: "420px" }}
+        >
+          {desc}
+        </p>
+      </motion.div>
+    </motion.div>
+  );
+}
+
 function HowItWorks() {
-  const sectionRef = useRef<HTMLDivElement>(null);
-  const inView = useInView(sectionRef, { once: true, margin: "-80px" });
-  const [activeStep, setActiveStep] = useState(0);
-  const activeStepRef = useRef(0);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const dragStartY = useRef<number | null>(null);
+  const headingRef = useRef<HTMLDivElement>(null);
+  const inView = useInView(headingRef, { once: true, margin: "-80px" });
 
   const steps = [
     {
-      num: "01",
-      icon: <Wand2 className="w-7 h-7" />,
-      color: { bg: "rgba(109,40,217,0.12)", border: "rgba(109,40,217,0.25)", text: "#a78bfa" },
+      icon: <Wand2 className="w-5 h-5" />,
       title: "Describe in Plain English",
       desc: "Tell Buildable what your bot should do. No technical knowledge needed — just type like you're texting a friend.",
     },
     {
-      num: "02",
-      icon: <Zap className="w-7 h-7" />,
-      color: { bg: "rgba(99,102,241,0.12)", border: "rgba(99,102,241,0.25)", text: "#818cf8" },
+      icon: <Zap className="w-5 h-5" />,
       title: "AI Writes the Code",
       desc: "Our engine generates production-ready Python code using discord.py in seconds. Clean, documented, extensible.",
     },
     {
-      num: "03",
-      icon: <Rocket className="w-7 h-7" />,
-      color: { bg: "rgba(20,184,166,0.1)", border: "rgba(20,184,166,0.25)", text: "#2dd4bf" },
+      icon: <Rocket className="w-5 h-5" />,
       title: "Deploy & Go Live",
       desc: "One click. Your bot is live, hosted 24/7, serving thousands of members without touching a single server.",
     },
   ];
 
-  const goToStep = useCallback((index: number) => {
-    const next = ((index % steps.length) + steps.length) % steps.length;
-    activeStepRef.current = next;
-    setActiveStep(next);
-  }, [steps.length]);
-
-  // Auto-advance every 10 s
-  useEffect(() => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => {
-      goToStep(activeStepRef.current + 1);
-    }, 10000);
-    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
-  }, [activeStep, goToStep]);
-
-  // Capture wheel events inside section only
-  useEffect(() => {
-    const el = sectionRef.current;
-    if (!el) return;
-    let lastWheel = 0;
-    const onWheel = (e: WheelEvent) => {
-      const now = Date.now();
-      if (now - lastWheel < 700) return;
-      lastWheel = now;
-      e.preventDefault();
-      goToStep(activeStepRef.current + (e.deltaY > 0 ? 1 : -1));
-    };
-    el.addEventListener("wheel", onWheel, { passive: false });
-    return () => el.removeEventListener("wheel", onWheel);
-  }, [goToStep]);
-
-  // Pointer drag handlers
-  const onPointerDown = (e: React.PointerEvent) => {
-    dragStartY.current = e.clientY;
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-  };
-  const onPointerMove = (e: React.PointerEvent) => {
-    if (dragStartY.current === null) return;
-    const delta = dragStartY.current - e.clientY;
-    if (Math.abs(delta) > 55) {
-      goToStep(activeStepRef.current + (delta > 0 ? 1 : -1));
-      dragStartY.current = e.clientY;
-    }
-  };
-  const onPointerUp = () => { dragStartY.current = null; };
-
   return (
-    <section
-      ref={sectionRef}
-      className="relative px-6 py-24 max-w-5xl mx-auto select-none"
-      style={{ zIndex: 10, cursor: "grab" }}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-    >
-      {/* Divider */}
-      <motion.div
-        initial={{ scaleX: 0 }}
-        animate={inView ? { scaleX: 1 } : {}}
-        transition={{ duration: 0.9, ease: "easeInOut" }}
-        className="w-full h-px mb-16 origin-left"
-        style={{ background: "linear-gradient(to right, transparent, rgba(255,255,255,0.06) 30%, rgba(255,255,255,0.06) 70%, transparent)" }}
-      />
+    <section className="relative w-full" style={{ zIndex: 10 }}>
+      {/* Top divider */}
+      <div className="max-w-6xl mx-auto px-8">
+        <motion.div
+          initial={{ scaleX: 0 }}
+          animate={inView ? { scaleX: 1 } : {}}
+          transition={{ duration: 0.9, ease: "easeInOut" }}
+          className="w-full h-px mb-24 origin-left"
+          style={{ background: "linear-gradient(to right, transparent, rgba(255,255,255,0.07) 30%, rgba(255,255,255,0.07) 70%, transparent)" }}
+        />
+      </div>
 
-      {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={inView ? { opacity: 1, y: 0 } : {}}
-        transition={{ duration: 0.7 }}
-        className="text-center mb-14"
-      >
-        <p className="text-[11px] uppercase tracking-[0.3em] mb-4"
-          style={{ fontFamily: "'DM Sans', sans-serif", color: "rgba(167,139,250,0.5)", fontWeight: 500 }}>
-          How It Works
-        </p>
-        <h2 className="text-3xl md:text-4xl font-bold text-white">
-          From idea to live bot in three steps.
-        </h2>
-      </motion.div>
+      {/* Two-column sticky layout */}
+      <div className="max-w-6xl mx-auto px-8 grid grid-cols-1 md:grid-cols-2 gap-16 items-start">
 
-      {/* Two-panel layout */}
-      <div className="grid grid-cols-1 md:grid-cols-[1fr_2fr] gap-6 items-stretch">
-
-        {/* LEFT — step tabs */}
-        <div className="flex flex-col gap-2">
-          {steps.map((step, i) => (
-            <button
-              key={step.num}
-              onClick={(e) => { e.stopPropagation(); goToStep(i); }}
-              className="text-left rounded-xl px-4 py-4 transition-all duration-300"
-              style={{
-                background: activeStep === i ? "#1a1826" : "transparent",
-                border: activeStep === i
-                  ? `1px solid ${step.color.border}`
-                  : "1px solid rgba(255,255,255,0.05)",
-                cursor: "pointer",
-              }}
+        {/* LEFT — sticky heading */}
+        <div ref={headingRef} className="md:sticky md:top-32 pb-16">
+          <motion.div
+            initial={{ opacity: 0, y: 24 }}
+            animate={inView ? { opacity: 1, y: 0 } : {}}
+            transition={{ duration: 0.7 }}
+          >
+            <p
+              className="text-[11px] uppercase tracking-[0.3em] mb-5"
+              style={{ fontFamily: "'DM Sans', sans-serif", color: "rgba(167,139,250,0.55)", fontWeight: 500 }}
             >
-              <div className="flex items-center gap-3 mb-1">
-                <span className="text-[11px] font-mono font-bold"
-                  style={{ color: activeStep === i ? step.color.text : "rgba(255,255,255,0.2)" }}>
-                  {step.num}
-                </span>
-                <span className="text-sm font-medium transition-colors duration-300"
-                  style={{ color: activeStep === i ? "#fff" : "rgba(255,255,255,0.32)" }}>
-                  {step.title}
-                </span>
-              </div>
-
-              {/* Progress bar — only on active step */}
-              <div className="h-[2px] rounded-full mt-3 overflow-hidden"
-                style={{ background: "rgba(255,255,255,0.07)" }}>
-                {activeStep === i && (
-                  <div
-                    key={`prog-${activeStep}`}
-                    className="h-full rounded-full"
-                    style={{
-                      background: step.color.text,
-                      animation: "progressFill 10s linear forwards",
-                    }}
-                  />
-                )}
-              </div>
-            </button>
-          ))}
-
-          {/* Drag hint */}
-          <p className="text-center mt-4 text-[11px]"
-            style={{ fontFamily: "'DM Sans', sans-serif", color: "rgba(255,255,255,0.18)" }}>
-            ↕ Scroll or drag to explore
-          </p>
+              How It Works
+            </p>
+            <h2
+              className="font-bold text-white mb-5 leading-tight"
+              style={{ fontFamily: "'Syne', sans-serif", fontSize: "clamp(2.2rem, 4vw, 3.2rem)" }}
+            >
+              How it works
+            </h2>
+            <p
+              className="text-base leading-relaxed"
+              style={{ fontFamily: "'DM Sans', sans-serif", color: "rgba(148,163,184,0.6)", maxWidth: "340px" }}
+            >
+              From a single sentence to a fully hosted Discord bot — in seconds. No code, no servers, no headaches.
+            </p>
+          </motion.div>
         </div>
 
-        {/* RIGHT — animated step detail */}
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={activeStep}
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -24 }}
-            transition={{ duration: 0.38, ease: [0.16, 1, 0.3, 1] }}
-            className="relative rounded-2xl p-8 overflow-hidden"
-            style={{
-              background: "#141416",
-              border: `1px solid ${steps[activeStep].color.border}`,
-              minHeight: "280px",
-              boxShadow: `0 0 60px ${steps[activeStep].color.bg}, 0 8px 32px rgba(0,0,0,0.5)`,
-            }}
-          >
-            {/* Big watermark number */}
-            <span className="absolute bottom-4 right-6 text-[9rem] font-black leading-none select-none pointer-events-none"
-              style={{ color: "rgba(255,255,255,0.025)", fontFamily: "'Syne', sans-serif" }}>
-              {steps[activeStep].num}
-            </span>
-
-            {/* Icon */}
-            <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-7"
-              style={{
-                background: steps[activeStep].color.bg,
-                border: `1px solid ${steps[activeStep].color.border}`,
-                color: steps[activeStep].color.text,
-              }}>
-              {steps[activeStep].icon}
-            </div>
-
-            {/* Step number label */}
-            <p className="text-[11px] font-mono font-bold uppercase tracking-widest mb-2"
-              style={{ color: steps[activeStep].color.text }}>
-              Step {steps[activeStep].num}
-            </p>
-
-            {/* Title */}
-            <h3 className="text-2xl font-bold text-white mb-3" style={{ fontFamily: "'Syne', sans-serif" }}>
-              {steps[activeStep].title}
-            </h3>
-
-            {/* Description */}
-            <p className="text-base leading-relaxed"
-              style={{ fontFamily: "'DM Sans', sans-serif", color: "rgba(148,163,184,0.75)" }}>
-              {steps[activeStep].desc}
-            </p>
-
-            {/* Step dots */}
-            <div className="absolute bottom-6 left-8 flex items-center gap-2">
-              {steps.map((_, i) => (
-                <div key={i} className="rounded-full transition-all duration-300"
-                  style={{
-                    width: activeStep === i ? "20px" : "6px",
-                    height: "6px",
-                    background: activeStep === i ? steps[activeStep].color.text : "rgba(255,255,255,0.15)",
-                  }} />
-              ))}
-            </div>
-          </motion.div>
-        </AnimatePresence>
+        {/* RIGHT — scrolling timeline steps */}
+        <div className="py-4">
+          {steps.map((step, i) => (
+            <HowItWorksStep
+              key={i}
+              icon={step.icon}
+              title={step.title}
+              desc={step.desc}
+              isLast={i === steps.length - 1}
+            />
+          ))}
+        </div>
       </div>
+
+      {/* Bottom spacing */}
+      <div className="pb-24" />
     </section>
   );
 }
