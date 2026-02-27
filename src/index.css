@@ -335,6 +335,12 @@
   to   { transform: rotate(360deg); }
 }
 
+/* ── How It Works step progress bar ── */
+@keyframes progressFill {
+  from { width: 0%; }
+  to   { width: 100%; }
+}
+
 /* ── SplitText gradient variant ── */
 /* Apply gradient to each char/word span produced by GSAP SplitText */
 .gradient-split .split-char,
