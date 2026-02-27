@@ -376,13 +376,13 @@ function HowItWorksStep({
   isLast: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { once: true, margin: "-120px" });
+  const inView = useInView(ref, { once: true, margin: "-100px" });
 
   return (
     <motion.div
       ref={ref}
       className="relative flex gap-7"
-      style={{ paddingBottom: isLast ? 0 : "7rem" }}
+      style={{ paddingBottom: isLast ? 0 : "6rem" }}
     >
       {/* Left column: dot + connecting line */}
       <div className="relative flex flex-col items-center" style={{ width: "44px", flexShrink: 0 }}>
@@ -417,25 +417,54 @@ function HowItWorksStep({
         )}
       </div>
 
-      {/* Right column: text content */}
+      {/* Right column: text content + image placeholder */}
       <motion.div
         initial={{ opacity: 0, y: 28 }}
         animate={inView ? { opacity: 1, y: 0 } : {}}
         transition={{ duration: 0.65, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
-        className="pt-2 pb-2"
+        className="pt-2 pb-2 flex-1 min-w-0"
       >
         <h3
           className="font-bold text-white mb-3"
-          style={{ fontFamily: "'Syne', sans-serif", fontSize: "clamp(1.4rem, 2.5vw, 2rem)", lineHeight: 1.2 }}
+          style={{ fontFamily: "'Syne', sans-serif", fontSize: "clamp(1.2rem, 2vw, 1.65rem)", lineHeight: 1.2 }}
         >
           {title}
         </h3>
         <p
-          className="text-base leading-relaxed"
-          style={{ fontFamily: "'DM Sans', sans-serif", color: "rgba(148,163,184,0.72)", maxWidth: "420px" }}
+          className="text-base leading-relaxed mb-6"
+          style={{ fontFamily: "'DM Sans', sans-serif", color: "rgba(214,224,240,0.88)", maxWidth: "430px" }}
         >
           {desc}
         </p>
+
+        {/* Image placeholder */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.97 }}
+          animate={inView ? { opacity: 1, scale: 1 } : {}}
+          transition={{ duration: 0.6, delay: 0.35, ease: [0.16, 1, 0.3, 1] }}
+          style={{
+            width: "100%",
+            maxWidth: "430px",
+            aspectRatio: "16 / 9",
+            borderRadius: "14px",
+            background: "linear-gradient(135deg, rgba(124,58,237,0.06) 0%, rgba(59,130,246,0.04) 100%)",
+            border: "1px dashed rgba(255,255,255,0.1)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexDirection: "column" as const,
+            gap: "8px",
+          }}
+        >
+          <div style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(255,255,255,0.05)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
+            </svg>
+          </div>
+          <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "0.7rem", color: "rgba(255,255,255,0.15)", letterSpacing: "0.12em", textTransform: "uppercase" as const }}>
+            Image coming soon
+          </span>
+        </motion.div>
       </motion.div>
     </motion.div>
   );
@@ -447,19 +476,34 @@ function HowItWorks() {
 
   const steps = [
     {
+      icon: <UserPlus className="w-5 h-5" />,
+      title: "Create Your Account",
+      desc: "To get started, just make an account or log in if you already have one.",
+    },
+    {
+      icon: <Bot className="w-5 h-5" />,
+      title: "Create a New Bot",
+      desc: 'Open the dashboard and select "New Custom Bot" and follow the steps from the Tutorial.',
+    },
+    {
+      icon: <Shield className="w-5 h-5" />,
+      title: "Connect the Discord Portal",
+      desc: "Go to the Discord Developer Portal and add your Bot Token and Client ID following the Guide.",
+    },
+    {
       icon: <Wand2 className="w-5 h-5" />,
-      title: "Describe in Plain English",
-      desc: "Tell Buildable what your bot should do. No technical knowledge needed — just type like you're texting a friend.",
+      title: "Customize & Start Prompting",
+      desc: "Customize your bot profile, choose how many commands you want in sync — and boom, you're ready to start prompting.",
     },
     {
       icon: <Zap className="w-5 h-5" />,
-      title: "AI Writes the Code",
-      desc: "Our engine generates production-ready Python code using discord.py in seconds. Clean, documented, extensible.",
+      title: "Describe, Customize & Edit",
+      desc: "Just describe your idea, the image you want your bot to have and its function — Buildable AI analyzes your ideas and turns them into reality. You also have access to the code if you wish to make manual edits.",
     },
     {
       icon: <Rocket className="w-5 h-5" />,
-      title: "Deploy & Go Live",
-      desc: "One click. Your bot is live, hosted 24/7, serving thousands of members without touching a single server.",
+      title: "Hit Publish. We Handle the Rest.",
+      desc: "Once you finish, just hit publish and we host your bot for free. As simple as that — no errors, no \"I'm not sure what that does\". Just pure simplicity. Welcome to Buildable. Start building your dream.",
     },
   ];
 
