@@ -28,6 +28,7 @@ import Terms from "./pages/Terms";
 import Contact from "./pages/Contact";
 import Onboarding from "./pages/Onboarding";
 import CookieConsent from "./components/CookieConsent";
+import CustomCursor from "./components/CustomCursor";
 
 const queryClient = new QueryClient();
 
@@ -37,6 +38,7 @@ const App = () => (
       <TooltipProvider>
         <Toaster />
         <Sonner />
+        <CustomCursor />
         <BrowserRouter>
           <CookieConsent />
           <Routes>
