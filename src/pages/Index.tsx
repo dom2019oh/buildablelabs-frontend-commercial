@@ -2,8 +2,6 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import {
   motion,
   AnimatePresence,
-  useMotionValue,
-  useSpring,
   useInView,
 } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
@@ -284,34 +282,6 @@ function FloatingNav() {
   );
 }
 
-
-// ─── Cursor Glow ──────────────────────────────────────────────────────────────
-function CursorGlow() {
-  const cx = useMotionValue(-80);
-  const cy = useMotionValue(-80);
-  const sx = useSpring(cx, { stiffness: 140, damping: 22 });
-  const sy = useSpring(cy, { stiffness: 140, damping: 22 });
-
-  useEffect(() => {
-    const fn = (e: MouseEvent) => { cx.set(e.clientX - 24); cy.set(e.clientY - 24); };
-    window.addEventListener("mousemove", fn);
-    return () => window.removeEventListener("mousemove", fn);
-  }, [cx, cy]);
-
-  return (
-    <motion.div
-      className="fixed pointer-events-none rounded-full"
-      style={{
-        x: sx, y: sy,
-        width: 48, height: 48,
-        background: "radial-gradient(circle, rgba(167,139,250,0.6) 0%, rgba(124,58,237,0.22) 45%, transparent 70%)",
-        filter: "blur(8px)",
-        zIndex: 9999,
-        mixBlendMode: "screen",
-      }}
-    />
-  );
-}
 
 // ─── Feature Ticker ───────────────────────────────────────────────────────────
 function FeatureTicker() {
@@ -1251,13 +1221,13 @@ export default function Index() {
   };
 
   return (
-    <div className="relative min-h-screen overflow-hidden" style={{ background: "#150d22" }}>
+    <div className="relative min-h-screen overflow-hidden" style={{ background: "#080a0c" }}>
       {/* ── Grainient granite background ── */}
       <div className="fixed inset-0 pointer-events-none" style={{ zIndex: 0 }}>
         <Grainient
-          color1="#f291ef"
-          color2="#664ec6"
-          color3="#B19EEF"
+          color1="#d0d0d8"
+          color2="#2a2c32"
+          color3="#555860"
           timeSpeed={0.75}
           colorBalance={0}
           warpStrength={1}
@@ -1279,9 +1249,6 @@ export default function Index() {
           zoom={0.9}
         />
       </div>
-
-      {/* Cursor glow */}
-      <CursorGlow />
 
       {/* ── Content ── */}
       <div className="relative" style={{ zIndex: 10 }}>

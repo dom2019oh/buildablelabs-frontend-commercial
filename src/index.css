@@ -24,14 +24,15 @@
 
 @layer base {
   :root {
-    --background: 240 10% 4%;
-    --foreground: 0 0% 98%;
+    /* ── Outer-space surface palette ── */
+    --background: 220 8% 5%;
+    --foreground: 0 0% 88%;
 
-    --card: 240 10% 8%;
-    --card-foreground: 0 0% 98%;
+    --card: 220 6% 9%;
+    --card-foreground: 0 0% 88%;
 
-    --popover: 240 10% 8%;
-    --popover-foreground: 0 0% 98%;
+    --popover: 220 6% 9%;
+    --popover-foreground: 0 0% 88%;
 
     --primary: 262 83% 58%;
     --primary-foreground: 0 0% 100%;
@@ -39,8 +40,8 @@
     --secondary: 168 84% 45%;
     --secondary-foreground: 0 0% 100%;
 
-    --muted: 240 6% 15%;
-    --muted-foreground: 240 5% 65%;
+    --muted: 220 5% 15%;
+    --muted-foreground: 220 4% 55%;
 
     --accent: 262 60% 50%;
     --accent-foreground: 0 0% 100%;
@@ -48,50 +49,50 @@
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 240 6% 20%;
-    --input: 240 6% 20%;
+    --border: 220 5% 18%;
+    --input: 220 5% 14%;
     --ring: 262 83% 58%;
 
     --radius: 0.75rem;
 
     /* Custom Buildify tokens */
-    --glass-bg: 240 10% 10% / 0.6;
-    --glass-border: 0 0% 100% / 0.1;
-    --glass-shine: 0 0% 100% / 0.05;
-    
+    --glass-bg: 220 6% 8% / 0.65;
+    --glass-border: 0 0% 100% / 0.08;
+    --glass-shine: 0 0% 100% / 0.04;
+
     --aurora-purple: 262 83% 58%;
     --aurora-teal: 168 84% 45%;
     --aurora-blue: 230 90% 60%;
 
-    --sidebar-background: 240 10% 6%;
-    --sidebar-foreground: 0 0% 98%;
+    --sidebar-background: 220 7% 7%;
+    --sidebar-foreground: 0 0% 88%;
     --sidebar-primary: 262 83% 58%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 6% 15%;
-    --sidebar-accent-foreground: 0 0% 98%;
-    --sidebar-border: 240 6% 15%;
+    --sidebar-accent: 220 5% 13%;
+    --sidebar-accent-foreground: 0 0% 88%;
+    --sidebar-border: 220 5% 13%;
     --sidebar-ring: 262 83% 58%;
   }
 
   .dark {
-    --background: 240 10% 4%;
-    --foreground: 0 0% 98%;
-    --card: 240 10% 8%;
-    --card-foreground: 0 0% 98%;
-    --popover: 240 10% 8%;
-    --popover-foreground: 0 0% 98%;
+    --background: 220 8% 5%;
+    --foreground: 0 0% 88%;
+    --card: 220 6% 9%;
+    --card-foreground: 0 0% 88%;
+    --popover: 220 6% 9%;
+    --popover-foreground: 0 0% 88%;
     --primary: 262 83% 58%;
     --primary-foreground: 0 0% 100%;
     --secondary: 168 84% 45%;
     --secondary-foreground: 0 0% 100%;
-    --muted: 240 6% 15%;
-    --muted-foreground: 240 5% 65%;
+    --muted: 220 5% 15%;
+    --muted-foreground: 220 4% 55%;
     --accent: 262 60% 50%;
     --accent-foreground: 0 0% 100%;
     --destructive: 0 62% 30%;
     --destructive-foreground: 0 0% 100%;
-    --border: 240 6% 20%;
-    --input: 240 6% 20%;
+    --border: 220 5% 18%;
+    --input: 220 5% 14%;
     --ring: 262 83% 58%;
   }
 }
