@@ -48,6 +48,8 @@ import logoPng from "@/assets/buildable-logo.png";
 import openaiLogoPng from "@/assets/openai-logo.png";
 import Grainient from "@/components/Grainient";
 import SplitText from "@/components/SplitText";
+import AIThinkingOrb from "@/components/AIThinkingOrb";
+import BuildableSimulation from "@/components/home/BuildableSimulation";
 
 // ─── Nav dropdown data ────────────────────────────────────────────────────────
 type DropItem = { label: string; href: string; icon: React.ElementType<{ className?: string }> };
@@ -264,13 +266,16 @@ function FloatingNav() {
             <motion.span whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
               <Link
                 to="/dashboard"
-                className="inline-flex items-center text-[13px] font-semibold text-[#0a0514] px-4 py-[7px] rounded-full"
+                className="inline-flex items-center text-[13px] font-semibold px-4 py-[7px] rounded-full transition-all duration-200"
                 style={{
                   fontFamily: "'DM Sans', sans-serif",
-                  background: "#ffffff",
-                  boxShadow: "0 1px 4px rgba(0,0,0,0.25)",
+                  background: "rgba(255,255,255,0.08)",
+                  border: "1px solid rgba(255,255,255,0.14)",
+                  color: "rgba(255,255,255,0.85)",
                   letterSpacing: "-0.01em",
                 }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.14)"; e.currentTarget.style.color = "#fff"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.08)"; e.currentTarget.style.color = "rgba(255,255,255,0.85)"; }}
               >
                 Open Dashboard
               </Link>
@@ -611,15 +616,18 @@ function HowItWorks() {
 
 // ─── Tech Logos Marquee ───────────────────────────────────────────────────────
 function TechLogos() {
-  const logos: { name: string; src: string }[] = [
-    { name: "GitHub",      src: "https://cdn.simpleicons.org/github" },
-    { name: "Railway",     src: "https://cdn.simpleicons.org/railway" },
-    { name: "Discord",     src: "https://cdn.simpleicons.org/discord" },
-    { name: "Squarespace", src: "https://cdn.simpleicons.org/squarespace" },
-    { name: "OpenAI",      src: openaiLogoPng },
-    { name: "Anthropic",   src: "https://cdn.simpleicons.org/anthropic" },
-    { name: "Gemini",      src: "https://cdn.simpleicons.org/googlegemini" },
-    { name: "ElevenLabs",  src: "https://cdn.simpleicons.org/elevenlabs" },
+  const logos: { name: string; src: string; noFilter?: boolean }[] = [
+    { name: "GitHub",            src: "https://cdn.simpleicons.org/github" },
+    { name: "Railway",           src: "https://cdn.simpleicons.org/railway" },
+    { name: "Discord",           src: "https://cdn.simpleicons.org/discord" },
+    { name: "Squarespace",       src: "https://cdn.simpleicons.org/squarespace" },
+    { name: "OpenAI",            src: openaiLogoPng },
+    { name: "Anthropic",         src: "https://cdn.simpleicons.org/anthropic" },
+    { name: "Gemini",            src: "https://cdn.simpleicons.org/googlegemini" },
+    { name: "ElevenLabs",        src: "https://cdn.simpleicons.org/elevenlabs" },
+    { name: "Firebase",          src: "https://cdn.simpleicons.org/firebase" },
+    { name: "Cloudflare",        src: "https://cdn.simpleicons.org/cloudflare" },
+    { name: "Grant Development", src: "/grant-dev-logo.png", noFilter: true },
   ];
   const doubled = [...logos, ...logos];
 
@@ -641,15 +649,20 @@ function TechLogos() {
           WebkitMaskImage: "linear-gradient(to right, transparent, black 12%, black 88%, transparent)",
         }}
       >
-        <motion.div
-          className="flex items-center gap-16 whitespace-nowrap"
-          animate={{ x: [0, "-50%"] }}
-          transition={{ duration: 28, repeat: Infinity, ease: "linear" }}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "64px",
+            whiteSpace: "nowrap",
+            animation: "marqueeScroll 38s linear infinite",
+            willChange: "transform",
+          }}
         >
           {doubled.map((logo, i) => (
             <div
               key={i}
-              className="flex flex-col items-center gap-2.5 shrink-0 group cursor-default"
+              className="flex flex-col items-center gap-2.5 shrink-0 cursor-default"
               style={{ opacity: 0.82, transition: "opacity 0.2s" }}
               onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
               onMouseLeave={(e) => (e.currentTarget.style.opacity = "0.82")}
@@ -663,7 +676,7 @@ function TechLogos() {
                   height: "26px",
                   width: "auto",
                   maxWidth: "100px",
-                  filter: "brightness(0) invert(1)",
+                  filter: logo.noFilter ? "none" : "brightness(0) invert(1)",
                 }}
               />
               <span
@@ -674,8 +687,14 @@ function TechLogos() {
               </span>
             </div>
           ))}
-        </motion.div>
+        </div>
       </div>
+      <style>{`
+        @keyframes marqueeScroll {
+          0%   { transform: translateX(0); }
+          100% { transform: translateX(-50%); }
+        }
+      `}</style>
     </section>
   );
 }
@@ -1197,38 +1216,17 @@ function SiteFooter() {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function Index() {
-  const [prompt, setPrompt] = useState("");
-  const [promptIdx, setPromptIdx] = useState(0);
-  const [focused, setFocused] = useState(false);
-  const navigate = useNavigate();
   const { user } = useAuth();
-
-  useEffect(() => {
-    const id = setInterval(() => setPromptIdx((p) => (p + 1) % BOT_PROMPTS.length), 3600);
-    return () => clearInterval(id);
-  }, []);
-
-  const handleSubmit = () => {
-    if (prompt.trim()) navigate(user ? "/dashboard" : "/sign-up");
-  };
-
-  const handleKey = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSubmit(); }
-  };
-
-  const fillPrompt = (label: string) => {
-    setPrompt(`Create a ${label} for my Discord server`);
-  };
 
   return (
     <div className="relative min-h-screen overflow-hidden" style={{ background: "#080a0c" }}>
       {/* ── Grainient granite background ── */}
       <div className="fixed inset-0 pointer-events-none" style={{ zIndex: 0 }}>
         <Grainient
-          color1="#d0d0d8"
-          color2="#2a2c32"
-          color3="#555860"
-          timeSpeed={0.75}
+          color1="#3a3c42"
+          color2="#141518"
+          color3="#252729"
+          timeSpeed={0.35}
           colorBalance={0}
           warpStrength={1}
           warpFrequency={5}
@@ -1255,267 +1253,111 @@ export default function Index() {
         <FloatingNav />
 
         {/* ══════════════ HERO ══════════════ */}
-        <section className="relative min-h-screen flex flex-col items-center justify-center px-6 pt-40 pb-40 text-center overflow-hidden">
+        <section className="relative min-h-screen flex items-center px-6 md:px-16 overflow-hidden">
+          <div className="relative z-10 w-full max-w-6xl mx-auto flex flex-col md:flex-row items-center gap-8 md:gap-12 py-24">
 
-          {/* Headline — SplitText stagger reveal */}
-          <div className="relative z-10 mb-4 max-w-3xl text-center overflow-hidden">
-            <h1 className="leading-[1.25] tracking-tight font-extrabold" style={{ fontFamily: "'Syne', sans-serif" }}>
-              <SplitText
-                text="Build a Bot today"
-                splitType="chars"
-                tag="span"
-                className="text-white whitespace-nowrap"
-                style={{ fontSize: "clamp(2rem, 4vw, 3.6rem)", fontWeight: 800 }}
-                delay={38}
-                duration={0.6}
-                ease="power3.out"
-              />
-            </h1>
-          </div>
-
-          {/* Subtext */}
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.68 }}
-            className="relative z-10 max-w-lg mx-auto mb-10 leading-relaxed"
-            style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "1.1rem", fontWeight: 400, color: "rgba(226,232,240,0.72)" }}
-          >
-            No code. No developers. No limits. Describe your bot and Buildable
-            Labs builds, deploys, and hosts it — instantly.
-          </motion.p>
-
-          {/* ── PROMPT BOX (Lovable-style, big & prominent) ── */}
-          <motion.div
-            initial={{ opacity: 0, y: 30, scale: 0.97 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1], delay: 0.82 }}
-            className="relative z-10 w-full max-w-3xl mx-auto mb-5"
-          >
-            {/* ── Animated rim glow wrapper ── */}
-            <div
-              style={{
-                position: "relative",
-                padding: "1.5px",
-                borderRadius: "17px",
-                overflow: "hidden",
-              }}
+            {/* ── Left: Orb ── */}
+            <motion.div
+              initial={{ opacity: 0, x: -30 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 1.1, ease: [0.16, 1, 0.3, 1], delay: 0.2 }}
+              className="flex-shrink-0 flex items-center justify-center w-full md:w-auto"
             >
-              {/* Layer 1: Colorful gradient rim — pink → purple → indigo → blue */}
-              <div
-                style={{
-                  position: "absolute",
-                  inset: "-100%",
-                  width: "300%",
-                  height: "300%",
-                  background:
-                    "conic-gradient(from -90deg, #ff6ec4 0%, #c084fc 22%, #7c3aed 45%, #818cf8 62%, #38bdf8 78%, #c084fc 92%, #ff6ec4 100%)",
-                  animation: "promptGlowSpin 8s linear infinite",
-                }}
-              />
-              {/* Layer 2: White comet — flows around the rim on top */}
-              <div
-                style={{
-                  position: "absolute",
-                  inset: "-100%",
-                  width: "300%",
-                  height: "300%",
-                  background:
-                    "conic-gradient(from 0deg, transparent 0deg, transparent 338deg, rgba(255,255,255,0.0) 344deg, rgba(255,255,255,1) 352deg, rgba(255,255,255,0.0) 358deg, transparent 360deg)",
-                  animation: "promptGlowSpin 2.5s linear infinite",
-                }}
-              />
-              <div
-                className="relative rounded-2xl px-5 pt-5 pb-4"
-                style={{
-                  position: "relative",
-                  zIndex: 1,
-                  background: "#1c1c20",
-                  boxShadow: "0 12px 48px rgba(0,0,0,0.65)",
-                }}
+              <AIThinkingOrb />
+            </motion.div>
+
+            {/* ── Right: Text + CTAs ── */}
+            <div className="flex flex-col items-start text-left flex-1">
+
+              {/* Badge */}
+              <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.3 }}
+                className="mb-5"
               >
-                {/* Textarea */}
-                <div className="relative" style={{ minHeight: "48px" }}>
-                  <textarea
-                    rows={2}
-                    value={prompt}
-                    onChange={(e) => setPrompt(e.target.value)}
-                    onFocus={() => setFocused(true)}
-                    onBlur={() => setFocused(false)}
-                    onKeyDown={handleKey}
-                    className="w-full bg-transparent text-white resize-none focus:outline-none"
-                    style={{
-                      fontFamily: "'DM Sans', sans-serif",
-                      fontSize: "1rem",
-                      lineHeight: "1.65",
-                      caretColor: "#c084fc",
-                    }}
+                <span
+                  className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-[12px] tracking-wide"
+                  style={{
+                    fontFamily: "'DM Sans', sans-serif",
+                    background: "rgba(255,255,255,0.06)",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    color: "rgba(255,255,255,0.55)",
+                  }}
+                >
+                  ✦ AI-Powered Bot Builder
+                </span>
+              </motion.div>
+
+              {/* Headline */}
+              <div className="mb-4 overflow-hidden">
+                <h1 className="leading-[1.2] tracking-tight font-extrabold" style={{ fontFamily: "'Syne', sans-serif" }}>
+                  <SplitText
+                    text="Build a Bot today"
+                    splitType="chars"
+                    tag="span"
+                    className="text-white"
+                    style={{ fontSize: "clamp(2.4rem, 4.5vw, 4.2rem)", fontWeight: 800 }}
+                    delay={38}
+                    duration={0.6}
+                    ease="power3.out"
                   />
-                  {!prompt && (
-                    <div
-                      className="absolute top-0 left-0 pointer-events-none"
-                      style={{
-                        fontFamily: "'DM Sans', sans-serif",
-                        fontSize: "1rem",
-                        color: "rgba(255,255,255,0.28)",
-                        lineHeight: "1.65",
-                      }}
-                    >
-                      <AnimatePresence mode="wait">
-                        <motion.span
-                          key={promptIdx}
-                          initial={{ opacity: 0, y: 6 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -6 }}
-                          transition={{ duration: 0.32 }}
-                        >
-                          {BOT_PROMPTS[promptIdx]}
-                        </motion.span>
-                      </AnimatePresence>
-                    </div>
-                  )}
-                </div>
-
-                {/* Bottom toolbar — Lovable style, no divider */}
-                <div className="flex items-center justify-between mt-3">
-                  {/* Left: + attach button */}
-                  <button
-                    type="button"
-                    className="w-8 h-8 flex items-center justify-center rounded-full transition-colors duration-150"
-                    style={{ color: "rgba(255,255,255,0.45)", background: "rgba(255,255,255,0.07)" }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.13)")}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.07)")}
-                  >
-                    <Plus className="w-4 h-4" />
-                  </button>
-
-                  {/* Right: Plan pill + Mic + Send */}
-                  <div className="flex items-center gap-2">
-                    <motion.button
-                      whileHover={{ scale: 1.04 }}
-                      whileTap={{ scale: 0.96 }}
-                      type="button"
-                      className="px-4 py-1.5 rounded-full text-[13px] font-semibold text-white"
-                      style={{
-                        fontFamily: "'DM Sans', sans-serif",
-                        background: "#2563eb",
-                        boxShadow: "0 2px 12px rgba(37,99,235,0.5)",
-                      }}
-                    >
-                      Plan
-                    </motion.button>
-
-                    <button
-                      type="button"
-                      className="w-8 h-8 flex items-center justify-center rounded-full transition-colors duration-150"
-                      style={{ background: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.5)" }}
-                      onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.16)")}
-                      onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.1)")}
-                    >
-                      <Mic className="w-3.5 h-3.5" />
-                    </button>
-
-                    <motion.button
-                      whileHover={{ scale: 1.08 }}
-                      whileTap={{ scale: 0.93 }}
-                      onClick={handleSubmit}
-                      className="w-8 h-8 flex items-center justify-center rounded-full transition-colors duration-200"
-                      style={{
-                        background: prompt.trim() ? "rgba(255,255,255,0.92)" : "rgba(255,255,255,0.12)",
-                        color: prompt.trim() ? "#0a0514" : "rgba(255,255,255,0.38)",
-                        boxShadow: prompt.trim() ? "0 2px 12px rgba(255,255,255,0.18)" : "none",
-                        transition: "background 0.2s, color 0.2s, box-shadow 0.2s",
-                      }}
-                    >
-                      <ArrowUp className="w-3.5 h-3.5" />
-                    </motion.button>
-                  </div>
-                </div>
+                </h1>
               </div>
-            </div>
-          </motion.div>
 
-          {/* Suggestion pills */}
-          <motion.div
-            initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, delay: 1.0 }}
-            className="relative z-10 flex flex-wrap items-center justify-center gap-2.5 mb-10 max-w-2xl"
-          >
-            {SUGGESTION_PILLS.map((pill, i) => (
-              <motion.button
-                key={pill.label}
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 1.0 + i * 0.06 }}
-                whileHover={{ scale: 1.05, y: -1 }}
-                whileTap={{ scale: 0.96 }}
-                onClick={() => fillPrompt(pill.label)}
-                className="flex items-center gap-2 px-3.5 py-1.5 rounded-full text-[13px] hover:text-white transition-colors duration-200"
-                style={{
-                  fontFamily: "'DM Sans', sans-serif",
-                  color: "rgba(255,255,255,0.55)",
-                  background: "rgba(255,255,255,0.07)",
-                  border: "1px solid rgba(255,255,255,0.12)",
-                  backdropFilter: "blur(12px)",
-                }}
+              {/* Subtext */}
+              <motion.p
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8, delay: 0.65 }}
+                className="mb-8 max-w-md leading-relaxed"
+                style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "1.05rem", fontWeight: 400, color: "rgba(226,232,240,0.65)" }}
               >
-                {(() => { const Icon = pill.icon; return <Icon className="w-3.5 h-3.5 shrink-0" style={{ color: "rgba(255,255,255,0.45)" }} />; })()}
-                <span>{pill.label}</span>
-              </motion.button>
-            ))}
-          </motion.div>
+                No code. No developers. No limits. Describe your bot and Buildable Labs builds, deploys, and hosts it — instantly.
+              </motion.p>
 
-          {/* CTA buttons */}
-          {/* Social proof */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.7, delay: 1.35 }}
-            className="relative z-10 flex flex-wrap items-center justify-center gap-5 mb-14"
-            style={{ fontFamily: "'DM Sans', sans-serif" }}
-          >
-            <div className="flex items-center gap-1.5">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <Star key={i} className="w-3.5 h-3.5 fill-yellow-400 text-yellow-400" />
-              ))}
-              <span className="ml-1 text-xs" style={{ color: "rgba(255,255,255,0.55)" }}>5.0</span>
+              {/* CTA Buttons */}
+              <motion.div
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.7, delay: 0.85 }}
+                className="flex items-center gap-3 flex-wrap"
+              >
+                <Link
+                  to="/sign-up"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-[14px] font-semibold transition-all duration-200"
+                  style={{
+                    fontFamily: "'DM Sans', sans-serif",
+                    background: "rgba(255,255,255,0.92)",
+                    color: "#0a0a0e",
+                    boxShadow: "0 2px 16px rgba(255,255,255,0.12)",
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "#ffffff")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.92)")}
+                >
+                  Start Building <ArrowRight className="w-4 h-4" />
+                </Link>
+                <Link
+                  to="/pricing"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-[14px] font-medium transition-all duration-200"
+                  style={{
+                    fontFamily: "'DM Sans', sans-serif",
+                    color: "rgba(255,255,255,0.65)",
+                    background: "rgba(255,255,255,0.06)",
+                    border: "1px solid rgba(255,255,255,0.12)",
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.1)"; e.currentTarget.style.color = "#fff"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.06)"; e.currentTarget.style.color = "rgba(255,255,255,0.65)"; }}
+                >
+                  View Pricing
+                </Link>
+              </motion.div>
             </div>
-            <span className="hidden sm:block" style={{ color: "rgba(255,255,255,0.2)" }}>·</span>
-            <span className="text-xs" style={{ color: "rgba(255,255,255,0.42)" }}>1,200+ bots launched</span>
-            <span className="hidden sm:block" style={{ color: "rgba(255,255,255,0.2)" }}>·</span>
-            <div className="flex items-center gap-1.5 text-xs" style={{ color: "rgba(255,255,255,0.42)" }}>
-              <Shield className="w-3.5 h-3.5 text-emerald-400" />
-              <span>No credit card required</span>
-            </div>
-          </motion.div>
-
-          {/* Feature ticker */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.7, delay: 1.5 }}
-            className="relative z-10 w-full max-w-3xl"
-          >
-            <FeatureTicker />
-          </motion.div>
-
-          {/* Scroll hint */}
-          <motion.div
-            className="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1.5"
-            style={{ color: "rgba(255,255,255,0.25)" }}
-            animate={{ y: [0, 8, 0] }}
-            transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
-          >
-            <span
-              className="text-[10px] tracking-[0.25em] uppercase"
-              style={{ fontFamily: "'DM Sans', sans-serif" }}
-            >
-              Scroll
-            </span>
-            <ChevronDown className="w-4 h-4" />
-          </motion.div>
+          </div>
         </section>
+
+        {/* ══════════════ BUILDABLE AI INTRO ══════════════ */}
+        <BuildableSimulation />
 
         {/* ══════════════ HOW IT WORKS ══════════════ */}
         <HowItWorks />
