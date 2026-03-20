@@ -30,8 +30,6 @@ import { useSubscriptionPlans } from '@/hooks/useSubscriptionPlans';
 import { useStripeCheckout } from '@/hooks/useStripeCheckout';
 import { useCredits } from '@/hooks/useCredits';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/integrations/supabase/client';
-import { useQuery } from '@tanstack/react-query';
 import { toast } from '@/hooks/use-toast';
 
 interface CreditTierWithStripe {
@@ -40,20 +38,10 @@ interface CreditTierWithStripe {
   priceId: string | null;
 }
 
-// Fetch credit tiers from database
+// Credit tiers are static config — loaded from useSubscriptionPlans
 function useCreditTiers() {
-  return useQuery({
-    queryKey: ['credit-tiers-with-stripe'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('credit_tiers')
-        .select('*')
-        .order('credits', { ascending: true });
-      
-      if (error) throw error;
-      return data;
-    },
-  });
+  const { creditTiers } = useSubscriptionPlans();
+  return { data: creditTiers, isLoading: false };
 }
 
 const faqs = [

@@ -20,7 +20,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { auth } from '@/lib/firebase';
+import { API_BASE } from '@/lib/urls';
 
 interface GitHubExportDialogProps {
   isOpen: boolean;
@@ -61,18 +62,26 @@ export default function GitHubExportDialog({
     setError('');
     
     try {
-      // Call export edge function
-      const { data, error: exportError } = await supabase.functions.invoke('github-export', {
-        body: {
-          projectId,
-          repoName,
-          repoDescription,
-          isPrivate,
-          files,
+      // Call backend GitHub export — credentials stay server-side
+      const currentUser = auth.currentUser;
+      if (!currentUser) throw new Error('Not authenticated');
+      const token = await currentUser.getIdToken();
+
+      const res = await fetch(`${API_BASE}/api/github-export`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
         },
+        body: JSON.stringify({ projectId, repoName, repoDescription, isPrivate, files }),
       });
 
-      if (exportError) throw exportError;
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Export failed');
+      }
+      const data = await res.json();
+      const exportError = null;
 
       if (data?.success) {
         setExportedUrl(data.repoUrl || `https://github.com/user/${repoName}`);

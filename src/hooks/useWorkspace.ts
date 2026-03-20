@@ -1,14 +1,18 @@
 // =============================================================================
-// useWorkspace - Hook for workspace management with direct Supabase queries
+// useWorkspace — Workspace management via backend API + Firestore realtime
 // =============================================================================
-// Uses direct Supabase queries for CRUD operations (reliable, no edge function needed).
-// Only uses edge functions for AI generation which requires server-side API calls.
+// Mutations/generation → backend API (AI keys stay server-side)
+// Reads/realtime      → Firestore direct (backend writes here)
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import {
+  collection, query, where, orderBy, limit, getDocs,
+  onSnapshot, Timestamp,
+} from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import { useAuth } from "@/hooks/useAuth";
-import type { RealtimeChannel } from "@supabase/supabase-js";
+import { API_BASE } from "@/lib/urls";
 
 // =============================================================================
 // TYPES
@@ -56,25 +60,30 @@ export interface FileOperation {
   created_at: string;
 }
 
+function tsToString(ts: unknown): string {
+  if (!ts) return new Date().toISOString();
+  if (ts instanceof Timestamp) return ts.toDate().toISOString();
+  return String(ts);
+}
+
 // =============================================================================
 // HOOK
 // =============================================================================
 
 export function useWorkspace(projectId: string | undefined) {
-  const { session, user } = useAuth();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
-  
-  // Real-time state
-  const [generationStatus, setGenerationStatus] = useState<string | null>(null);
-  const [liveSession, setLiveSession] = useState<GenerationSession | null>(null);
-  const [liveFilesCount, setLiveFilesCount] = useState(0);
-  const channelRef = useRef<RealtimeChannel | null>(null);
 
-  const userId = user?.uid;
+  const [generationStatus, setGenerationStatus] = useState<string | null>(null);
+  const [liveSession, setLiveSession]           = useState<GenerationSession | null>(null);
+  const [liveFilesCount, setLiveFilesCount]     = useState(0);
+  const unsubRef = useRef<(() => void)[]>([]);
+
+  const userId   = user?.uid;
   const isAuthed = !!user;
 
   // =========================================================================
-  // GET OR CREATE WORKSPACE (direct Supabase query)
+  // GET OR CREATE WORKSPACE — via backend API (authenticated)
   // =========================================================================
 
   const {
@@ -85,136 +94,94 @@ export function useWorkspace(projectId: string | undefined) {
   } = useQuery({
     queryKey: ["workspace", projectId],
     queryFn: async () => {
-      if (!userId || !projectId) return null;
+      if (!userId || !projectId || !user) return null;
 
-      // Use the database RPC function to get or create workspace
-      const { data: workspaceId, error: rpcError } = await supabase.rpc(
-        "get_or_create_workspace",
-        { p_project_id: projectId, p_user_id: userId }
-      );
+      const token = await user.getIdToken();
+      const res = await fetch(`${API_BASE}/api/workspace`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ projectId }),
+      });
 
-      if (rpcError) {
-        console.error("[Workspace] RPC error:", rpcError);
-        throw new Error(rpcError.message);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to get/create workspace");
       }
 
-      if (!workspaceId) {
-        throw new Error("Failed to get or create workspace");
-      }
-
-      // Fetch the full workspace record
-      const { data: workspace, error: fetchError } = await supabase
-        .from("workspaces")
-        .select("*")
-        .eq("id", workspaceId)
-        .single();
-
-      if (fetchError) {
-        console.error("[Workspace] Fetch error:", fetchError);
-        throw new Error(fetchError.message);
-      }
-
-      return workspace as Workspace;
+      const data = await res.json();
+      return data.workspace as Workspace;
     },
     enabled: isAuthed && !!projectId && !!userId,
     staleTime: 30000,
     retry: 2,
   });
 
-  const workspace = workspaceData;
+  const workspace   = workspaceData;
   const workspaceId = workspace?.id;
 
   // =========================================================================
-  // REALTIME SUBSCRIPTIONS - Live updates during generation
+  // REALTIME — Firestore onSnapshot (backend writes to these collections)
   // =========================================================================
 
   useEffect(() => {
     if (!workspaceId) return;
 
-    if (channelRef.current) {
-      supabase.removeChannel(channelRef.current);
-    }
+    // Clean up previous listeners
+    unsubRef.current.forEach((u) => u());
+    unsubRef.current = [];
 
-    const channel = supabase
-      .channel(`workspace-${workspaceId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'generation_sessions',
-          filter: `workspace_id=eq.${workspaceId}`,
-        },
-        (payload) => {
-          console.log('[Realtime] Generation session update:', payload);
-          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-            const session = payload.new as GenerationSession;
-            setLiveSession(session);
-            setGenerationStatus(session.status);
-            if (session.status === 'completed' || session.status === 'failed') {
-              queryClient.invalidateQueries({ queryKey: ["workspace-files", workspaceId] });
-              queryClient.invalidateQueries({ queryKey: ["workspace-sessions", workspaceId] });
-              queryClient.invalidateQueries({ queryKey: ["workspace", projectId] });
-            }
-          }
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'workspace_files',
-          filter: `workspace_id=eq.${workspaceId}`,
-        },
-        (payload) => {
-          console.log('[Realtime] New file created:', payload.new);
-          setLiveFilesCount((prev) => prev + 1);
-          queryClient.invalidateQueries({ queryKey: ["workspace-files", workspaceId] });
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'workspace_files',
-          filter: `workspace_id=eq.${workspaceId}`,
-        },
-        (payload) => {
-          console.log('[Realtime] File updated:', payload.new);
-          queryClient.invalidateQueries({ queryKey: ["workspace-files", workspaceId] });
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'file_operations',
-          filter: `workspace_id=eq.${workspaceId}`,
-        },
-        (payload) => {
-          console.log('[Realtime] File operation:', payload.new);
-          queryClient.invalidateQueries({ queryKey: ["workspace-operations", workspaceId] });
-        }
-      )
-      .subscribe((status) => {
-        console.log('[Realtime] Subscription status:', status);
-      });
+    // Listen to generation sessions
+    const sessionsQ = query(
+      collection(db, "generationSessions"),
+      where("workspace_id", "==", workspaceId),
+      orderBy("created_at", "desc"),
+      limit(1)
+    );
+    const unsubSessions = onSnapshot(sessionsQ, (snap) => {
+      if (snap.empty) return;
+      const latest = { id: snap.docs[0].id, ...snap.docs[0].data() } as GenerationSession;
+      setLiveSession(latest);
+      setGenerationStatus(latest.status);
 
-    channelRef.current = channel;
+      if (latest.status === "completed" || latest.status === "failed") {
+        queryClient.invalidateQueries({ queryKey: ["workspace-files", workspaceId] });
+        queryClient.invalidateQueries({ queryKey: ["workspace-sessions", workspaceId] });
+        queryClient.invalidateQueries({ queryKey: ["workspace", projectId] });
+      }
+    });
+
+    // Listen to workspace files (count new files during generation)
+    const filesQ = query(
+      collection(db, "workspaceFiles"),
+      where("workspace_id", "==", workspaceId)
+    );
+    const unsubFiles = onSnapshot(filesQ, (snap) => {
+      setLiveFilesCount(snap.size);
+      queryClient.invalidateQueries({ queryKey: ["workspace-files", workspaceId] });
+    });
+
+    // Listen to file operations
+    const opsQ = query(
+      collection(db, "fileOperations"),
+      where("workspace_id", "==", workspaceId)
+    );
+    const unsubOps = onSnapshot(opsQ, () => {
+      queryClient.invalidateQueries({ queryKey: ["workspace-operations", workspaceId] });
+    });
+
+    unsubRef.current = [unsubSessions, unsubFiles, unsubOps];
 
     return () => {
-      if (channelRef.current) {
-        supabase.removeChannel(channelRef.current);
-        channelRef.current = null;
-      }
+      unsubRef.current.forEach((u) => u());
+      unsubRef.current = [];
     };
   }, [workspaceId, projectId, queryClient]);
 
   // =========================================================================
-  // GET FILES (direct Supabase query)
+  // FILES — Firestore direct read
   // =========================================================================
 
   const {
@@ -224,20 +191,22 @@ export function useWorkspace(projectId: string | undefined) {
   } = useQuery({
     queryKey: ["workspace-files", workspaceId],
     queryFn: async () => {
-      if (!workspaceId || !userId) return [];
+      if (!workspaceId) return [];
 
-      const { data, error } = await supabase
-        .from("workspace_files")
-        .select("id, file_path, content, file_type, is_generated, updated_at")
-        .eq("workspace_id", workspaceId)
-        .order("file_path");
-
-      if (error) {
-        console.error("[Workspace] Files fetch error:", error);
-        return [];
-      }
-
-      return (data || []) as WorkspaceFile[];
+      const q = query(
+        collection(db, "workspaceFiles"),
+        where("workspace_id", "==", workspaceId),
+        orderBy("file_path")
+      );
+      const snap = await getDocs(q);
+      return snap.docs.map((d) => ({
+        id: d.id,
+        file_path: d.data().file_path,
+        content: d.data().content,
+        file_type: d.data().file_type ?? null,
+        is_generated: d.data().is_generated ?? false,
+        updated_at: tsToString(d.data().updated_at),
+      })) as WorkspaceFile[];
     },
     enabled: isAuthed && !!workspaceId,
     staleTime: 10000,
@@ -245,56 +214,53 @@ export function useWorkspace(projectId: string | undefined) {
 
   const files = filesData || [];
 
-  // =========================================================================
-  // GET SINGLE FILE
-  // =========================================================================
-
   const getFile = useCallback(
     async (filePath: string): Promise<WorkspaceFile | null> => {
       if (!workspaceId) return null;
 
-      const { data, error } = await supabase
-        .from("workspace_files")
-        .select("*")
-        .eq("workspace_id", workspaceId)
-        .eq("file_path", filePath)
-        .maybeSingle();
-
-      if (error) {
-        console.error("[Workspace] Get file error:", error);
-        return null;
-      }
-
-      return data as WorkspaceFile | null;
+      const q = query(
+        collection(db, "workspaceFiles"),
+        where("workspace_id", "==", workspaceId),
+        where("file_path", "==", filePath),
+        limit(1)
+      );
+      const snap = await getDocs(q);
+      if (snap.empty) return null;
+      const d = snap.docs[0];
+      return {
+        id: d.id,
+        file_path: d.data().file_path,
+        content: d.data().content,
+        file_type: d.data().file_type ?? null,
+        is_generated: d.data().is_generated ?? false,
+        updated_at: tsToString(d.data().updated_at),
+      };
     },
     [workspaceId]
   );
 
   // =========================================================================
-  // GET GENERATION SESSIONS (direct Supabase query)
+  // GENERATION SESSIONS — Firestore direct read
   // =========================================================================
 
-  const {
-    data: sessionsData,
-    refetch: refetchSessions,
-  } = useQuery({
+  const { data: sessionsData, refetch: refetchSessions } = useQuery({
     queryKey: ["workspace-sessions", workspaceId],
     queryFn: async () => {
       if (!workspaceId) return [];
 
-      const { data, error } = await supabase
-        .from("generation_sessions")
-        .select("id, prompt, status, files_generated, created_at, completed_at")
-        .eq("workspace_id", workspaceId)
-        .order("created_at", { ascending: false })
-        .limit(20);
-
-      if (error) {
-        console.error("[Workspace] Sessions fetch error:", error);
-        return [];
-      }
-
-      return (data || []) as GenerationSession[];
+      const q = query(
+        collection(db, "generationSessions"),
+        where("workspace_id", "==", workspaceId),
+        orderBy("created_at", "desc"),
+        limit(20)
+      );
+      const snap = await getDocs(q);
+      return snap.docs.map((d) => ({
+        id: d.id,
+        ...d.data(),
+        created_at: tsToString(d.data().created_at),
+        completed_at: d.data().completed_at ? tsToString(d.data().completed_at) : null,
+      })) as GenerationSession[];
     },
     enabled: isAuthed && !!workspaceId,
     staleTime: 5000,
@@ -303,30 +269,26 @@ export function useWorkspace(projectId: string | undefined) {
   const sessions = sessionsData || [];
 
   // =========================================================================
-  // GET OPERATION HISTORY (direct Supabase query)
+  // FILE OPERATIONS — Firestore direct read
   // =========================================================================
 
-  const {
-    data: operationsData,
-    refetch: refetchOperations,
-  } = useQuery({
+  const { data: operationsData, refetch: refetchOperations } = useQuery({
     queryKey: ["workspace-operations", workspaceId],
     queryFn: async () => {
       if (!workspaceId) return [];
 
-      const { data, error } = await supabase
-        .from("file_operations")
-        .select("id, operation, file_path, ai_model, applied, created_at")
-        .eq("workspace_id", workspaceId)
-        .order("created_at", { ascending: false })
-        .limit(50);
-
-      if (error) {
-        console.error("[Workspace] Operations fetch error:", error);
-        return [];
-      }
-
-      return (data || []) as FileOperation[];
+      const q = query(
+        collection(db, "fileOperations"),
+        where("workspace_id", "==", workspaceId),
+        orderBy("created_at", "desc"),
+        limit(50)
+      );
+      const snap = await getDocs(q);
+      return snap.docs.map((d) => ({
+        id: d.id,
+        ...d.data(),
+        created_at: tsToString(d.data().created_at),
+      })) as FileOperation[];
     },
     enabled: isAuthed && !!workspaceId,
     staleTime: 5000,
@@ -335,17 +297,15 @@ export function useWorkspace(projectId: string | undefined) {
   const operations = operationsData || [];
 
   // =========================================================================
-  // GENERATE (SEND PROMPT TO BACKEND AI) - uses edge function
+  // GENERATE — backend API (AI keys stay server-side)
   // =========================================================================
 
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [generationError, setGenerationError] = useState<Error | null>(null);
+  const [isGenerating, setIsGenerating]         = useState(false);
+  const [generationError, setGenerationError]   = useState<Error | null>(null);
 
   const generate = useCallback(
     async (prompt: string) => {
-      if (!workspaceId || !session?.access_token) {
-        throw new Error("Not authenticated or no workspace");
-      }
+      if (!workspaceId || !user) throw new Error("Not authenticated or no workspace");
 
       setIsGenerating(true);
       setGenerationError(null);
@@ -353,20 +313,24 @@ export function useWorkspace(projectId: string | undefined) {
       setLiveFilesCount(0);
 
       try {
-        // Use edge function only for AI generation (needs server-side API keys)
-        const { data, error } = await supabase.functions.invoke("workspace-api", {
-          body: {
-            action: "generate",
-            workspaceId,
-            data: { prompt },
+        const token = await user.getIdToken();
+        const res = await fetch(`${API_BASE}/api/generate/${workspaceId}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
           },
+          body: JSON.stringify({ prompt }),
         });
 
-        if (error) throw error;
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || "Generation failed");
+        }
 
+        const data = await res.json();
         setGenerationStatus("complete");
-        
-        // Refresh all data after generation
+
         await Promise.all([
           refetchFiles(),
           refetchSessions(),
@@ -375,7 +339,7 @@ export function useWorkspace(projectId: string | undefined) {
         ]);
 
         return {
-          success: data?.success,
+          success: data?.success ?? true,
           sessionId: data?.sessionId,
           filesGenerated: data?.filesGenerated || 0,
         };
@@ -387,54 +351,31 @@ export function useWorkspace(projectId: string | undefined) {
         setIsGenerating(false);
       }
     },
-    [workspaceId, session?.access_token, refetchFiles, refetchSessions, refetchOperations, refetchWorkspace]
+    [workspaceId, user, refetchFiles, refetchSessions, refetchOperations, refetchWorkspace]
   );
 
   // =========================================================================
-  // ESTIMATE CREDITS
+  // HELPERS
   // =========================================================================
 
-  const estimateCredits = useCallback(
-    async (_prompt: string) => {
-      // Credit estimation not available via direct queries
-      return null;
-    },
-    []
-  );
+  const estimateCredits = useCallback(async (_prompt: string) => null, []);
 
-  // =========================================================================
-  // GET SESSION STATUS
-  // =========================================================================
+  const getSessionStatus = useCallback(async (sessionId: string): Promise<GenerationSession | null> => {
+    const q = query(
+      collection(db, "generationSessions"),
+      where("__name__", "==", sessionId),
+      limit(1)
+    );
+    const snap = await getDocs(q);
+    if (snap.empty) return null;
+    const d = snap.docs[0];
+    return { id: d.id, ...d.data() } as GenerationSession;
+  }, []);
 
-  const getSessionStatus = useCallback(
-    async (sessionId: string) => {
-      const { data, error } = await supabase
-        .from("generation_sessions")
-        .select("*")
-        .eq("id", sessionId)
-        .maybeSingle();
-
-      if (error) return null;
-      return data as GenerationSession | null;
-    },
-    []
-  );
-
-  // =========================================================================
-  // CANCEL GENERATION
-  // =========================================================================
-
-  const cancelGeneration = useCallback(
-    async (_sessionId: string) => {
-      setIsGenerating(false);
-      setGenerationStatus(null);
-    },
-    []
-  );
-
-  // =========================================================================
-  // REFRESH ALL DATA
-  // =========================================================================
+  const cancelGeneration = useCallback(async (_sessionId: string) => {
+    setIsGenerating(false);
+    setGenerationStatus(null);
+  }, []);
 
   const refresh = useCallback(() => {
     refetchFiles();
@@ -448,37 +389,31 @@ export function useWorkspace(projectId: string | undefined) {
   // =========================================================================
 
   return {
-    // Workspace state
     workspace,
     workspaceId,
     isLoading: isLoadingWorkspace,
     isLoadingWorkspace,
     error: workspaceError,
 
-    // Files (read-only)
     files,
     isLoadingFiles,
     getFile,
     refetchFiles,
 
-    // Generation with realtime
     generate,
     isGenerating: isGenerating || workspace?.status === "generating",
     generationStatus,
     generationError,
     liveSession,
     liveFilesCount,
-    
-    // Extended generation features
+
     estimateCredits,
     getSessionStatus,
     cancelGeneration,
 
-    // History
     sessions,
     operations,
 
-    // Actions
     refresh,
   };
 }

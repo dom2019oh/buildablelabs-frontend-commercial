@@ -27,7 +27,10 @@ import {
 } from '@/components/ui/tooltip';
 import { toast } from '@/hooks/use-toast';
 import { Link } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
+import { auth, db, storage } from '@/lib/firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { API_BASE } from '@/lib/urls';
 
 interface ChatInputV2Props {
   onSend: (content: string) => Promise<void>;
@@ -126,46 +129,39 @@ export default function ChatInputV2({
     
     setIsProcessingAudio(true);
     try {
-      // Upload to Supabase storage
-      const fileName = `${projectId}/${Date.now()}.webm`;
-      const { data: userData } = await supabase.auth.getUser();
-      
-      if (!userData.user) {
-        throw new Error('Not authenticated');
-      }
+      const currentUser = auth.currentUser;
+      if (!currentUser) throw new Error('Not authenticated');
 
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('voice-recordings')
-        .upload(fileName, audioBlob, {
-          contentType: 'audio/webm',
-        });
+      // Upload to Firebase Storage
+      const fileName = `voice-recordings/${projectId}/${Date.now()}.webm`;
+      const storageRef = ref(storage, fileName);
+      await uploadBytes(storageRef, audioBlob, { contentType: 'audio/webm' });
+      const audioUrl = await getDownloadURL(storageRef);
 
-      if (uploadError) throw uploadError;
-
-      // Get public URL
-      const { data: urlData } = supabase.storage
-        .from('voice-recordings')
-        .getPublicUrl(fileName);
-
-      // Save to database
-      const { error: dbError } = await supabase
-        .from('voice_recordings')
-        .insert({
-          project_id: projectId,
-          user_id: userData.user.id,
-          audio_url: urlData.publicUrl,
-          duration_seconds: recordingTime,
-          status: 'processing',
-        });
-
-      if (dbError) throw dbError;
-
-      // Call STT edge function
-      const { data: sttData, error: sttError } = await supabase.functions.invoke('speech-to-text', {
-        body: { audioUrl: urlData.publicUrl },
+      // Save recording record to Firestore
+      await addDoc(collection(db, 'voiceRecordings'), {
+        project_id: projectId,
+        user_id: currentUser.uid,
+        audio_url: audioUrl,
+        duration_seconds: recordingTime,
+        status: 'processing',
+        created_at: serverTimestamp(),
       });
 
-      if (sttError) throw sttError;
+      // Call backend speech-to-text — API keys stay server-side
+      const token = await currentUser.getIdToken();
+      const sttRes = await fetch(`${API_BASE}/api/speech-to-text`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ audioUrl }),
+      });
+
+      if (!sttRes.ok) throw new Error('Speech-to-text failed');
+      const sttData = await sttRes.json();
+      const sttError = null;
 
       if (sttData?.transcription) {
         setInput(prev => prev + (prev ? ' ' : '') + sttData.transcription);

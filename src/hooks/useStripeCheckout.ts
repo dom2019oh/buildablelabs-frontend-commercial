@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
 import { toast } from "@/hooks/use-toast";
+import { API_BASE } from "@/lib/urls";
 
 export interface CreditTierWithStripe {
   id: string;
@@ -30,13 +30,22 @@ export function useStripeCheckout() {
     setIsLoading(true);
 
     try {
-      const { data, error } = await supabase.functions.invoke("create-checkout", {
-        body: { priceId },
+      const token = await user.getIdToken();
+      const res = await fetch(`${API_BASE}/api/billing/checkout`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ priceId }),
       });
 
-      if (error) {
-        throw new Error(error.message);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to start checkout");
       }
+
+      const data = await res.json();
 
       if (data?.shouldUsePortal) {
         toast({
@@ -48,16 +57,14 @@ export function useStripeCheckout() {
       }
 
       if (data?.url) {
-        // Open in new tab
         window.open(data.url, "_blank");
       } else {
         throw new Error("No checkout URL returned");
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to start checkout";
       toast({
         title: "Checkout Error",
-        description: message,
+        description: error instanceof Error ? error.message : "Failed to start checkout",
         variant: "destructive",
       });
     } finally {
@@ -78,31 +85,36 @@ export function useStripeCheckout() {
     setIsLoading(true);
 
     try {
-      const { data, error } = await supabase.functions.invoke("billing-portal");
+      const token = await user.getIdToken();
+      const res = await fetch(`${API_BASE}/api/billing/portal`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
-      if (error) {
-        throw new Error(error.message);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to open billing portal");
       }
 
+      const data = await res.json();
+
       if (data?.noSubscription) {
-        toast({
-          title: "No Subscription",
-          description: "You don't have an active subscription yet.",
-        });
+        toast({ title: "No Subscription", description: "You don't have an active subscription yet." });
         return;
       }
 
       if (data?.url) {
-        // Open in new tab
         window.open(data.url, "_blank");
       } else {
         throw new Error("No portal URL returned");
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to open billing portal";
       toast({
         title: "Portal Error",
-        description: message,
+        description: error instanceof Error ? error.message : "Failed to open billing portal",
         variant: "destructive",
       });
     } finally {
@@ -110,9 +122,5 @@ export function useStripeCheckout() {
     }
   };
 
-  return {
-    startCheckout,
-    openBillingPortal,
-    isLoading,
-  };
+  return { startCheckout, openBillingPortal, isLoading };
 }

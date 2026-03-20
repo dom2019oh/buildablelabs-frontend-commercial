@@ -2,11 +2,15 @@
 // useWorkspaceChat - Chat interface for the workspace
 // =============================================================================
 // Handles message history, sending prompts, and receiving AI responses.
-// This is a read-only interface - all AI work happens on the backend.
+// All AI generation happens on the backend — this is a read/write interface only.
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import {
+  collection, query, where, orderBy, getDocs, addDoc, deleteDoc,
+  serverTimestamp, Timestamp,
+} from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import { useAuth } from "@/hooks/useAuth";
 import { useWorkspace } from "./useWorkspace";
 
@@ -26,6 +30,12 @@ export interface ChatMessage {
   created_at: string;
 }
 
+function tsToString(ts: unknown): string {
+  if (!ts) return new Date().toISOString();
+  if (ts instanceof Timestamp) return ts.toDate().toISOString();
+  return String(ts);
+}
+
 // =============================================================================
 // HOOK
 // =============================================================================
@@ -34,11 +44,11 @@ export function useWorkspaceChat(projectId: string | undefined) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const { workspaceId, generate, isGenerating, generationStatus } = useWorkspace(projectId);
-  
+
   const [pendingMessage, setPendingMessage] = useState<string | null>(null);
 
   // =========================================================================
-  // LOAD MESSAGE HISTORY
+  // LOAD MESSAGE HISTORY (Firestore)
   // =========================================================================
 
   const {
@@ -50,14 +60,17 @@ export function useWorkspaceChat(projectId: string | undefined) {
     queryFn: async () => {
       if (!projectId || !user) return [];
 
-      const { data, error } = await supabase
-        .from("project_messages")
-        .select("id, role, content, metadata, created_at")
-        .eq("project_id", projectId)
-        .order("created_at", { ascending: true });
-
-      if (error) throw error;
-      return (data || []) as ChatMessage[];
+      const q = query(
+        collection(db, "projectMessages"),
+        where("project_id", "==", projectId),
+        orderBy("created_at", "asc")
+      );
+      const snap = await getDocs(q);
+      return snap.docs.map((d) => ({
+        id: d.id,
+        ...d.data(),
+        created_at: tsToString(d.data().created_at),
+      })) as ChatMessage[];
     },
     enabled: !!projectId && !!user,
   });
@@ -74,37 +87,33 @@ export function useWorkspaceChat(projectId: string | undefined) {
         throw new Error("Not ready to send messages");
       }
 
-      // Save user message to database
-      const { error: saveError } = await supabase
-        .from("project_messages")
-        .insert({
-          project_id: projectId,
-          user_id: user.uid,
-          role: "user",
-          content,
-        });
-
-      if (saveError) throw saveError;
+      // Save user message to Firestore
+      await addDoc(collection(db, "projectMessages"), {
+        project_id: projectId,
+        user_id: user.uid,
+        role: "user",
+        content,
+        created_at: serverTimestamp(),
+      });
 
       setPendingMessage(content);
 
-      // Trigger backend generation
+      // Trigger backend generation — API keys stay server-side
       const result = await generate(content);
 
       // Save assistant response
-      await supabase
-        .from("project_messages")
-        .insert({
-          project_id: projectId,
-          user_id: user.uid,
-          role: "assistant",
-          content: `Generated ${result.filesGenerated} files successfully.`,
-          metadata: {
-            filesGenerated: result.filesGenerated,
-            sessionId: result.sessionId,
-            status: "success",
-          },
-        });
+      await addDoc(collection(db, "projectMessages"), {
+        project_id: projectId,
+        user_id: user.uid,
+        role: "assistant",
+        content: `Generated ${result.filesGenerated} files successfully.`,
+        metadata: {
+          filesGenerated: result.filesGenerated,
+          sessionId: result.sessionId,
+          status: "success",
+        },
+        created_at: serverTimestamp(),
+      });
 
       return result;
     },
@@ -113,17 +122,15 @@ export function useWorkspaceChat(projectId: string | undefined) {
       queryClient.invalidateQueries({ queryKey: ["project-messages", projectId] });
     },
     onError: async (error) => {
-      // Save error message
       if (projectId && user) {
-        await supabase
-          .from("project_messages")
-          .insert({
-            project_id: projectId,
-            user_id: user.uid,
-            role: "assistant",
-            content: `Error: ${error instanceof Error ? error.message : "Generation failed"}`,
-            metadata: { status: "error" },
-          });
+        await addDoc(collection(db, "projectMessages"), {
+          project_id: projectId,
+          user_id: user.uid,
+          role: "assistant",
+          content: `Error: ${error instanceof Error ? error.message : "Generation failed"}`,
+          metadata: { status: "error" },
+          created_at: serverTimestamp(),
+        });
       }
       setPendingMessage(null);
       queryClient.invalidateQueries({ queryKey: ["project-messages", projectId] });
@@ -144,12 +151,13 @@ export function useWorkspaceChat(projectId: string | undefined) {
   const clearMessages = useCallback(async () => {
     if (!projectId || !user) return;
 
-    await supabase
-      .from("project_messages")
-      .delete()
-      .eq("project_id", projectId)
-      .eq("user_id", user.uid);
-
+    const q = query(
+      collection(db, "projectMessages"),
+      where("project_id", "==", projectId),
+      where("user_id", "==", user.uid)
+    );
+    const snap = await getDocs(q);
+    await Promise.all(snap.docs.map((d) => deleteDoc(d.ref)));
     queryClient.invalidateQueries({ queryKey: ["project-messages", projectId] });
   }, [projectId, user, queryClient]);
 

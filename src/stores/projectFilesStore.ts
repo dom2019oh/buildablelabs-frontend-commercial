@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import { FileNode, buildFileTree } from '@/components/workspace/FileExplorer';
 import { applyPatches, isPathWriteable, type FileCommand, type SearchReplacePatch } from '@/lib/syncEngine';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
+import { collection, query, where, getDocs, setDoc, addDoc, limit } from 'firebase/firestore';
 
 interface ProjectFile {
   path: string;
@@ -191,14 +192,32 @@ export const useProjectFilesStore = create<ProjectFilesState>((set, get) => ({
     if (!file) return;
 
     try {
-      await supabase.from('workspace_files' as any).upsert({
-        workspace_id: workspaceId,
-        file_path: file.path,
-        content: file.content,
-        file_type: file.path.split('.').pop() || 'txt',
-        is_generated: false,
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'workspace_id,file_path' } as any);
+      const q = query(
+        collection(db, 'workspaceFiles'),
+        where('workspace_id', '==', workspaceId),
+        where('file_path', '==', file.path),
+        limit(1)
+      );
+      const snap = await getDocs(q);
+      const now = new Date().toISOString();
+
+      if (!snap.empty) {
+        await setDoc(snap.docs[0].ref, {
+          content: file.content,
+          file_type: file.path.split('.').pop() || 'txt',
+          is_generated: false,
+          updated_at: now,
+        }, { merge: true });
+      } else {
+        await addDoc(collection(db, 'workspaceFiles'), {
+          workspace_id: workspaceId,
+          file_path: file.path,
+          content: file.content,
+          file_type: file.path.split('.').pop() || 'txt',
+          is_generated: false,
+          updated_at: now,
+        });
+      }
     } catch (err) {
       console.error(`[SyncEngine] Failed to persist ${path}:`, err);
     }

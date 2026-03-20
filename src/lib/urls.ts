@@ -1,4 +1,7 @@
 const IS_PROD = window.location.hostname === 'buildablelabs.dev' || window.location.hostname === 'www.buildablelabs.dev';
+
+/** Backend API base URL — all AI and workspace operations go here, never to the frontend */
+export const API_BASE = import.meta.env.VITE_API_BASE || 'https://api.buildablelabs.dev';
 const DASHBOARD_ORIGIN = IS_PROD ? 'https://dashboard.buildablelabs.dev' : '';
 
 /** Full URL to the dashboard (or relative path on local/subdomain) */

@@ -1,6 +1,8 @@
 import { useState, useCallback } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { doc, getDoc, updateDoc, addDoc, collection, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import { db, storage } from '@/lib/firebase';
 import { useAuth } from './useAuth';
 import { useCredits } from './useCredits';
 import { toast } from './use-toast';
@@ -22,21 +24,18 @@ export interface PublishResult {
   error?: string;
 }
 
-// Generate a valid subdomain from project name
 function generateSubdomain(projectName: string): string {
   return projectName
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '')
-    .substring(0, 63); // DNS label limit
+    .substring(0, 63);
 }
 
-// Generate the project URL
 function generateProjectUrl(subdomain: string): string {
   return `https://${subdomain}.buildablelabs.dev`;
 }
 
-// Generate branding injection script for free plans
 function generateBrandingScript(): string {
   return `
 <!-- Buildable Labs Branding - Free Plan -->
@@ -57,62 +56,29 @@ function generateBrandingScript(): string {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     transition: transform 0.2s ease, opacity 0.2s ease;
   }
-  .buildable-badge:hover {
-    transform: translateY(-2px);
-  }
-  .buildable-badge-logo {
-    width: 20px;
-    height: 20px;
-    border-radius: 4px;
-  }
-  .buildable-badge-text {
-    color: #fff;
-    font-size: 12px;
-    font-weight: 500;
-    text-decoration: none;
-  }
-  .buildable-badge-text:hover {
-    text-decoration: underline;
-  }
-  @media (max-width: 480px) {
-    .buildable-badge {
-      bottom: 12px;
-      right: 12px;
-      padding: 6px 10px;
-    }
-    .buildable-badge-logo {
-      width: 16px;
-      height: 16px;
-    }
-    .buildable-badge-text {
-      font-size: 11px;
-    }
-  }
+  .buildable-badge:hover { transform: translateY(-2px); }
+  .buildable-badge-logo { width: 20px; height: 20px; border-radius: 4px; }
+  .buildable-badge-text { color: #fff; font-size: 12px; font-weight: 500; text-decoration: none; }
+  .buildable-badge-text:hover { text-decoration: underline; }
 </style>
 <div class="buildable-badge">
-  <img 
-    src="https://buildablelabs.dev/logo.png" 
-    alt="Buildable" 
-    class="buildable-badge-logo"
-  />
-  <a 
-    href="https://buildablelabs.dev?ref=badge" 
-    target="_blank" 
-    rel="noopener noreferrer"
-    class="buildable-badge-text"
-  >
+  <img src="https://buildablelabs.dev/logo.png" alt="Buildable" class="buildable-badge-logo" />
+  <a href="https://buildablelabs.dev?ref=badge" target="_blank" rel="noopener noreferrer" class="buildable-badge-text">
     Built with Buildable Labs
   </a>
 </div>
 `;
 }
 
-// Inject branding into HTML for free plans
 function injectBranding(html: string, shouldInject: boolean): string {
   if (!shouldInject) return html;
-  
-  const brandingScript = generateBrandingScript();
-  return html.replace('</body>', `${brandingScript}\n</body>`);
+  return html.replace('</body>', `${generateBrandingScript()}\n</body>`);
+}
+
+function tsToString(ts: unknown): string {
+  if (!ts) return new Date().toISOString();
+  if (ts instanceof Timestamp) return ts.toDate().toISOString();
+  return String(ts);
 }
 
 export function usePublishSystem(projectId: string | undefined) {
@@ -121,114 +87,73 @@ export function usePublishSystem(projectId: string | undefined) {
   const queryClient = useQueryClient();
   const [publishState, setPublishState] = useState<ProjectState>('draft');
 
-  // Check if user is on free plan (needs branding)
   const isFreeplan = !subscription || subscription.plan_type === 'free';
 
-  // Fetch current publish state
+  // Fetch project from Firestore (source of truth)
   const { data: project, isLoading } = useQuery({
     queryKey: ['project-publish-state', projectId],
     queryFn: async () => {
       if (!projectId) return null;
-      
-      const { data, error } = await supabase
-        .from('projects')
-        .select('*')
-        .eq('id', projectId)
-        .single();
-      
-      if (error) throw error;
-      return data;
+      const snap = await getDoc(doc(db, 'projects', projectId));
+      if (!snap.exists()) return null;
+      const d = snap.data();
+      return {
+        id: snap.id,
+        ...d,
+        created_at: tsToString(d.created_at),
+        updated_at: tsToString(d.updated_at),
+      };
     },
     enabled: !!projectId,
   });
 
-  // Publish mutation - now uploads to storage
+  // Publish — uploads to Firebase Storage, updates Firestore
   const publishMutation = useMutation({
     mutationFn: async (previewHtml: string): Promise<PublishResult> => {
-      if (!projectId || !user || !project) {
-        throw new Error('Missing required data');
-      }
+      if (!projectId || !user || !project) throw new Error('Missing required data');
 
       setPublishState('publishing');
 
-      // Step 1: Generate subdomain
-      const subdomain = generateSubdomain(project.name);
-      const deployedUrl = generateProjectUrl(subdomain);
-      
-      // Step 2: Inject branding for free plans
+      const subdomain    = generateSubdomain(project.name);
+      const deployedUrl  = generateProjectUrl(subdomain);
       const productionHtml = injectBranding(previewHtml, isFreeplan);
-      
-      // Step 3: Upload HTML to storage
-      const storagePath = `${user.uid}/${projectId}/index.html`;
-      const htmlBlob = new Blob([productionHtml], { type: 'text/html' });
-      
-      const { error: uploadError } = await supabase
-        .storage
-        .from('published-sites')
-        .upload(storagePath, htmlBlob, {
-          contentType: 'text/html',
-          upsert: true,
-        });
-      
-      if (uploadError) {
-        console.error('Upload error:', uploadError);
-        throw new Error('Failed to upload site: ' + uploadError.message);
-      }
-      
-      // Step 4: Update project with subdomain and deployed URL
-      const { error: updateError } = await supabase
-        .from('projects')
-        .update({
-          subdomain,
-          deployed_url: deployedUrl,
-          status: 'ready',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', projectId);
-      
-      if (updateError) {
-        console.error('Update error:', updateError);
-        throw new Error('Failed to update project: ' + updateError.message);
-      }
-      
-      // Step 5: Create build record
-      const { error: buildError } = await supabase
-        .from('project_builds')
-        .insert({
-          project_id: projectId,
-          user_id: user.uid,
-          status: 'completed',
-          completed_at: new Date().toISOString(),
-          duration_seconds: 3,
-          build_logs: `✓ Build completed successfully
-✓ Uploaded to storage: ${storagePath}
-✓ Deployed to: ${deployedUrl}
-${isFreeplan ? '✓ Branding badge injected (Free plan)' : '✓ No branding (Paid plan)'}`,
-        });
-      
-      if (buildError) {
-        console.error('Build record error:', buildError);
-      }
+
+      // Upload to Firebase Storage
+      const storageRef = ref(storage, `published-sites/${user.uid}/${projectId}/index.html`);
+      const htmlBlob   = new Blob([productionHtml], { type: 'text/html' });
+      await uploadBytes(storageRef, htmlBlob, { contentType: 'text/html' });
+
+      // Update project document in Firestore
+      await updateDoc(doc(db, 'projects', projectId), {
+        subdomain,
+        deployed_url: deployedUrl,
+        status: 'ready',
+        updated_at: serverTimestamp(),
+      });
+
+      // Create build record
+      await addDoc(collection(db, 'projectBuilds'), {
+        project_id: projectId,
+        user_id: user.uid,
+        status: 'completed',
+        completed_at: serverTimestamp(),
+        duration_seconds: 3,
+        build_logs: `✓ Build completed\n✓ Uploaded to Firebase Storage\n✓ Deployed to: ${deployedUrl}\n${
+          isFreeplan ? '✓ Branding badge injected (Free plan)' : '✓ No branding (Paid plan)'
+        }`,
+        created_at: serverTimestamp(),
+      });
 
       setPublishState('live');
-      
-      return {
-        success: true,
-        deployedUrl,
-      };
+      return { success: true, deployedUrl };
     },
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['project-publish-state', projectId] });
       queryClient.invalidateQueries({ queryKey: ['project', projectId] });
-      
-      toast({
-        title: '🚀 Published Successfully!',
-        description: `Your project is live at ${result.deployedUrl}`,
-      });
+      toast({ title: 'Published Successfully!', description: `Your project is live at ${result.deployedUrl}` });
     },
     onError: (error) => {
       setPublishState('draft');
-      
       toast({
         title: 'Publish Failed',
         description: error instanceof Error ? error.message : 'Failed to publish project',
@@ -237,70 +162,45 @@ ${isFreeplan ? '✓ Branding badge injected (Free plan)' : '✓ No branding (Pai
     },
   });
 
-  // Unpublish mutation
+  // Unpublish — removes from Firebase Storage, clears Firestore fields
   const unpublishMutation = useMutation({
     mutationFn: async () => {
       if (!projectId || !user) throw new Error('No project ID');
-      
-      // Delete from storage
-      const storagePath = `${user.uid}/${projectId}/index.html`;
-      await supabase
-        .storage
-        .from('published-sites')
-        .remove([storagePath]);
-      
-      // Update project
-      const { error } = await supabase
-        .from('projects')
-        .update({
-          deployed_url: null,
-          subdomain: null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', projectId);
-      
-      if (error) throw error;
-      
+
+      const storageRef = ref(storage, `published-sites/${user.uid}/${projectId}/index.html`);
+      await deleteObject(storageRef).catch(() => {}); // ignore if file doesn't exist
+
+      await updateDoc(doc(db, 'projects', projectId), {
+        deployed_url: null,
+        subdomain: null,
+        updated_at: serverTimestamp(),
+      });
+
       setPublishState('draft');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['project-publish-state', projectId] });
-      
-      toast({
-        title: 'Project Unpublished',
-        description: 'Your project is no longer live.',
-      });
+      toast({ title: 'Project Unpublished', description: 'Your project is no longer live.' });
     },
   });
 
-  // Publish handler
-  const publish = useCallback(async (previewHtml: string) => {
-    return publishMutation.mutateAsync(previewHtml);
-  }, [publishMutation]);
-
-  // Unpublish handler
-  const unpublish = useCallback(async () => {
-    return unpublishMutation.mutateAsync();
-  }, [unpublishMutation]);
+  const publish   = useCallback((html: string) => publishMutation.mutateAsync(html), [publishMutation]);
+  const unpublish = useCallback(() => unpublishMutation.mutateAsync(), [unpublishMutation]);
 
   return {
-    // State
     publishState,
-    isPublishing: publishMutation.isPending,
+    isPublishing:   publishMutation.isPending,
     isUnpublishing: unpublishMutation.isPending,
     isLoading,
-    
-    // Data
+
     project,
-    deployedUrl: project?.deployed_url,
-    subdomain: (project as any)?.subdomain,
+    deployedUrl:  (project as any)?.deployed_url,
+    subdomain:    (project as any)?.subdomain,
     isFreeplan,
-    
-    // Actions
+
     publish,
     unpublish,
-    
-    // Branding utilities
+
     generateBrandingScript,
     injectBranding: (html: string) => injectBranding(html, isFreeplan),
   };

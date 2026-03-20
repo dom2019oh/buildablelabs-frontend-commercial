@@ -3,7 +3,11 @@ import { motion } from "framer-motion";
 import { Camera, Loader2, Save, ArrowLeft } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
+import { db, storage } from "@/lib/firebase";
+import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { updateProfile } from "firebase/auth";
+import { auth } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -63,22 +67,10 @@ export default function Settings() {
     setIsUploading(true);
 
     try {
-      const fileExt = file.name.split(".").pop();
-      const fileName = `${user.uid}/avatar.${fileExt}`;
-
-      // Upload the file
-      const { error: uploadError } = await supabase.storage
-        .from("avatars")
-        .upload(fileName, file, { upsert: true });
-
-      if (uploadError) throw uploadError;
-
-      // Get the public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from("avatars")
-        .getPublicUrl(fileName);
-
-      // Add cache-busting query param
+      const fileExt  = file.name.split(".").pop();
+      const fileRef  = ref(storage, `avatars/${user.uid}/avatar.${fileExt}`);
+      await uploadBytes(fileRef, file, { contentType: file.type });
+      const publicUrl  = await getDownloadURL(fileRef);
       const newAvatarUrl = `${publicUrl}?t=${Date.now()}`;
       setAvatarUrl(newAvatarUrl);
 
@@ -104,22 +96,25 @@ export default function Settings() {
     setIsSaving(true);
 
     try {
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          display_name: displayName.trim() || null,
-          avatar_url: avatarUrl || null,
-        })
-        .eq("user_id", user.uid);
+      const trimmedName = displayName.trim() || null;
 
-      if (error) throw error;
+      // Update Firestore users document
+      await setDoc(doc(db, "users", user.uid), {
+        displayName: trimmedName,
+        avatarUrl: avatarUrl || null,
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+
+      // Update Firebase Auth display name
+      if (auth.currentUser) {
+        await updateProfile(auth.currentUser, { displayName: trimmedName ?? undefined });
+      }
 
       toast({
         title: "Profile updated",
         description: "Your changes have been saved.",
       });
 
-      // Refresh the page to update the auth context
       window.location.reload();
     } catch (error: any) {
       console.error("Save error:", error);

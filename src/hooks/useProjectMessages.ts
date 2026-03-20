@@ -1,9 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import {
+  collection, query, where, orderBy, getDocs, addDoc, deleteDoc,
+  onSnapshot, serverTimestamp, Timestamp,
+} from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { useEffect } from 'react';
-import type { Json } from '@/integrations/supabase/types';
+import { API_BASE } from '@/lib/urls';
 
 export interface ProjectMessage {
   id: string;
@@ -24,196 +28,155 @@ interface AIResponse {
   };
 }
 
+function tsToString(ts: unknown): string {
+  if (!ts) return new Date().toISOString();
+  if (ts instanceof Timestamp) return ts.toDate().toISOString();
+  return String(ts);
+}
+
 export function useProjectMessages(projectId: string | undefined) {
-  const { user, session } = useAuth();
+  const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Fetch messages for the project
+  // Initial fetch
   const messagesQuery = useQuery({
     queryKey: ['project-messages', projectId],
     queryFn: async () => {
       if (!projectId || !user?.uid) return [];
-      
-      const { data, error } = await supabase
-        .from('project_messages')
-        .select('*')
-        .eq('project_id', projectId)
-        .order('created_at', { ascending: true });
 
-      if (error) throw error;
-      return data as ProjectMessage[];
+      const q = query(
+        collection(db, 'projectMessages'),
+        where('project_id', '==', projectId),
+        orderBy('created_at', 'asc')
+      );
+      const snap = await getDocs(q);
+      return snap.docs.map((d) => ({
+        id: d.id,
+        ...d.data(),
+        created_at: tsToString(d.data().created_at),
+      })) as ProjectMessage[];
     },
     enabled: !!projectId && !!user?.uid,
   });
 
-  // Subscribe to realtime updates
+  // Realtime listener — updates React Query cache on Firestore changes
   useEffect(() => {
     if (!projectId || !user?.uid) return;
 
-    const channel = supabase
-      .channel(`project-messages-${projectId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'project_messages',
-          filter: `project_id=eq.${projectId}`,
-        },
-        (payload) => {
-          const eventType = payload.eventType;
+    const q = query(
+      collection(db, 'projectMessages'),
+      where('project_id', '==', projectId),
+      orderBy('created_at', 'asc')
+    );
 
-          if (eventType === 'INSERT') {
-            queryClient.setQueryData<ProjectMessage[]>(
-              ['project-messages', projectId],
-              (old) => {
-                if (!old) return [payload.new as ProjectMessage];
-                const exists = old.some((m) => m.id === payload.new.id);
-                if (exists) return old;
-                return [...old, payload.new as ProjectMessage];
-              }
-            );
-          } else if (eventType === 'UPDATE') {
-            queryClient.setQueryData<ProjectMessage[]>(
-              ['project-messages', projectId],
-              (old) => {
-                if (!old) return old;
-                return old.map((m) =>
-                  m.id === (payload.new as ProjectMessage).id
-                    ? (payload.new as ProjectMessage)
-                    : m
-                );
-              }
-            );
-          } else if (eventType === 'DELETE') {
-            queryClient.setQueryData<ProjectMessage[]>(
-              ['project-messages', projectId],
-              (old) => {
-                if (!old) return old;
-                return old.filter((m) => m.id !== (payload.old as any)?.id);
-              }
-            );
-          }
-        }
-      )
-      .subscribe();
+    const unsub = onSnapshot(q, (snap) => {
+      const msgs = snap.docs.map((d) => ({
+        id: d.id,
+        ...d.data(),
+        created_at: tsToString(d.data().created_at),
+      })) as ProjectMessage[];
+      queryClient.setQueryData(['project-messages', projectId], msgs);
+    });
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return unsub;
   }, [projectId, user?.uid, queryClient]);
 
-  // Send a message to the database
+  // Save a single message to Firestore
   const sendMessage = useMutation({
-    mutationFn: async ({ content, role = 'user', metadata = {} }: { 
-      content: string; 
+    mutationFn: async ({
+      content,
+      role = 'user',
+      metadata = {},
+    }: {
+      content: string;
       role?: 'user' | 'assistant';
-      metadata?: Json;
+      metadata?: Record<string, unknown>;
     }) => {
       if (!projectId || !user?.uid) throw new Error('Missing project or user');
 
-      const { data, error } = await supabase
-        .from('project_messages')
-        .insert([{
-          project_id: projectId,
-          user_id: user.uid,
-          role,
-          content,
-          metadata,
-        }])
-        .select()
-        .single();
+      const ref = await addDoc(collection(db, 'projectMessages'), {
+        project_id: projectId,
+        user_id: user.uid,
+        role,
+        content,
+        metadata,
+        created_at: serverTimestamp(),
+      });
 
-      if (error) throw error;
-      return data as ProjectMessage;
+      return {
+        id: ref.id,
+        project_id: projectId,
+        user_id: user.uid,
+        role,
+        content,
+        metadata,
+        created_at: new Date().toISOString(),
+      } as ProjectMessage;
     },
     onSuccess: (newMessage) => {
-      // Optimistically add to cache (realtime will also update)
       queryClient.setQueryData<ProjectMessage[]>(
         ['project-messages', projectId],
         (old) => {
           if (!old) return [newMessage];
           const exists = old.some((m) => m.id === newMessage.id);
-          if (exists) return old;
-          return [...old, newMessage];
+          return exists ? old : [...old, newMessage];
         }
       );
     },
     onError: (error) => {
-      toast({
-        title: 'Error sending message',
-        description: error.message,
-        variant: 'destructive',
-      });
+      toast({ title: 'Error sending message', description: error.message, variant: 'destructive' });
     },
   });
 
-  // Call AI edge function
-  const callAI = async (message: string, conversationHistory: Array<{ role: string; content: string }>): Promise<AIResponse> => {
-    if (!session?.access_token) {
-      throw new Error('Not authenticated');
-    }
+  // Call backend AI chat endpoint — API keys stay server-side
+  const callAI = async (
+    message: string,
+    conversationHistory: Array<{ role: string; content: string }>
+  ): Promise<AIResponse> => {
+    if (!user) throw new Error('Not authenticated');
 
-    const response = await supabase.functions.invoke('ai-chat', {
-      body: {
-        projectId,
-        message,
-        conversationHistory,
+    const token = await user.getIdToken();
+    const res = await fetch(`${API_BASE}/api/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
       },
+      body: JSON.stringify({ projectId, message, conversationHistory }),
     });
 
-    if (response.error) {
-      throw new Error(response.error.message || 'AI request failed');
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || 'AI request failed');
     }
 
-    // Check for rate limit error in response data
-    if (response.data?.error) {
-      throw new Error(response.data.message || response.data.error);
-    }
-
-    return response.data as AIResponse;
+    return res.json() as Promise<AIResponse>;
   };
 
-  // Send message and get AI response
+  // Send user message then get AI response
   const sendWithAIResponse = async (content: string) => {
-    // Get current messages for context
     const currentMessages = messagesQuery.data || [];
-
-    // Send user message
     await sendMessage.mutateAsync({ content, role: 'user' });
 
     try {
-      // Call AI with conversation history
       const aiResponse = await callAI(content, currentMessages);
-
-      // Store AI response with metadata
-      await sendMessage.mutateAsync({ 
-        content: aiResponse.response, 
+      await sendMessage.mutateAsync({
+        content: aiResponse.response,
         role: 'assistant',
-        metadata: aiResponse.metadata as Json,
+        metadata: aiResponse.metadata as Record<string, unknown>,
       });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to get AI response';
-      
-      // Check if it's a rate limit error
+
       if (errorMessage.includes('Rate limit') || errorMessage.includes('request limit')) {
-        toast({
-          title: 'Rate Limit Reached',
-          description: errorMessage,
-          variant: 'destructive',
-        });
+        toast({ title: 'Rate Limit Reached', description: errorMessage, variant: 'destructive' });
       } else {
-        toast({
-          title: 'AI Error',
-          description: errorMessage,
-          variant: 'destructive',
-        });
+        toast({ title: 'AI Error', description: errorMessage, variant: 'destructive' });
       }
 
-      // Store error message as assistant response
-      await sendMessage.mutateAsync({ 
-        content: `I apologize, but I encountered an error: ${errorMessage}. Please try again.`, 
+      await sendMessage.mutateAsync({
+        content: `I apologize, but I encountered an error: ${errorMessage}. Please try again.`,
         role: 'assistant',
         metadata: { error: true },
       });
@@ -225,23 +188,19 @@ export function useProjectMessages(projectId: string | undefined) {
     mutationFn: async () => {
       if (!projectId || !user?.uid) throw new Error('Missing project or user');
 
-      const { error } = await supabase
-        .from('project_messages')
-        .delete()
-        .eq('project_id', projectId);
-
-      if (error) throw error;
+      const q = query(
+        collection(db, 'projectMessages'),
+        where('project_id', '==', projectId)
+      );
+      const snap = await getDocs(q);
+      await Promise.all(snap.docs.map((d) => deleteDoc(d.ref)));
     },
     onSuccess: () => {
       queryClient.setQueryData(['project-messages', projectId], []);
       toast({ title: 'Chat cleared' });
     },
     onError: (error) => {
-      toast({
-        title: 'Error clearing chat',
-        description: error.message,
-        variant: 'destructive',
-      });
+      toast({ title: 'Error clearing chat', description: error.message, variant: 'destructive' });
     },
   });
 

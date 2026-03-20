@@ -29,7 +29,10 @@ import ThinkingIndicatorV2 from './ThinkingIndicatorV2';
 import PipelineProgressBar from './PipelineProgressBar';
 import PreviewShowcase from './PreviewShowcase';
 import { Skeleton } from '@/components/ui/skeleton';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
+import {
+  collection, query, where, orderBy, limit, getDocs, doc, updateDoc,
+} from 'firebase/firestore';
 
 // Interface modes type
 type InterfaceMode = 'preview' | 'database' | 'code' | 'performance';
@@ -138,35 +141,35 @@ export default function ProjectWorkspaceV3() {
     const recoverSession = async () => {
       try {
         // Find any "generating" placeholder messages that never got updated
-        const { data: pendingMsgs } = await supabase
-          .from('project_messages')
-          .select('id, metadata')
-          .eq('project_id', projectId)
-          .eq('role', 'assistant')
-          .order('created_at', { ascending: false })
-          .limit(5);
+        const msgsQ = query(
+          collection(db, 'projectMessages'),
+          where('project_id', '==', projectId),
+          where('role', '==', 'assistant'),
+          orderBy('created_at', 'desc'),
+          limit(5)
+        );
+        const msgsSnap = await getDocs(msgsQ);
+        if (msgsSnap.empty) return;
 
-        if (!pendingMsgs) return;
-
-        for (const msg of pendingMsgs) {
-          const meta = msg.metadata as Record<string, unknown> | null;
+        for (const msgDoc of msgsSnap.docs) {
+          const meta = msgDoc.data().metadata as Record<string, unknown> | null;
           if (meta?.status === 'generating' && meta?.sessionId) {
-            // Check if this session actually completed
-            const { data: session } = await supabase
-              .from('generation_sessions')
-              .select('status, files_generated, completed_at')
-              .eq('id', meta.sessionId as string)
-              .single();
+            // Check if this session actually completed in Firestore
+            const sessionsQ = query(
+              collection(db, 'generationSessions'),
+              where('__name__', '==', meta.sessionId as string),
+              limit(1)
+            );
+            const sessionsSnap = await getDocs(sessionsQ);
 
-            if (session && (session.status === 'completed' || session.status === 'failed')) {
-              // Update the placeholder message with the real result
-              const content = session.status === 'completed'
-                ? `✅ Generated ${session.files_generated || 0} file(s) successfully.`
-                : `❌ Generation failed. Please try again.`;
+            if (!sessionsSnap.empty) {
+              const session = sessionsSnap.docs[0].data();
+              if (session.status === 'completed' || session.status === 'failed') {
+                const content = session.status === 'completed'
+                  ? `✅ Generated ${session.files_generated || 0} file(s) successfully.`
+                  : `❌ Generation failed. Please try again.`;
 
-              await supabase
-                .from('project_messages')
-                .update({
+                await updateDoc(doc(db, 'projectMessages', msgDoc.id), {
                   content,
                   metadata: {
                     ...meta,
@@ -174,8 +177,8 @@ export default function ProjectWorkspaceV3() {
                     filesGenerated: session.files_generated,
                     recovered: true,
                   },
-                })
-                .eq('id', msg.id);
+                });
+              }
             }
           }
         }
