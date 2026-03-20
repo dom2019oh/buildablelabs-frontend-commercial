@@ -155,11 +155,43 @@ Users describe a bot in plain English → Buildable AI generates code → deploy
 
 ---
 
+## Tech Stack Notes
+
+- **NO Supabase** — fully removed. `@supabase/supabase-js` is not in package.json.
+- **All AI calls go through the backend** (`API_BASE` in `src/lib/urls.ts`). No API keys on the frontend.
+- Firebase client config (`VITE_FIREBASE_*`) is intentionally public — security is enforced by Firestore Security Rules.
+
+### Key Firestore Collections
+| Collection | Written by | Read by |
+|---|---|---|
+| `workspaces` | Backend | Frontend (onSnapshot) |
+| `workspaceFiles` | Backend + frontend edits | Frontend (onSnapshot) |
+| `generationSessions` | Backend | Frontend (onSnapshot) |
+| `fileOperations` | Backend | Frontend |
+| `projectMessages` | Frontend | Frontend |
+| `projectFiles` | Frontend | Frontend |
+| `fileVersions` | Frontend | Frontend |
+| `projects` | Frontend | Frontend |
+| `userCredits/{uid}` | Frontend (transactions) | Frontend |
+| `subscriptions/{uid}` | Stripe webhook (future) | Frontend |
+
+### Backend API Endpoints (all require Firebase Bearer token)
+- `POST /api/workspace` — get or create workspace
+- `POST /api/generate/:workspaceId` — generate code (AI)
+- `GET /api/workspace/:id/files` — list workspace files
+- `POST /api/billing/checkout` — Stripe checkout (Stripe not live yet)
+- `POST /api/billing/portal` — Stripe portal
+- `POST /api/github-export` — GitHub export
+- `POST /api/speech-to-text` — voice transcription
+- `POST /api/chat` — AI chat messages
+
 ## Last Updated
 
-**2026-03-13** — Session summary:
-- Full dashboard redesign (Lovable.dev-inspired): gradient hero, centered prompt, sidebar with workspace dropdown & recents
-- SettingsView migrated from Supabase to Firestore
-- BillingView replaced with clean plan-card stub (no Stripe yet)
-- DashboardTopBar removed — sidebar handles all user identity/nav
-- `useAuth.tsx` loading fix: `setLoading(false)` fires immediately in `onAuthStateChanged`
+**2026-03-20** — Session summary:
+- Committed & pushed all previously uncommitted changes (dashboard redesign, Firebase config files, new pages)
+- Completed full Firebase migration: Supabase removed entirely
+- All hooks (useCredits, useProjectFiles, useFileVersions, useProjectMessages, useWorkspaceChat, useWorkspace, usePublishSystem) migrated to Firestore
+- useWorkspace now calls backend API for workspace create and AI generation
+- Firebase Storage used for avatars (Settings.tsx) and published sites (usePublishSystem)
+- useSubscriptionPlans replaced with static config (Stripe not live yet)
+- API keys enforced server-side only via backend API with Firebase Bearer token auth
