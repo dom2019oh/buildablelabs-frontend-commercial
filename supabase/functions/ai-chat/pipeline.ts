@@ -5,7 +5,7 @@
 import { TOOL_DEFINITIONS, validateCode, extractFileOperations, type FileOperation, type ValidationResult } from "./tools.ts";
 
 // Lovable AI Gateway
-const LOVABLE_AI_GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
+const AI_GATEWAY_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 // Model configuration
 const MODELS = {
@@ -175,7 +175,7 @@ async function executeArchitectPhase(
     }
   }
 
-  const response = await fetch(LOVABLE_AI_GATEWAY, {
+  const response = await fetch(AI_GATEWAY_URL, {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${apiKey}`,
@@ -238,7 +238,7 @@ Now generate the code following this plan. Use write_file tool calls for each fi
     }
   }
 
-  const response = await fetch(LOVABLE_AI_GATEWAY, {
+  const response = await fetch(AI_GATEWAY_URL, {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${apiKey}`,
@@ -338,7 +338,7 @@ async function executeValidatePhase(
       .join("\n\n");
 
     try {
-      const response = await fetch(LOVABLE_AI_GATEWAY, {
+      const response = await fetch(AI_GATEWAY_URL, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${apiKey}`,

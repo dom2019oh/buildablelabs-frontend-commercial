@@ -83,7 +83,7 @@ export function useFileVersions(projectId: string | undefined) {
         .from('file_versions')
         .insert({
           project_id: projectId,
-          user_id: user.id,
+          user_id: user.uid,
           version_number: newVersionNumber,
           label: label || `Version ${newVersionNumber}`,
           files: files,

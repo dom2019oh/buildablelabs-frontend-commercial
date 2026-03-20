@@ -22,7 +22,7 @@ export default function ProjectsSection() {
     if (activeTab === "recent") {
       return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
     }
-    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
   });
 
   return (
@@ -92,11 +92,11 @@ export default function ProjectsSection() {
               >
                 {/* Project Preview */}
                 <div className="relative aspect-video bg-zinc-900 rounded-xl overflow-hidden mb-4 border border-zinc-800 group-hover:border-zinc-700 transition-colors">
-                  {project.preview_html ? (
+                  ({false ? (
                     <div
                       className="w-full h-full scale-50 origin-top-left"
                       style={{ width: "200%", height: "200%" }}
-                      dangerouslySetInnerHTML={{ __html: project.preview_html }}
+                      dangerouslySetInnerHTML={{ __html: null }}
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
@@ -106,7 +106,7 @@ export default function ProjectsSection() {
                     </div>
                   )}
                   {/* Published Badge */}
-                  {project.deployed_url && (
+                  {(project as any).deployed_url && (
                     <div className="absolute bottom-3 left-3 px-3 py-1 bg-zinc-900/90 backdrop-blur-sm rounded-md text-xs text-muted-foreground">
                       Published
                     </div>
@@ -125,7 +125,7 @@ export default function ProjectsSection() {
                       <h3 className="font-medium text-foreground truncate">
                         {project.name}
                       </h3>
-                      {project.deployed_url && (
+                      {(project as any).deployed_url && (
                         <span className="px-2 py-0.5 bg-amber-500/20 text-amber-400 text-xs rounded-full flex-shrink-0">
                           Website
                         </span>

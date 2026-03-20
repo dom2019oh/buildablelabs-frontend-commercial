@@ -244,7 +244,7 @@ export default function WorkspaceTopBarV2({
       <div className="flex items-center gap-2">
         {/* User Avatar */}
         <Avatar className="h-7 w-7 border border-zinc-700">
-          <AvatarImage src={user?.user_metadata?.avatar_url} />
+          <AvatarImage src={user?.photoURL ?? undefined} />
           <AvatarFallback className="bg-zinc-800 text-xs">
             {user?.email?.charAt(0).toUpperCase() || 'U'}
           </AvatarFallback>

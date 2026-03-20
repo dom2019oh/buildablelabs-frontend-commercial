@@ -33,7 +33,7 @@ export function useProjectMessages(projectId: string | undefined) {
   const messagesQuery = useQuery({
     queryKey: ['project-messages', projectId],
     queryFn: async () => {
-      if (!projectId || !user?.id) return [];
+      if (!projectId || !user?.uid) return [];
       
       const { data, error } = await supabase
         .from('project_messages')
@@ -44,12 +44,12 @@ export function useProjectMessages(projectId: string | undefined) {
       if (error) throw error;
       return data as ProjectMessage[];
     },
-    enabled: !!projectId && !!user?.id,
+    enabled: !!projectId && !!user?.uid,
   });
 
   // Subscribe to realtime updates
   useEffect(() => {
-    if (!projectId || !user?.id) return;
+    if (!projectId || !user?.uid) return;
 
     const channel = supabase
       .channel(`project-messages-${projectId}`)
@@ -102,7 +102,7 @@ export function useProjectMessages(projectId: string | undefined) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [projectId, user?.id, queryClient]);
+  }, [projectId, user?.uid, queryClient]);
 
   // Send a message to the database
   const sendMessage = useMutation({
@@ -111,13 +111,13 @@ export function useProjectMessages(projectId: string | undefined) {
       role?: 'user' | 'assistant';
       metadata?: Json;
     }) => {
-      if (!projectId || !user?.id) throw new Error('Missing project or user');
+      if (!projectId || !user?.uid) throw new Error('Missing project or user');
 
       const { data, error } = await supabase
         .from('project_messages')
         .insert([{
           project_id: projectId,
-          user_id: user.id,
+          user_id: user.uid,
           role,
           content,
           metadata,
@@ -223,7 +223,7 @@ export function useProjectMessages(projectId: string | undefined) {
   // Clear all messages for a project
   const clearMessages = useMutation({
     mutationFn: async () => {
-      if (!projectId || !user?.id) throw new Error('Missing project or user');
+      if (!projectId || !user?.uid) throw new Error('Missing project or user');
 
       const { error } = await supabase
         .from('project_messages')

@@ -112,7 +112,7 @@ serve(async (req) => {
       }
     }
 
-    const origin = req.headers.get("origin") || "https://buildablelabs.lovable.app";
+    const origin = req.headers.get("origin") || "https://buildablelabs.dev";
 
     // Create checkout session
     const session = await stripe.checkout.sessions.create({

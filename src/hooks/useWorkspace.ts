@@ -61,7 +61,7 @@ export interface FileOperation {
 // =============================================================================
 
 export function useWorkspace(projectId: string | undefined) {
-  const { session } = useAuth();
+  const { session, user } = useAuth();
   const queryClient = useQueryClient();
   
   // Real-time state
@@ -70,8 +70,8 @@ export function useWorkspace(projectId: string | undefined) {
   const [liveFilesCount, setLiveFilesCount] = useState(0);
   const channelRef = useRef<RealtimeChannel | null>(null);
 
-  const userId = session?.user?.id;
-  const isAuthed = !!session;
+  const userId = user?.uid;
+  const isAuthed = !!user;
 
   // =========================================================================
   // GET OR CREATE WORKSPACE (direct Supabase query)

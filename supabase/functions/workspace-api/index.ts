@@ -13,7 +13,7 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-const LOVABLE_AI_GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
+const AI_GATEWAY_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 const MODELS = {
   architect: "google/gemini-2.5-pro",
@@ -247,8 +247,8 @@ serve(async (req) => {
         throw new Error("workspaceId and prompt required");
       }
 
-      const apiKey = Deno.env.get("LOVABLE_API_KEY");
-      if (!apiKey) throw new Error("LOVABLE_API_KEY not configured");
+      const apiKey = Deno.env.get("OPENROUTER_API_KEY");
+      if (!apiKey) throw new Error("OPENROUTER_API_KEY not configured");
 
       // Verify workspace access
       const { data: ws, error: wsErr } = await supabase
@@ -301,7 +301,7 @@ serve(async (req) => {
         }
 
         // Phase 1: Architect
-        const architectResp = await fetch(LOVABLE_AI_GATEWAY, {
+        const architectResp = await fetch(AI_GATEWAY_URL, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${apiKey}`,
@@ -328,7 +328,7 @@ serve(async (req) => {
           .eq("id", sessionId);
 
         // Phase 2: Code Generation
-        const codeResp = await fetch(LOVABLE_AI_GATEWAY, {
+        const codeResp = await fetch(AI_GATEWAY_URL, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${apiKey}`,

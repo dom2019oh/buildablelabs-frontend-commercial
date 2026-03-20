@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import wordmarkSvg from "@/assets/buildable-wordmark.svg";
+import { getSignUpUrl, getDashboardUrl } from "@/lib/urls";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type CardNavLink = {
@@ -86,8 +87,8 @@ export default function CardNav({
 
   const { user, profile, signOut } = useAuth();
   const navigate = useNavigate();
-  const displayName = profile?.display_name || user?.email?.split("@")[0] || "User";
-  const avatarUrl = profile?.avatar_url;
+  const displayName = profile?.displayName || user?.email?.split("@")[0] || "User";
+  const avatarUrl = profile?.avatarUrl;
   const initials = displayName.slice(0, 2).toUpperCase();
 
   // ── Height calculation ──
@@ -237,10 +238,10 @@ export default function CardNav({
                   </div>
                   <div className="py-1">
                     <DropdownMenuItem asChild>
-                      <Link to="/dashboard" className="flex items-center gap-2.5 px-3 py-2 cursor-pointer">
+                      <a href={getDashboardUrl()} className="flex items-center gap-2.5 px-3 py-2 cursor-pointer">
                         <User className="h-4 w-4 text-muted-foreground" />
                         <span>Dashboard</span>
-                      </Link>
+                      </a>
                     </DropdownMenuItem>
                   </div>
                   <DropdownMenuSeparator />
@@ -256,8 +257,8 @@ export default function CardNav({
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : (
-              <Link
-                to="/sign-up"
+              <a
+                href={getSignUpUrl()}
                 className="hidden md:inline-flex items-center h-[36px] rounded-[calc(0.75rem-0.2rem)] px-4 text-sm font-medium text-white transition-colors duration-200"
                 style={{
                   fontFamily: "'DM Sans', sans-serif",
@@ -266,7 +267,7 @@ export default function CardNav({
                 }}
               >
                 Get Started
-              </Link>
+              </a>
             )}
           </div>
         </div>

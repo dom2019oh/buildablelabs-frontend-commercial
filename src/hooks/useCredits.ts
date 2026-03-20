@@ -65,57 +65,57 @@ export function useCredits() {
 
   // Fetch user's current credits
   const { data: credits, isLoading: creditsLoading } = useQuery({
-    queryKey: ["user-credits", user?.id],
+    queryKey: ["user-credits", user?.uid],
     queryFn: async () => {
-      if (!user?.id) return null;
+      if (!user?.uid) return null;
       
       const { data, error } = await supabase
         .from("user_credits")
         .select("*")
-        .eq("user_id", user.id)
+        .eq("user_id", user.uid)
         .maybeSingle();
       
       if (error) throw error;
       return data as UserCredits | null;
     },
-    enabled: !!user?.id,
+    enabled: !!user?.uid,
   });
 
   // Fetch user's subscription
   const { data: subscription, isLoading: subscriptionLoading } = useQuery({
-    queryKey: ["user-subscription", user?.id],
+    queryKey: ["user-subscription", user?.uid],
     queryFn: async () => {
-      if (!user?.id) return null;
+      if (!user?.uid) return null;
       
       const { data, error } = await supabase
         .from("user_subscriptions")
         .select("*")
-        .eq("user_id", user.id)
+        .eq("user_id", user.uid)
         .maybeSingle();
       
       if (error) throw error;
       return data as UserSubscription | null;
     },
-    enabled: !!user?.id,
+    enabled: !!user?.uid,
   });
 
   // Fetch credit transactions
   const { data: transactions, isLoading: transactionsLoading } = useQuery({
-    queryKey: ["credit-transactions", user?.id],
+    queryKey: ["credit-transactions", user?.uid],
     queryFn: async () => {
-      if (!user?.id) return [];
+      if (!user?.uid) return [];
       
       const { data, error } = await supabase
         .from("credit_transactions")
         .select("*")
-        .eq("user_id", user.id)
+        .eq("user_id", user.uid)
         .order("created_at", { ascending: false })
         .limit(50);
       
       if (error) throw error;
       return data as CreditTransaction[];
     },
-    enabled: !!user?.id,
+    enabled: !!user?.uid,
   });
 
   // Fetch action costs (public)
@@ -150,10 +150,10 @@ export function useCredits() {
       description?: string; 
       metadata?: Record<string, unknown>;
     }) => {
-      if (!user?.id) throw new Error("Not authenticated");
+      if (!user?.uid) throw new Error("Not authenticated");
       
       const { data, error } = await supabase.rpc("deduct_credits", {
-        p_user_id: user.id,
+        p_user_id: user.uid,
         p_action_type: actionType,
         p_description: description || null,
         p_metadata: JSON.parse(JSON.stringify(metadata || {})),
@@ -187,10 +187,10 @@ export function useCredits() {
   // Claim daily bonus mutation
   const claimDailyBonusMutation = useMutation({
     mutationFn: async () => {
-      if (!user?.id) throw new Error("Not authenticated");
+      if (!user?.uid) throw new Error("Not authenticated");
       
       const { data, error } = await supabase.rpc("claim_daily_bonus", {
-        p_user_id: user.id,
+        p_user_id: user.uid,
       });
       
       if (error) throw error;

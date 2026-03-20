@@ -1,335 +1,188 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import Grainient from '@/components/ui/Grainient';
-import CardSwap, { Card } from '@/components/ui/CardSwap';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { Loader2 } from 'lucide-react';
+import logoPng from '@/assets/buildable-logo.png';
+import wordmarkSvg from '@/assets/buildable-wordmark.svg';
+import Grainient from '@/components/Grainient';
 import { saveOnboardingAnswers } from '@/hooks/useOnboarding';
-import { supabase } from '@/integrations/supabase/client';
-import { ArrowRight, Sparkles } from 'lucide-react';
+import { auth } from '@/lib/firebase';
+import { getDashboardUrl } from '@/lib/urls';
 
 const QUESTIONS = [
   {
     id: 'q1',
-    question: 'What should Buildable AI call you?',
-    type: 'text',
-    placeholder: 'Enter your name or nickname...',
-    required: true
+    step: '01',
+    question: 'What should we call you?',
+    hint: 'A name or nickname — however you prefer.',
+    type: 'text' as const,
+    placeholder: 'e.g. Alex, Captain, xX_Dev_Xx…',
+    required: true,
   },
   {
     id: 'q2',
-    question: 'Is this your first time Vibe coding or have you coded before?',
-    type: 'radio',
-    options: ['First Time Vibe Coding', 'I have coded before'],
-    required: true
+    step: '02',
+    question: 'Why are you building a bot?',
+    hint: 'Pick the one that feels most like you.',
+    type: 'choice' as const,
+    options: [
+      'I run a community & want to automate it',
+      'I want to add fun features to my server',
+      "I'm building it for a client",
+      'Just exploring what\'s possible',
+      'Other',
+    ],
+    required: true,
   },
   {
     id: 'q3',
-    question: 'What is your main goal with Buildable?',
-    type: 'radio',
+    step: '03',
+    question: 'What kind of bot do you have in mind?',
+    hint: 'You can always build more later.',
+    type: 'choice' as const,
     options: [
-      'I just want to find out what it can do.',
-      'I want to create a Website or Full Stack App.',
-      "I'm just testing AIs to see which is the best.",
-      'I want to design/build Components with the AI to help my Project.',
-      'Other'
+      'Moderation & Safety',
+      'Music / Entertainment',
+      'Welcome & Roles',
+      'Tickets & Support',
+      'Giveaways & Events',
+      'Something fully custom',
     ],
-    hasOther: true,
-    required: true
+    required: true,
   },
   {
     id: 'q4',
-    question: 'What are you expecting from Buildable?',
-    type: 'textarea',
-    placeholder: 'Share your expectations (optional)...',
-    required: false
+    step: '04',
+    question: 'How big is your Discord server?',
+    hint: 'Helps us tailor the experience.',
+    type: 'choice' as const,
+    options: [
+      'Just starting out (0–10)',
+      'Small community (10–100)',
+      'Growing fast (100–1,000)',
+      'Established server (1,000+)',
+    ],
+    required: false,
   },
   {
     id: 'q5',
-    question: 'Working solo or in a team?',
-    type: 'radio',
-    options: ['Solo', 'Team'],
-    required: false
-  },
-  {
-    id: 'q6',
+    step: '05',
     question: 'How did you find Buildable?',
-    type: 'radio',
-    options: ['Instagram', 'Direct', 'Google search', 'Youtube', 'ChatGPT', 'GrokAI', 'Other'],
-    required: false
-  }
+    hint: 'We\'re curious!',
+    type: 'choice' as const,
+    options: [
+      'Instagram',
+      'TikTok',
+      'Google Search',
+      'YouTube',
+      'Word of mouth',
+      'Other',
+    ],
+    required: false,
+  },
 ];
 
-const SHOWCASE_MESSAGES = [
-  "Build stunning websites in minutes",
-  "AI-powered design assistance",
-  "From idea to deployment, faster",
-  "Create without limits",
-  "Your vision, our technology",
-  "Design smarter, not harder",
-  "The future of web development"
-];
-
-const TEMPLATE_CARDS = [
-  { 
-    title: 'SaaS Dashboard', 
-    description: 'Modern admin panel with analytics',
-    image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=600&h=400&fit=crop'
-  },
-  { 
-    title: 'E-commerce Store', 
-    description: 'Full-featured online shop',
-    image: 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=600&h=400&fit=crop'
-  },
-  { 
-    title: 'Portfolio Site', 
-    description: 'Showcase your creative work',
-    image: 'https://images.unsplash.com/photo-1545665277-5937489579f2?w=600&h=400&fit=crop'
-  },
-  { 
-    title: 'Landing Page', 
-    description: 'High-converting marketing pages',
-    image: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=600&h=400&fit=crop'
-  },
-  { 
-    title: 'Blog Platform', 
-    description: 'Content-first publishing',
-    image: 'https://images.unsplash.com/photo-1499750310107-5fef28a66643?w=600&h=400&fit=crop'
-  },
-  { 
-    title: 'Mobile App UI', 
-    description: 'Responsive app interfaces',
-    image: 'https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?w=600&h=400&fit=crop'
-  },
-  { 
-    title: 'Documentation', 
-    description: 'Developer-friendly docs',
-    image: 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=600&h=400&fit=crop'
-  },
-  { 
-    title: 'Social Network', 
-    description: 'Community-driven platform',
-    image: 'https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=600&h=400&fit=crop'
-  }
+const RIGHT_PANEL_CONTENT = [
+  { quote: '"Every great bot\nstarts with a name."', caption: 'Yours is next.' },
+  { quote: '"Built for creators,\nnot developers."', caption: 'Whatever your reason — we\'ve got you.' },
+  { quote: '"From idea\nto live bot."', caption: 'One prompt at a time.' },
+  { quote: '"Big or small,\nevery server deserves great bots."', caption: 'We scale with you.' },
+  { quote: '"You\'re almost\ninside."', caption: 'One last question.' },
 ];
 
 export default function Onboarding() {
-  const [currentStep, setCurrentStep] = useState(0);
+  const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
-  const [otherText, setOtherText] = useState('');
+  const [textValue, setTextValue] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showcaseIndex, setShowcaseIndex] = useState(0);
+  const [direction, setDirection] = useState(1);
   const navigate = useNavigate();
   const location = useLocation();
-  const returnTo = (location.state as { returnTo?: string })?.returnTo || '/dashboard';
+  const returnTo = (location.state as { returnTo?: string })?.returnTo || getDashboardUrl();
 
-  // Check if user is authenticated
-  useEffect(() => {
-    const checkAuth = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        navigate('/auth');
-        return;
-      }
-
-      // Check if already completed/skipped
-      const { data } = await supabase
-        .from('user_onboarding')
-        .select('completed, skipped')
-        .eq('id', user.id)
-        .single();
-
-      if (data?.completed || data?.skipped) {
-        navigate(returnTo, { replace: true });
-      }
-    };
-    checkAuth();
-  }, [navigate]);
-
-  // Rotate showcase messages
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setShowcaseIndex((prev) => (prev + 1) % SHOWCASE_MESSAGES.length);
-    }, 5000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const currentQuestion = QUESTIONS[currentStep];
-  const canSkip = currentStep >= 3;
-  const isLastQuestion = currentStep === QUESTIONS.length - 1;
-
-  const handleAnswer = (value: string) => {
-    if (currentQuestion.hasOther && value === 'Other') {
-      setAnswers({ ...answers, [currentQuestion.id]: `Other: ${otherText}` });
+  const goToDashboard = (path = returnTo) => {
+    if (path.startsWith('http')) {
+      window.location.href = path;
     } else {
-      setAnswers({ ...answers, [currentQuestion.id]: value });
+      navigate(path, { replace: true });
     }
   };
 
+  useEffect(() => {
+    const checkAuth = async () => {
+      const user = auth.currentUser;
+      if (!user) { navigate('/log-in'); return; }
+    };
+    checkAuth();
+  }, [navigate, returnTo]);
+
+  const current = QUESTIONS[step];
+  const isLast = step === QUESTIONS.length - 1;
+  const progress = (step / QUESTIONS.length) * 100;
+
+  const currentAnswer = current.type === 'text'
+    ? textValue
+    : answers[current.id] || '';
+
+  const canProceed = !current.required || currentAnswer.trim().length > 0;
+
+  const handleSelect = (option: string) => {
+    setAnswers(prev => ({ ...prev, [current.id]: option }));
+  };
+
   const handleNext = async () => {
-    if (isLastQuestion) {
-      await handleFinish();
-    } else {
-      setCurrentStep((prev) => prev + 1);
-      setOtherText('');
+    const finalAnswers = {
+      ...answers,
+      ...(current.type === 'text' ? { [current.id]: textValue } : {}),
+    };
+    setAnswers(finalAnswers);
+
+    if (isLast) {
+      setIsSubmitting(true);
+      try {
+        await saveOnboardingAnswers(finalAnswers, true, false);
+        goToDashboard();
+      } catch {
+        setIsSubmitting(false);
+      }
+      return;
     }
+
+    setDirection(1);
+    setStep(s => s + 1);
+    setTextValue('');
+  };
+
+  const handleBack = () => {
+    if (step === 0) return;
+    setDirection(-1);
+    setStep(s => s - 1);
+    const prevQ = QUESTIONS[step - 1];
+    if (prevQ.type === 'text') setTextValue(answers[prevQ.id] || '');
   };
 
   const handleSkip = async () => {
     setIsSubmitting(true);
     try {
       await saveOnboardingAnswers(answers, false, true);
-      navigate(returnTo);
-    } catch (error) {
-      console.error('Failed to skip onboarding:', error);
-    } finally {
+      goToDashboard();
+    } catch {
       setIsSubmitting(false);
     }
   };
 
-  const handleFinish = async () => {
-    setIsSubmitting(true);
-    try {
-      await saveOnboardingAnswers(answers, true, false);
-      navigate(returnTo);
-    } catch (error) {
-      console.error('Failed to complete onboarding:', error);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const isCurrentAnswerValid = () => {
-    if (!currentQuestion.required) return true;
-    const answer = answers[currentQuestion.id];
-    if (!answer) return false;
-    if (currentQuestion.hasOther && answer === 'Other' && !otherText.trim()) return false;
-    return true;
-  };
+  const panel = RIGHT_PANEL_CONTENT[step] || RIGHT_PANEL_CONTENT[RIGHT_PANEL_CONTENT.length - 1];
 
   return (
-    <div className="min-h-screen flex">
-      {/* Left Side - Questions */}
-      <div className="w-full lg:w-1/2 bg-zinc-900 flex flex-col">
-        <div className="flex-1 flex flex-col justify-center px-8 md:px-16 lg:px-20 py-12">
-          {/* Progress */}
-          <div className="mb-8">
-            <div className="flex items-center gap-2 text-sm text-zinc-400 mb-2">
-              <span>{currentStep + 1}</span>
-              <span>/</span>
-              <span>{QUESTIONS.length}</span>
-            </div>
-            <div className="w-full h-1 bg-zinc-800 rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-purple-500 transition-all duration-300"
-                style={{ width: `${((currentStep + 1) / QUESTIONS.length) * 100}%` }}
-              />
-            </div>
-          </div>
+    <div className="min-h-screen flex overflow-hidden relative">
 
-          {/* Question */}
-          <div className="mb-8">
-            <h2 className="text-2xl md:text-3xl font-semibold text-white mb-6">
-              {currentQuestion.question}
-            </h2>
-
-            {currentQuestion.type === 'text' && (
-              <Input
-                value={answers[currentQuestion.id] || ''}
-                onChange={(e) => handleAnswer(e.target.value)}
-                placeholder={currentQuestion.placeholder}
-                className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500 h-12"
-              />
-            )}
-
-            {currentQuestion.type === 'textarea' && (
-              <Textarea
-                value={answers[currentQuestion.id] || ''}
-                onChange={(e) => handleAnswer(e.target.value)}
-                placeholder={currentQuestion.placeholder}
-                className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500 min-h-[120px]"
-              />
-            )}
-
-            {currentQuestion.type === 'radio' && (
-              <RadioGroup
-                value={answers[currentQuestion.id]?.startsWith('Other:') ? 'Other' : answers[currentQuestion.id] || ''}
-                onValueChange={handleAnswer}
-                className="space-y-3"
-              >
-                {currentQuestion.options?.map((option) => (
-                  <div key={option} className="flex items-center space-x-3">
-                    <RadioGroupItem 
-                      value={option} 
-                      id={option}
-                      className="border-zinc-600 text-purple-500"
-                    />
-                    <Label 
-                      htmlFor={option}
-                      className="text-zinc-300 cursor-pointer hover:text-white transition-colors"
-                    >
-                      {option}
-                    </Label>
-                  </div>
-                ))}
-              </RadioGroup>
-            )}
-
-            {currentQuestion.hasOther && answers[currentQuestion.id]?.startsWith('Other') && (
-              <Input
-                value={otherText}
-                onChange={(e) => {
-                  setOtherText(e.target.value);
-                  setAnswers({ ...answers, [currentQuestion.id]: `Other: ${e.target.value}` });
-                }}
-                placeholder="Please specify..."
-                className="mt-4 bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500 h-12"
-              />
-            )}
-          </div>
-
-          {/* Actions */}
-          <div className="flex items-center gap-4">
-            <Button
-              onClick={handleNext}
-              disabled={!isCurrentAnswerValid() || isSubmitting}
-              className="bg-purple-600 hover:bg-purple-700 text-white px-8 h-12"
-            >
-              {isSubmitting ? 'Saving...' : isLastQuestion ? 'Finish' : 'Next'}
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
-
-            {canSkip && (
-              <Button
-                variant="ghost"
-                onClick={handleSkip}
-                disabled={isSubmitting}
-                className="text-zinc-400 hover:text-white"
-              >
-                Skip for now
-              </Button>
-            )}
-          </div>
-        </div>
-
-        {/* Footer */}
-        <footer className="px-8 md:px-16 lg:px-20 py-6 border-t border-zinc-800">
-          <p className="text-sm text-zinc-500">
-            © {new Date().getFullYear()} Buildable Labs. All rights reserved.
-          </p>
-        </footer>
-      </div>
-
-      {/* Right Side - Animated Background */}
-      <div className="hidden lg:block w-1/2 relative overflow-hidden">
+      {/* Background */}
+      <div className="fixed inset-0 pointer-events-none" style={{ zIndex: 0 }}>
         <Grainient
-          color1="#4f4a4f"
-          color2="#ccc7e1"
-          color3="#121212"
-          timeSpeed={0.25}
+          color1="#3a3c42"
+          color2="#141518"
+          color3="#252729"
+          timeSpeed={0.35}
           colorBalance={0}
           warpStrength={1}
           warpFrequency={5}
@@ -349,55 +202,264 @@ export default function Onboarding() {
           centerY={0}
           zoom={0.9}
         />
+      </div>
 
-        {/* Rotating Text */}
-        <div className="absolute top-12 left-0 right-0 text-center z-10">
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-black/30 backdrop-blur-sm rounded-full">
-            <Sparkles className="h-4 w-4 text-purple-400" />
-            <span 
-              key={showcaseIndex}
-              className="text-white font-medium animate-fade-in"
-            >
-              {SHOWCASE_MESSAGES[showcaseIndex]}
-            </span>
+      {/* ── Left panel ── */}
+      <div
+        className="relative z-10 w-full md:w-[500px] lg:w-[540px] flex-shrink-0 flex flex-col min-h-screen"
+        style={{
+          background: 'rgba(4, 2, 12, 0.82)',
+          backdropFilter: 'blur(48px)',
+          WebkitBackdropFilter: 'blur(48px)',
+          borderRight: '1px solid rgba(255,255,255,0.06)',
+        }}
+      >
+        {/* Top bar */}
+        <div className="flex items-center justify-between px-10 h-16 flex-shrink-0" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+          <Link to="/" className="flex items-center gap-[10px]">
+            <img src={logoPng} alt="" aria-hidden draggable={false} className="select-none block"
+              style={{ height: '26px', width: '26px', objectFit: 'contain', filter: 'invert(1)', flexShrink: 0 }} />
+            <img src={wordmarkSvg} alt="Buildable Labs" draggable={false} className="select-none block"
+              style={{ height: '22px', width: 'auto', objectFit: 'contain' }} />
+          </Link>
+
+          {/* Step dots */}
+          <div className="flex items-center gap-1.5">
+            {QUESTIONS.map((_, i) => (
+              <div
+                key={i}
+                style={{
+                  width: i === step ? '20px' : '6px',
+                  height: '6px',
+                  borderRadius: '9999px',
+                  background: i === step
+                    ? 'rgba(255,255,255,0.8)'
+                    : i < step
+                    ? 'rgba(255,255,255,0.4)'
+                    : 'rgba(255,255,255,0.12)',
+                  transition: 'all 0.3s ease',
+                }}
+              />
+            ))}
           </div>
         </div>
 
-        {/* Card Swap */}
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div style={{ height: '600px', width: '100%', position: 'relative' }}>
-            <CardSwap
-              cardDistance={80}
-              verticalDistance={80}
-              delay={4000}
-              pauseOnHover={true}
-              width={400}
-              height={280}
-            >
-              {TEMPLATE_CARDS.map((template, i) => (
-                <Card 
-                  key={i} 
-                  className="overflow-hidden flex flex-col bg-zinc-900/95 backdrop-blur-sm border-zinc-700/50"
+        {/* Progress bar */}
+        <div className="w-full h-[1px]" style={{ background: 'rgba(255,255,255,0.06)' }}>
+          <motion.div
+            className="h-full"
+            style={{ background: 'rgba(255,255,255,0.35)' }}
+            animate={{ width: `${progress + (1 / QUESTIONS.length) * 100}%` }}
+            transition={{ duration: 0.4, ease: 'easeOut' }}
+          />
+        </div>
+
+        {/* Question body */}
+        <div className="flex-1 flex items-center justify-center px-10 lg:px-14 py-12 overflow-hidden">
+          <div className="w-full max-w-[360px]">
+            <AnimatePresence mode="wait" custom={direction}>
+              <motion.div
+                key={step}
+                custom={direction}
+                initial={{ opacity: 0, x: direction * 32 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: direction * -32 }}
+                transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+              >
+                {/* Step label */}
+                <p
+                  className="mb-4"
+                  style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '10px', letterSpacing: '0.22em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)' }}
                 >
-                  {/* Image */}
-                  <div className="h-[180px] w-full overflow-hidden">
-                    <img 
-                      src={template.image} 
-                      alt={template.title}
-                      className="w-full h-full object-cover transition-transform duration-500 hover:scale-110"
-                    />
+                  Step {current.step} of {String(QUESTIONS.length).padStart(2, '0')}
+                </p>
+
+                {/* Question */}
+                <h2
+                  className="mb-2"
+                  style={{
+                    fontFamily: "'Instrument Serif', serif",
+                    fontSize: '1.9rem',
+                    fontWeight: 400,
+                    fontStyle: 'italic',
+                    color: '#ffffff',
+                    lineHeight: 1.2,
+                    letterSpacing: '-0.01em',
+                  }}
+                >
+                  {current.question}
+                </h2>
+
+                {/* Hint */}
+                <p className="mb-8" style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '12px', color: 'rgba(255,255,255,0.35)', letterSpacing: '0.02em' }}>
+                  {current.hint}
+                </p>
+
+                {/* Text input */}
+                {current.type === 'text' && (
+                  <input
+                    type="text"
+                    value={textValue}
+                    onChange={e => setTextValue(e.target.value)}
+                    placeholder={current.placeholder}
+                    autoFocus
+                    onKeyDown={e => { if (e.key === 'Enter' && canProceed) handleNext(); }}
+                    className="w-full py-3 text-base text-white placeholder-white/20 outline-none transition-colors duration-200"
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      borderBottom: '1px solid rgba(255,255,255,0.2)',
+                      borderRadius: 0,
+                      fontFamily: "'DM Sans', sans-serif",
+                      fontSize: '1.1rem',
+                    }}
+                    onFocus={e => (e.currentTarget.style.borderBottom = '1px solid rgba(255,255,255,0.6)')}
+                    onBlur={e => (e.currentTarget.style.borderBottom = '1px solid rgba(255,255,255,0.2)')}
+                  />
+                )}
+
+                {/* Choice options */}
+                {current.type === 'choice' && (
+                  <div className="space-y-2">
+                    {current.options?.map((option) => {
+                      const selected = answers[current.id] === option;
+                      return (
+                        <button
+                          key={option}
+                          type="button"
+                          onClick={() => handleSelect(option)}
+                          className="w-full text-left px-4 py-3 transition-all duration-200"
+                          style={{
+                            background: selected ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.03)',
+                            border: selected ? '1px solid rgba(255,255,255,0.3)' : '1px solid rgba(255,255,255,0.08)',
+                            borderRadius: '4px',
+                            fontFamily: "'DM Sans', sans-serif",
+                            fontSize: '13px',
+                            color: selected ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.5)',
+                            letterSpacing: '0.02em',
+                          }}
+                          onMouseEnter={e => { if (!selected) { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; e.currentTarget.style.color = 'rgba(255,255,255,0.75)'; }}}
+                          onMouseLeave={e => { if (!selected) { e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; e.currentTarget.style.color = 'rgba(255,255,255,0.5)'; }}}
+                        >
+                          <span className="flex items-center gap-3">
+                            <span
+                              style={{
+                                width: '14px', height: '14px', borderRadius: '50%', flexShrink: 0,
+                                border: selected ? '4px solid rgba(255,255,255,0.9)' : '1px solid rgba(255,255,255,0.25)',
+                                transition: 'all 0.2s',
+                              }}
+                            />
+                            {option}
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
-                  {/* Content */}
-                  <div className="p-4 flex flex-col justify-end flex-1 bg-gradient-to-t from-zinc-900 to-zinc-900/80">
-                    <h3 className="text-lg font-semibold text-white mb-1">{template.title}</h3>
-                    <p className="text-sm text-zinc-400">{template.description}</p>
-                  </div>
-                </Card>
-              ))}
-            </CardSwap>
+                )}
+              </motion.div>
+            </AnimatePresence>
+
+            {/* Actions */}
+            <div className="flex items-center gap-4 mt-10">
+              {step > 0 && (
+                <button
+                  type="button"
+                  onClick={handleBack}
+                  style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '11px', letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)', transition: 'color 0.2s' }}
+                  onMouseEnter={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.65)')}
+                  onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.3)')}
+                >
+                  ← Back
+                </button>
+              )}
+
+              <motion.button
+                type="button"
+                onClick={handleNext}
+                disabled={!canProceed || isSubmitting}
+                whileHover={canProceed ? { opacity: 0.9 } : {}}
+                whileTap={canProceed ? { scale: 0.99 } : {}}
+                className="flex items-center justify-center gap-2 py-3 px-8 disabled:opacity-30 transition-opacity"
+                style={{
+                  background: 'rgba(255,255,255,0.96)',
+                  color: '#0a0612',
+                  borderRadius: '3px',
+                  fontFamily: "'DM Sans', sans-serif",
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  letterSpacing: '0.1em',
+                  textTransform: 'uppercase',
+                  minWidth: '120px',
+                }}
+              >
+                {isSubmitting
+                  ? <Loader2 className="w-4 h-4 animate-spin" />
+                  : isLast ? 'Finish' : 'Continue'
+                }
+              </motion.button>
+
+              {step >= 3 && !isLast && (
+                <button
+                  type="button"
+                  onClick={handleSkip}
+                  style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '11px', letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.25)', transition: 'color 0.2s' }}
+                  onMouseEnter={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.55)')}
+                  onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.25)')}
+                >
+                  Skip
+                </button>
+              )}
+            </div>
           </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-10 py-5 flex-shrink-0" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+          <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '10px', color: 'rgba(255,255,255,0.2)', letterSpacing: '0.06em' }}>
+            © {new Date().getFullYear()} Buildable Labs
+          </p>
         </div>
       </div>
+
+      {/* ── Right panel — changes per step ── */}
+      <div className="relative z-10 hidden md:flex flex-1 flex-col justify-end px-14 lg:px-20 pb-16 overflow-hidden">
+        <div className="absolute inset-0 pointer-events-none" style={{ background: 'rgba(0,0,0,0.22)' }} />
+
+        <div className="relative z-10 max-w-[480px]">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={step}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -16 }}
+              transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+            >
+              <div className="mb-8" style={{ width: '40px', height: '1px', background: 'rgba(255,255,255,0.4)' }} />
+
+              <blockquote
+                style={{
+                  fontFamily: "'Instrument Serif', serif",
+                  fontSize: 'clamp(1.8rem, 2.8vw, 2.6rem)',
+                  fontWeight: 400,
+                  fontStyle: 'italic',
+                  color: '#ffffff',
+                  lineHeight: 1.25,
+                  letterSpacing: '-0.015em',
+                  marginBottom: '1.25rem',
+                  whiteSpace: 'pre-line',
+                }}
+              >
+                {panel.quote}
+              </blockquote>
+
+              <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '11px', letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.45)' }}>
+                {panel.caption}
+              </p>
+            </motion.div>
+          </AnimatePresence>
+        </div>
+      </div>
+
     </div>
   );
 }

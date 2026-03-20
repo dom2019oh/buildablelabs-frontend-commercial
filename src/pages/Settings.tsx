@@ -25,8 +25,8 @@ export default function Settings() {
   // Sync state when profile loads
   useEffect(() => {
     if (profile) {
-      setDisplayName(profile.display_name || "");
-      setAvatarUrl(profile.avatar_url || "");
+      setDisplayName(profile.displayName || "");
+      setAvatarUrl(profile.avatarUrl || "");
     }
   }, [profile]);
 
@@ -64,7 +64,7 @@ export default function Settings() {
 
     try {
       const fileExt = file.name.split(".").pop();
-      const fileName = `${user.id}/avatar.${fileExt}`;
+      const fileName = `${user.uid}/avatar.${fileExt}`;
 
       // Upload the file
       const { error: uploadError } = await supabase.storage
@@ -110,7 +110,7 @@ export default function Settings() {
           display_name: displayName.trim() || null,
           avatar_url: avatarUrl || null,
         })
-        .eq("user_id", user.id);
+        .eq("user_id", user.uid);
 
       if (error) throw error;
 

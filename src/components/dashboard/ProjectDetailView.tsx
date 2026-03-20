@@ -99,7 +99,7 @@ export default function ProjectDetailView() {
 
   const handleRerunPrompt = async () => {
     if (!selectedPromptId) return;
-    await rerunPrompt.mutateAsync(selectedPromptId);
+    await rerunPrompt.mutateAsync();
     setRerunDialogOpen(false);
     setSelectedPromptId(null);
   };

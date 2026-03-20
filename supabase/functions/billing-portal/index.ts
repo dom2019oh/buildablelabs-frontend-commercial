@@ -85,7 +85,7 @@ serve(async (req) => {
     logStep("Found Stripe customer", { customerId: subscription.stripe_customer_id });
 
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
-    const origin = req.headers.get("origin") || "https://buildablelabs.lovable.app";
+    const origin = req.headers.get("origin") || "https://buildablelabs.dev";
 
     // Create billing portal session
     const portalSession = await stripe.billingPortal.sessions.create({

@@ -1,79 +1,21 @@
 import { Navigate, useLocation } from 'react-router-dom';
-import { useAuth } from '@/hooks/useAuth';
 import { Loader2 } from 'lucide-react';
-import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 
-interface ProtectedRouteProps {
-  children: React.ReactNode;
-}
-
-export default function ProtectedRoute({ children }: ProtectedRouteProps) {
+export default function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const location = useLocation();
-  const [onboardingStatus, setOnboardingStatus] = useState<{
-    completed: boolean;
-    skipped: boolean;
-    isLoading: boolean;
-  }>({ completed: false, skipped: false, isLoading: true });
 
-  useEffect(() => {
-    const checkOnboarding = async () => {
-      if (!user) {
-        setOnboardingStatus({ completed: false, skipped: false, isLoading: false });
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from('user_onboarding')
-        .select('completed, skipped')
-        .eq('id', user.id)
-        .single();
-
-      if (error || !data) {
-        // If no record exists, user needs onboarding
-        setOnboardingStatus({ completed: false, skipped: false, isLoading: false });
-        return;
-      }
-
-      setOnboardingStatus({
-        completed: data.completed,
-        skipped: data.skipped,
-        isLoading: false
-      });
-    };
-
-    if (!loading && user) {
-      checkOnboarding();
-    } else if (!loading) {
-      setOnboardingStatus({ completed: false, skipped: false, isLoading: false });
-    }
-  }, [user, loading]);
-
-  if (loading || onboardingStatus.isLoading) {
+  if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'hsl(240 10% 4%)' }}>
+        <Loader2 className="w-6 h-6 animate-spin text-white/20" />
       </div>
     );
   }
 
   if (!user) {
-    // Redirect to login with the intended destination
     return <Navigate to="/log-in" state={{ from: location }} replace />;
-  }
-
-  // If onboarding not completed and not skipped, redirect to onboarding
-  // Pass the current location (or stored returnTo from OAuth) so onboarding can redirect back after completion
-  if (!onboardingStatus.completed && !onboardingStatus.skipped) {
-    const storedReturn = sessionStorage.getItem('buildable_return_to');
-    const returnTo = storedReturn || (location.state as { returnTo?: string })?.returnTo || location.pathname + location.search;
-    return <Navigate to="/onboarding" state={{ returnTo }} replace />;
-  }
-
-  // Clear stored return after successful auth + onboarding
-  if (sessionStorage.getItem('buildable_return_to')) {
-    sessionStorage.removeItem('buildable_return_to');
   }
 
   return <>{children}</>;

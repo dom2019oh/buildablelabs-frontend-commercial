@@ -41,7 +41,7 @@ export function UserCredits() {
       const { data, error } = await supabase
         .from("user_credits")
         .select("*")
-        .eq("user_id", user.id)
+        .eq("user_id", user.uid)
         .single();
 
       if (error) throw error;
@@ -84,7 +84,7 @@ export function UserCredits() {
     setClaiming(true);
     try {
       const { data, error } = await supabase.rpc("claim_daily_bonus", {
-        p_user_id: user.id,
+        p_user_id: user.uid,
       });
 
       if (error) throw error;

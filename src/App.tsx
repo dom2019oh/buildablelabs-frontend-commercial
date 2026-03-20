@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
@@ -14,6 +14,7 @@ import DashboardUsage from "./pages/DashboardUsage";
 import DashboardBilling from "./pages/DashboardBilling";
 import DashboardSettings from "./pages/DashboardSettings";
 import DashboardProject from "./pages/DashboardProject";
+import DashboardProjectSettings from "./pages/DashboardProjectSettings";
 import DashboardTemplates from "./pages/DashboardTemplates";
 import DashboardComponents from "./pages/DashboardComponents";
 import DashboardBackgrounds from "./pages/DashboardBackgrounds";
@@ -27,8 +28,9 @@ import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
 import Contact from "./pages/Contact";
 import Onboarding from "./pages/Onboarding";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import CookieConsent from "./components/CookieConsent";
-import CustomCursor from "./components/CustomCursor";
 
 const queryClient = new QueryClient();
 
@@ -38,11 +40,14 @@ const App = () => (
       <TooltipProvider>
         <Toaster />
         <Sonner />
-        <CustomCursor />
         <BrowserRouter>
           <CookieConsent />
           <Routes>
-            <Route path="/" element={<Index />} />
+            <Route path="/" element={
+              window.location.hostname === 'dashboard.buildablelabs.dev'
+                ? <Navigate to="/dashboard" replace />
+                : <Index />
+            } />
             <Route path="/pricing" element={<Pricing />} />
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/terms" element={<Terms />} />
@@ -50,11 +55,14 @@ const App = () => (
             <Route path="/log-in" element={<Login />} />
             <Route path="/sign-up" element={<SignUp />} />
             <Route path="/onboarding" element={<Onboarding />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/dashboard/usage" element={<ProtectedRoute><DashboardUsage /></ProtectedRoute>} />
             <Route path="/dashboard/billing" element={<ProtectedRoute><DashboardBilling /></ProtectedRoute>} />
             <Route path="/dashboard/settings" element={<ProtectedRoute><DashboardSettings /></ProtectedRoute>} />
             <Route path="/dashboard/project/:projectId" element={<ProtectedRoute><DashboardProject /></ProtectedRoute>} />
+            <Route path="/dashboard/project/:projectId/settings" element={<ProtectedRoute><DashboardProjectSettings /></ProtectedRoute>} />
             {/* Library Routes - Templates public, Components/Backgrounds protected */}
             <Route path="/dashboard/templates" element={<DashboardTemplates />} />
             <Route path="/dashboard/components" element={<ProtectedRoute><DashboardComponents /></ProtectedRoute>} />

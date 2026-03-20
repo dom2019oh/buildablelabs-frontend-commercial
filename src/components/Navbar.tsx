@@ -40,9 +40,9 @@ export default function Navbar() {
     await signOut();
     navigate("/");
   };
-  const displayName = profile?.display_name || user?.email?.split("@")[0] || "User";
+  const displayName = profile?.displayName || user?.email?.split("@")[0] || "User";
   const userEmail = user?.email || "";
-  const avatarUrl = profile?.avatar_url;
+  const avatarUrl = profile?.avatarUrl;
   const initials = displayName.slice(0, 2).toUpperCase();
 
   return (

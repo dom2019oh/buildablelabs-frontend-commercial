@@ -79,7 +79,7 @@ export function useWorkspaceChat(projectId: string | undefined) {
         .from("project_messages")
         .insert({
           project_id: projectId,
-          user_id: user.id,
+          user_id: user.uid,
           role: "user",
           content,
         });
@@ -96,7 +96,7 @@ export function useWorkspaceChat(projectId: string | undefined) {
         .from("project_messages")
         .insert({
           project_id: projectId,
-          user_id: user.id,
+          user_id: user.uid,
           role: "assistant",
           content: `Generated ${result.filesGenerated} files successfully.`,
           metadata: {
@@ -119,7 +119,7 @@ export function useWorkspaceChat(projectId: string | undefined) {
           .from("project_messages")
           .insert({
             project_id: projectId,
-            user_id: user.id,
+            user_id: user.uid,
             role: "assistant",
             content: `Error: ${error instanceof Error ? error.message : "Generation failed"}`,
             metadata: { status: "error" },
@@ -148,7 +148,7 @@ export function useWorkspaceChat(projectId: string | undefined) {
       .from("project_messages")
       .delete()
       .eq("project_id", projectId)
-      .eq("user_id", user.id);
+      .eq("user_id", user.uid);
 
     queryClient.invalidateQueries({ queryKey: ["project-messages", projectId] });
   }, [projectId, user, queryClient]);

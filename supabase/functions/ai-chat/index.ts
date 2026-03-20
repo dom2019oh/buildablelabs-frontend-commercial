@@ -11,7 +11,7 @@ const corsHeaders = {
 };
 
 // Lovable AI Gateway
-const LOVABLE_AI_GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
+const AI_GATEWAY_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 // Model configuration for pipeline phases
 const MODELS = {
@@ -273,7 +273,7 @@ async function executePipeline(
   console.log("🏗️ Phase 1: Architect");
   const architectStart = Date.now();
   
-  const architectResp = await fetch(LOVABLE_AI_GATEWAY, {
+  const architectResp = await fetch(AI_GATEWAY_URL, {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${apiKey}`,
@@ -308,7 +308,7 @@ async function executePipeline(
   console.log("💻 Phase 2: Code");
   const codeStart = Date.now();
 
-  const codeResp = await fetch(LOVABLE_AI_GATEWAY, {
+  const codeResp = await fetch(AI_GATEWAY_URL, {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${apiKey}`,
@@ -396,7 +396,7 @@ async function streamAI(
   systemPrompt: string,
   apiKey: string
 ): Promise<Response> {
-  const response = await fetch(LOVABLE_AI_GATEWAY, {
+  const response = await fetch(AI_GATEWAY_URL, {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${apiKey}`,
@@ -433,8 +433,8 @@ serve(async (req) => {
   const startTime = Date.now();
 
   try {
-    const apiKey = Deno.env.get("LOVABLE_API_KEY");
-    if (!apiKey) throw new Error("LOVABLE_API_KEY not configured");
+    const apiKey = Deno.env.get("OPENROUTER_API_KEY");
+    if (!apiKey) throw new Error("OPENROUTER_API_KEY not configured");
 
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) throw new Error("Missing authorization");
@@ -528,7 +528,7 @@ serve(async (req) => {
 
     // Non-streaming
     const messages: Message[] = [...conversationHistory.slice(-10), { role: "user", content: message }];
-    const response = await fetch(LOVABLE_AI_GATEWAY, {
+    const response = await fetch(AI_GATEWAY_URL, {
       method: "POST",
       headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({ model, messages: [{ role: "system", content: systemPrompt }, ...messages], max_tokens: 12000, temperature: 0.7 }),

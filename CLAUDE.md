@@ -117,14 +117,49 @@ Users describe a bot in plain English → Buildable AI generates code → deploy
 
 ---
 
+## Backend
+
+- **Repo**: `dom2019oh/buildablelabs-backend-commercial` (also mirrored to `buildablelabs-backend`)
+- **Live URL**: https://api.buildablelabs.dev (Railway)
+- **Runtime**: Bun + Hono
+- **Auth**: Firebase Admin SDK — verifies Firebase ID tokens (NOT Supabase)
+- **Database**: Firebase Firestore — collections: `workspaces`, `workspaceFiles`, `generationSessions`, `fileOperations`
+- **AI**: OpenAI (gpt-4o) active now. Anthropic (claude-sonnet-4-6) ready — switch `DEFAULT_AI_PROVIDER=anthropic` when credits arrive in April
+- **Local dev**: `cd /c/Users/dom20/buildablelabs-backend && bun run dev`
+
+### Backend Key Env Vars (Railway)
+| Var | Notes |
+|-----|-------|
+| `FIREBASE_PROJECT_ID` | `buildablelabs-42259` |
+| `FIREBASE_SERVICE_ACCOUNT_KEY` | Base64-encoded service account JSON |
+| `OPENAI_API_KEY` | Active |
+| `DEFAULT_AI_PROVIDER` | `openai` — change to `anthropic` when credits arrive |
+| `CORS_ORIGINS` | Includes `dashboard.buildablelabs.dev` |
+
+---
+
+## Dashboard
+
+- Routes live under `/dashboard/*` in the frontend SPA
+- `dashboard.buildablelabs.dev` CNAME → `buildablelabs-42259.web.app` (DNS only in Cloudflare)
+- Key components:
+  - `src/components/dashboard/DashboardSidebar.tsx` — Lovable-style narrow sidebar (176px), workspace dropdown, grouped nav, recents, Share/Upgrade CTAs
+  - `src/components/dashboard/DashboardLayout.tsx` — sidebar + main. Pass `noPadding` for ProjectsView.
+  - `src/components/dashboard/ProjectsView.tsx` — gradient hero background, "Ready to build, [Name]?" prompt input, tabs (Recently viewed / My Bots / Templates), bot grid
+  - `src/components/dashboard/ProjectCard.tsx` — card with template emoji, status, language badge
+  - `src/components/dashboard/NewBotGuide.tsx` — 3-step wizard (template → details → review)
+  - `src/components/dashboard/SettingsView.tsx` — Lovable-style left-panel settings (uses Firestore, NOT Supabase)
+  - `src/components/dashboard/BillingView.tsx` — stub plan cards (Free/Pro/Business) — Stripe not yet integrated
+  - `src/hooks/useProjects.ts` — Firestore real-time project list
+- Dashboard home submits prompts directly: `createProject(name, { prompt })` → navigate to `/dashboard/project/:id`
+
+---
+
 ## Last Updated
 
-**2026-03-11** — Session summary:
-- Added `BuildableSimulation` component (replaced `BuildableAIIntro`)
-  - Multi-phase simulation: Prompt → Thinking → Building → Deploying → Live
-  - Test user renamed to **James**
-  - `MiniOrb` canvas spinner added for loading phases
-- Added Firebase, Cloudflare, Grant Development to TechLogos marquee
-  - Copied `G - White Standard.png` → `public/grant-dev-logo.png`
-- Fixed marquee snap-reset bug: replaced Framer Motion keyframe animation with pure CSS `@keyframes marqueeScroll`
-- All changes built and deployed to Firebase
+**2026-03-13** — Session summary:
+- Full dashboard redesign (Lovable.dev-inspired): gradient hero, centered prompt, sidebar with workspace dropdown & recents
+- SettingsView migrated from Supabase to Firestore
+- BillingView replaced with clean plan-card stub (no Stripe yet)
+- DashboardTopBar removed — sidebar handles all user identity/nav
+- `useAuth.tsx` loading fix: `setLoading(false)` fires immediately in `onAuthStateChanged`

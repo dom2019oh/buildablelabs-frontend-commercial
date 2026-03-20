@@ -60,7 +60,7 @@ export function useProjectFiles(projectId: string | undefined) {
         .from('project_files')
         .upsert({
           project_id: projectId,
-          user_id: user.id,
+          user_id: user.uid,
           file_path: path,
           file_content: content,
           file_type: fileType,
@@ -85,7 +85,7 @@ export function useProjectFiles(projectId: string | undefined) {
 
       const records = filesToSave.map(f => ({
         project_id: projectId,
-        user_id: user.id,
+        user_id: user.uid,
         file_path: f.path,
         file_content: f.content,
         file_type: f.path.split('.').pop() || 'txt',

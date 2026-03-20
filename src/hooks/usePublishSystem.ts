@@ -159,7 +159,7 @@ export function usePublishSystem(projectId: string | undefined) {
       const productionHtml = injectBranding(previewHtml, isFreeplan);
       
       // Step 3: Upload HTML to storage
-      const storagePath = `${user.id}/${projectId}/index.html`;
+      const storagePath = `${user.uid}/${projectId}/index.html`;
       const htmlBlob = new Blob([productionHtml], { type: 'text/html' });
       
       const { error: uploadError } = await supabase
@@ -196,7 +196,7 @@ export function usePublishSystem(projectId: string | undefined) {
         .from('project_builds')
         .insert({
           project_id: projectId,
-          user_id: user.id,
+          user_id: user.uid,
           status: 'completed',
           completed_at: new Date().toISOString(),
           duration_seconds: 3,
@@ -243,7 +243,7 @@ ${isFreeplan ? '✓ Branding badge injected (Free plan)' : '✓ No branding (Pai
       if (!projectId || !user) throw new Error('No project ID');
       
       // Delete from storage
-      const storagePath = `${user.id}/${projectId}/index.html`;
+      const storagePath = `${user.uid}/${projectId}/index.html`;
       await supabase
         .storage
         .from('published-sites')

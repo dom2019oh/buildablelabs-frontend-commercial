@@ -1,237 +1,215 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Settings, User, Camera, Loader2, LogOut, Mail, Key } from 'lucide-react';
+import { User, Loader2, LogOut, Mail, Key, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+
+// ── Section groups (Lovable-style left-panel layout) ──────────────────────────
+
+const SECTIONS = [
+  {
+    group: 'Account',
+    items: [
+      { id: 'profile',  label: 'Profile' },
+      { id: 'account',  label: 'Account info' },
+      { id: 'security', label: 'Privacy & security' },
+    ],
+  },
+  {
+    group: 'Billing',
+    items: [
+      { id: 'billing',  label: 'Plans & credits', href: '/dashboard/billing' },
+    ],
+  },
+];
 
 export default function SettingsView() {
-  const navigate = useNavigate();
+  const navigate      = useNavigate();
   const { user, profile, signOut } = useAuth();
-  const { toast } = useToast();
-  
-  const [displayName, setDisplayName] = useState('');
-  const [avatarUrl, setAvatarUrl] = useState('');
-  const [isSaving, setIsSaving] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { toast }     = useToast();
+
+  const [activeSection, setActiveSection] = useState('profile');
+  const [displayName,   setDisplayName]   = useState('');
+  const [isSaving,      setIsSaving]      = useState(false);
 
   useEffect(() => {
-    if (profile) {
-      setDisplayName(profile.display_name || '');
-      setAvatarUrl(profile.avatar_url || '');
-    }
+    if (profile) setDisplayName(profile.displayName || '');
   }, [profile]);
 
   const initials = displayName
     ? displayName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
-    : user?.email?.charAt(0).toUpperCase() || 'U';
+    : (user?.email?.charAt(0).toUpperCase() || 'U');
+
+  const avatarUrl = profile?.avatarUrl || user?.photoURL;
 
   const handleSave = async () => {
     if (!user) return;
     setIsSaving(true);
-
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ display_name: displayName, avatar_url: avatarUrl })
-        .eq('user_id', user.id);
-
-      if (error) throw error;
-      toast({ title: 'Profile updated successfully' });
-    } catch (error: any) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      await updateDoc(doc(db, 'users', user.uid), { displayName });
+      toast({ title: 'Profile updated' });
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
     } finally {
       setIsSaving(false);
     }
   };
 
-  const handleAvatarClick = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !user) return;
-
-    if (!file.type.startsWith('image/')) {
-      toast({ title: 'Error', description: 'Please select an image file', variant: 'destructive' });
-      return;
-    }
-
-    if (file.size > 2 * 1024 * 1024) {
-      toast({ title: 'Error', description: 'File must be less than 2MB', variant: 'destructive' });
-      return;
-    }
-
-    setIsUploading(true);
-
-    try {
-      const fileExt = file.name.split('.').pop();
-      const filePath = `${user.id}/avatar.${fileExt}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, file, { upsert: true });
-
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(filePath);
-
-      const urlWithTimestamp = `${publicUrl}?t=${Date.now()}`;
-      setAvatarUrl(urlWithTimestamp);
-
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ avatar_url: urlWithTimestamp })
-        .eq('user_id', user.id);
-
-      if (updateError) throw updateError;
-
-      toast({ title: 'Avatar updated successfully' });
-    } catch (error: any) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
-    } finally {
-      setIsUploading(false);
-    }
-  };
-
-  const handleSignOut = async () => {
-    await signOut();
-    navigate('/');
-  };
+  const handleSignOut = async () => { await signOut(); navigate('/'); };
 
   return (
-    <div className="max-w-3xl mx-auto">
-      {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="mb-8"
+    <div className="flex min-h-full">
+      {/* ── Left panel ── */}
+      <div
+        className="w-56 flex-shrink-0 flex flex-col py-4"
+        style={{ borderRight: '1px solid rgba(255,255,255,0.07)' }}
       >
-        <h1 className="text-2xl font-bold flex items-center gap-3">
-          <Settings className="w-6 h-6" />
-          Settings
-        </h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          Manage your account settings
-        </p>
-      </motion.div>
+        <button
+          onClick={() => navigate('/dashboard')}
+          className="flex items-center gap-2 px-4 py-2 mb-3 text-sm text-white/40 hover:text-white/70 transition-colors"
+          style={{ fontFamily: "'DM Sans', sans-serif" }}
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          Go back
+        </button>
 
-      {/* Profile Section */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.05 }}
-        className="glass-card p-6 mb-6"
-      >
-        <h3 className="font-medium mb-6 flex items-center gap-2">
-          <User className="w-4 h-4" />
-          Profile
-        </h3>
+        {SECTIONS.map(({ group, items }) => (
+          <div key={group} className="mb-4">
+            <p className="px-4 py-1 text-[10px] font-semibold uppercase tracking-widest text-white/25">
+              {group}
+            </p>
+            {items.map(item => (
+              <button
+                key={item.id}
+                onClick={() => item.href ? navigate(item.href) : setActiveSection(item.id)}
+                className="w-full flex items-center px-4 py-2 text-sm text-left transition-colors rounded-lg mx-1 w-[calc(100%-8px)]"
+                style={{
+                  fontFamily: "'DM Sans', sans-serif",
+                  background: activeSection === item.id ? 'rgba(255,255,255,0.08)' : 'transparent',
+                  color: activeSection === item.id ? 'rgba(255,255,255,0.88)' : 'rgba(255,255,255,0.45)',
+                }}
+                onMouseEnter={e => { if (activeSection !== item.id) e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
+                onMouseLeave={e => { if (activeSection !== item.id) e.currentTarget.style.background = 'transparent'; }}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        ))}
 
-        {/* Avatar */}
-        <div className="flex items-center gap-6 mb-6">
-          <div className="relative">
-            <Avatar className="h-20 w-20 border-2 border-border">
-              <AvatarImage src={avatarUrl || undefined} alt={displayName} />
-              <AvatarFallback className="text-lg bg-primary/20 text-primary">{initials}</AvatarFallback>
-            </Avatar>
-            <button
-              onClick={handleAvatarClick}
-              disabled={isUploading}
-              className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 transition-colors disabled:opacity-50"
-            >
-              {isUploading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Camera className="w-4 h-4" />
-              )}
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleFileChange}
-              className="hidden"
-            />
-          </div>
-          <div>
-            <p className="font-medium">{displayName || 'No name set'}</p>
-            <p className="text-sm text-muted-foreground">{user?.email}</p>
-          </div>
+        {/* Sign out */}
+        <div className="mt-auto px-3">
+          <button
+            onClick={handleSignOut}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-red-400/70 hover:text-red-300 hover:bg-red-500/10 transition-colors"
+            style={{ fontFamily: "'DM Sans', sans-serif" }}
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            Sign out
+          </button>
         </div>
+      </div>
 
-        {/* Display Name */}
-        <div className="space-y-4">
-          <div>
-            <Label htmlFor="displayName">Display Name</Label>
-            <Input
-              id="displayName"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              placeholder="Your name"
-              className="mt-1.5 max-w-sm"
-            />
-          </div>
+      {/* ── Right content ── */}
+      <div className="flex-1 px-8 py-6 max-w-2xl">
+        {activeSection === 'profile' && (
+          <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}>
+            <h2 className="text-lg font-semibold mb-1" style={{ fontFamily: "'Syne', sans-serif", color: 'rgba(255,255,255,0.88)' }}>
+              Profile
+            </h2>
+            <p className="text-sm mb-6" style={{ fontFamily: "'DM Sans', sans-serif", color: 'rgba(255,255,255,0.35)' }}>
+              Manage your personal details
+            </p>
 
-          <Button onClick={handleSave} disabled={isSaving}>
-            {isSaving ? 'Saving...' : 'Save Changes'}
-          </Button>
-        </div>
-      </motion.div>
-
-      {/* Account Info */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="glass-card p-6 mb-6"
-      >
-        <h3 className="font-medium mb-4">Account Information</h3>
-        <div className="space-y-4">
-          <div className="flex items-center gap-3">
-            <Mail className="w-4 h-4 text-muted-foreground" />
-            <div>
-              <p className="text-sm text-muted-foreground">Email</p>
-              <p className="font-medium">{user?.email}</p>
+            {/* Avatar row */}
+            <div className="flex items-center gap-4 mb-6 p-4 rounded-xl" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
+              <Avatar className="h-14 w-14">
+                <AvatarImage src={avatarUrl || undefined} />
+                <AvatarFallback className="text-base font-bold" style={{ background: 'rgba(109,40,217,0.45)', color: '#e9d5ff' }}>
+                  {initials}
+                </AvatarFallback>
+              </Avatar>
+              <div>
+                <p className="text-sm font-medium" style={{ color: 'rgba(255,255,255,0.8)' }}>{displayName || 'No name set'}</p>
+                <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.35)' }}>{user?.email}</p>
+              </div>
             </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <Key className="w-4 h-4 text-muted-foreground" />
-            <div>
-              <p className="text-sm text-muted-foreground">User ID</p>
-              <p className="font-mono text-sm">{user?.id}</p>
-            </div>
-          </div>
-        </div>
-      </motion.div>
 
-      {/* Sign Out */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.15 }}
-        className="glass-card p-6"
-      >
-        <h3 className="font-medium mb-2 flex items-center gap-2">
-          <LogOut className="w-4 h-4" />
-          Sign Out
-        </h3>
-        <p className="text-sm text-muted-foreground mb-4">
-          Sign out of your Buildable account on this device.
-        </p>
-        <Button variant="outline" onClick={handleSignOut}>
-          Sign Out
-        </Button>
-      </motion.div>
+            {/* Display name */}
+            <div className="space-y-1.5 mb-5">
+              <Label htmlFor="displayName" className="text-sm text-white/55">Display Name</Label>
+              <Input
+                id="displayName"
+                value={displayName}
+                onChange={e => setDisplayName(e.target.value)}
+                placeholder="Your name"
+                className="max-w-sm"
+                style={{
+                  background: 'rgba(255,255,255,0.05)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  color: 'rgba(255,255,255,0.8)',
+                }}
+              />
+            </div>
+
+            <Button onClick={handleSave} disabled={isSaving} className="gap-2">
+              {isSaving && <Loader2 className="w-4 h-4 animate-spin" />}
+              {isSaving ? 'Saving…' : 'Save Changes'}
+            </Button>
+          </motion.div>
+        )}
+
+        {activeSection === 'account' && (
+          <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}>
+            <h2 className="text-lg font-semibold mb-1" style={{ fontFamily: "'Syne', sans-serif", color: 'rgba(255,255,255,0.88)' }}>
+              Account Information
+            </h2>
+            <p className="text-sm mb-6" style={{ fontFamily: "'DM Sans', sans-serif", color: 'rgba(255,255,255,0.35)' }}>
+              Your account details
+            </p>
+
+            <div className="space-y-4 p-4 rounded-xl" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
+              <div className="flex items-start gap-3">
+                <Mail className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: 'rgba(255,255,255,0.3)' }} />
+                <div>
+                  <p className="text-xs mb-0.5" style={{ color: 'rgba(255,255,255,0.35)' }}>Email</p>
+                  <p className="text-sm font-medium" style={{ color: 'rgba(255,255,255,0.8)' }}>{user?.email}</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3" style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '1rem' }}>
+                <Key className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: 'rgba(255,255,255,0.3)' }} />
+                <div>
+                  <p className="text-xs mb-0.5" style={{ color: 'rgba(255,255,255,0.35)' }}>User ID</p>
+                  <p className="text-xs font-mono" style={{ color: 'rgba(255,255,255,0.55)' }}>{user?.uid}</p>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {activeSection === 'security' && (
+          <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}>
+            <h2 className="text-lg font-semibold mb-1" style={{ fontFamily: "'Syne', sans-serif", color: 'rgba(255,255,255,0.88)' }}>
+              Privacy &amp; Security
+            </h2>
+            <p className="text-sm mb-6" style={{ fontFamily: "'DM Sans', sans-serif", color: 'rgba(255,255,255,0.35)' }}>
+              Manage your security settings
+            </p>
+            <div className="p-4 rounded-xl" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
+              <p className="text-sm" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                Password changes and two-factor authentication coming soon.
+              </p>
+            </div>
+          </motion.div>
+        )}
+      </div>
     </div>
   );
 }

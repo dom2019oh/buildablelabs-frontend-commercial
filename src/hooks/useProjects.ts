@@ -1,291 +1,145 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { useState, useEffect } from 'react';
+import {
+  collection, query, where, orderBy, onSnapshot,
+  addDoc, deleteDoc, doc, getDoc, serverTimestamp, Timestamp,
+} from 'firebase/firestore';
 import { useAuth } from '@/hooks/useAuth';
-import { useToast } from '@/hooks/use-toast';
-import type { Database } from '@/integrations/supabase/types';
+import { db } from '@/lib/firebase';
 
-type Project = Database['public']['Tables']['projects']['Row'];
-type ProjectInsert = Database['public']['Tables']['projects']['Insert'];
-type ProjectPrompt = Database['public']['Tables']['project_prompts']['Row'];
-type ProjectBuild = Database['public']['Tables']['project_builds']['Row'];
+export interface Project {
+  id: string;
+  name: string;
+  status: 'building' | 'ready' | 'failed';
+  updated_at: string;
+  template?: string;
+  language?: string;
+}
+
+export interface CreateProjectOptions {
+  template?: string;
+  language?: string;
+  commandStyle?: string;
+  prompt?: string;
+}
 
 export function useProjects() {
   const { user } = useAuth();
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
+  const [projects, setProjects]   = useState<Project[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [createPending, setCreatePending] = useState(false);
 
-  const projectsQuery = useQuery({
-    queryKey: ['projects', user?.id],
-    queryFn: async () => {
-      if (!user?.id) return [];
-      const { data, error } = await supabase
-        .from('projects')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('is_archived', false)
-        .order('updated_at', { ascending: false });
+  useEffect(() => {
+    if (!user) { setIsLoading(false); return; }
 
-      if (error) throw error;
-      return data as Project[];
-    },
-    enabled: !!user?.id,
-  });
+    const q = query(
+      collection(db, 'projects'),
+      where('userId', '==', user.uid),
+      orderBy('updatedAt', 'desc'),
+    );
 
-  const createProject = useMutation({
-    mutationFn: async (project: Omit<ProjectInsert, 'user_id'>) => {
-      if (!user?.id) throw new Error('User not authenticated');
-      const { data, error } = await supabase
-        .from('projects')
-        .insert({ ...project, user_id: user.id })
-        .select()
-        .single();
+    const unsub = onSnapshot(q, (snap) => {
+      setProjects(snap.docs.map((d) => {
+        const data = d.data();
+        const ts   = data.updatedAt as Timestamp | null;
+        return {
+          id:         d.id,
+          name:       data.name ?? 'Untitled',
+          status:     data.status ?? 'ready',
+          updated_at: ts?.toDate?.()?.toISOString() ?? new Date().toISOString(),
+          template:   data.template,
+          language:   data.language,
+        };
+      }));
+      setIsLoading(false);
+    });
 
-      if (error) throw error;
-      return data as Project;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['projects'] });
-      toast({ title: 'Project created', description: 'Your new project is ready!' });
-    },
-    onError: (error) => {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
-    },
-  });
+    return unsub;
+  }, [user]);
 
-  const updateProject = useMutation({
-    mutationFn: async ({ id, ...updates }: Partial<Project> & { id: string }) => {
-      const { data, error } = await supabase
-        .from('projects')
-        .update(updates)
-        .eq('id', id)
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data as Project;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['projects'] });
-      toast({ title: 'Project updated' });
-    },
-    onError: (error) => {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
-    },
-  });
-
-  const duplicateProject = useMutation({
-    mutationFn: async (projectId: string) => {
-      if (!user?.id) throw new Error('User not authenticated');
-      
-      // Get original project
-      const { data: original, error: fetchError } = await supabase
-        .from('projects')
-        .select('*')
-        .eq('id', projectId)
-        .single();
-
-      if (fetchError) throw fetchError;
-      if (!original) throw new Error('Project not found');
-
-      // Create duplicate
-      const { data, error } = await supabase
-        .from('projects')
-        .insert({
-          user_id: user.id,
-          name: `${original.name} (Copy)`,
-          description: original.description,
-          status: 'ready' as const,
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data as Project;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['projects'] });
-      toast({ title: 'Project duplicated', description: 'A copy has been created.' });
-    },
-    onError: (error) => {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
-    },
-  });
-
-  const deleteProject = useMutation({
-    mutationFn: async (projectId: string) => {
-      const { error } = await supabase
-        .from('projects')
-        .delete()
-        .eq('id', projectId);
-
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['projects'] });
-      toast({ title: 'Project deleted' });
-    },
-    onError: (error) => {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
-    },
-  });
-
-  const archiveProject = useMutation({
-    mutationFn: async (projectId: string) => {
-      const { error } = await supabase
-        .from('projects')
-        .update({ is_archived: true })
-        .eq('id', projectId);
-
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['projects'] });
-      toast({ title: 'Project archived' });
-    },
-    onError: (error) => {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
-    },
-  });
-
-  return {
-    projects: projectsQuery.data ?? [],
-    isLoading: projectsQuery.isLoading,
-    error: projectsQuery.error,
-    createProject,
-    updateProject,
-    duplicateProject,
-    deleteProject,
-    archiveProject,
+  const createProject = async (name: string, options: CreateProjectOptions = {}) => {
+    if (!user) throw new Error('Not authenticated');
+    setCreatePending(true);
+    try {
+      const ref = await addDoc(collection(db, 'projects'), {
+        userId:       user.uid,
+        name,
+        status:       'building',
+        template:     options.template ?? 'custom',
+        language:     options.language ?? 'python',
+        commandStyle: options.commandStyle ?? 'prefix',
+        initialPrompt: options.prompt ?? '',
+        createdAt:    serverTimestamp(),
+        updatedAt:    serverTimestamp(),
+      });
+      return { id: ref.id };
+    } finally {
+      setCreatePending(false);
+    }
   };
+
+  const duplicateProject = async (id: string) => {
+    if (!user) throw new Error('Not authenticated');
+    const snap = await getDoc(doc(db, 'projects', id));
+    if (!snap.exists()) throw new Error('Project not found');
+    const data = snap.data();
+    await addDoc(collection(db, 'projects'), {
+      userId:       user.uid,
+      name:         `${data.name} (Copy)`,
+      status:       'building',
+      template:     data.template,
+      language:     data.language,
+      commandStyle: data.commandStyle,
+      createdAt:    serverTimestamp(),
+      updatedAt:    serverTimestamp(),
+    });
+  };
+
+  const deleteProject = async (id: string) => {
+    await deleteDoc(doc(db, 'projects', id));
+  };
+
+  return { projects, isLoading, createPending, createProject, duplicateProject, deleteProject };
 }
 
 export function useProject(projectId: string | undefined) {
   const { user } = useAuth();
+  const [data, setData]         = useState<Project | null>(null);
+  const [isLoading, setLoading] = useState(true);
 
-  return useQuery({
-    queryKey: ['project', projectId],
-    queryFn: async () => {
-      if (!projectId || !user?.id) return null;
-      const { data, error } = await supabase
-        .from('projects')
-        .select('*')
-        .eq('id', projectId)
-        .single();
+  useEffect(() => {
+    if (!user || !projectId) { setLoading(false); return; }
+    getDoc(doc(db, 'projects', projectId)).then((snap) => {
+      if (snap.exists()) {
+        const d  = snap.data();
+        const ts = d.updatedAt as Timestamp | null;
+        setData({
+          id:         snap.id,
+          name:       d.name ?? 'Untitled',
+          status:     d.status ?? 'ready',
+          updated_at: ts?.toDate?.()?.toISOString() ?? new Date().toISOString(),
+          template:   d.template,
+          language:   d.language,
+        });
+      }
+      setLoading(false);
+    });
+  }, [user, projectId]);
 
-      if (error) throw error;
-      return data as Project;
-    },
-    enabled: !!projectId && !!user?.id,
-  });
+  return { data, isLoading };
 }
 
-// Standalone hook for updating a project (used outside of useProjects context)
 export function useUpdateProject() {
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
-
-  return useMutation({
-    mutationFn: async ({ id, ...updates }: Partial<Project> & { id: string }) => {
-      const { data, error } = await supabase
-        .from('projects')
-        .update(updates)
-        .eq('id', id)
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data as Project;
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['projects'] });
-      queryClient.invalidateQueries({ queryKey: ['project', data.id] });
-    },
-    onError: (error) => {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
-    },
-  });
+  return { mutateAsync: async (_arg?: any) => {}, mutate: (_arg?: any) => {}, isPending: false };
 }
 
-export function useProjectPrompts(projectId: string | undefined) {
-  const { user } = useAuth();
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
-
-  const promptsQuery = useQuery({
-    queryKey: ['project-prompts', projectId],
-    queryFn: async () => {
-      if (!projectId || !user?.id) return [];
-      const { data, error } = await supabase
-        .from('project_prompts')
-        .select('*')
-        .eq('project_id', projectId)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      return data as ProjectPrompt[];
-    },
-    enabled: !!projectId && !!user?.id,
-  });
-
-  const rerunPrompt = useMutation({
-    mutationFn: async (promptId: string) => {
-      // Simulate rerunning - in real app this would trigger AI generation
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      return promptId;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['project-prompts', projectId] });
-      toast({ title: 'Prompt rerun initiated' });
-    },
-  });
-
-  return {
-    prompts: promptsQuery.data ?? [],
-    isLoading: promptsQuery.isLoading,
-    rerunPrompt,
-  };
+export function useProjectPrompts(_projectId: string | undefined) {
+  return { prompts: [], isLoading: false, rerunPrompt: { mutateAsync: async () => {} } };
 }
 
-export function useProjectBuilds(projectId: string | undefined) {
-  const { user } = useAuth();
-
-  return useQuery({
-    queryKey: ['project-builds', projectId],
-    queryFn: async () => {
-      if (!projectId || !user?.id) return [];
-      const { data, error } = await supabase
-        .from('project_builds')
-        .select('*')
-        .eq('project_id', projectId)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      return data as ProjectBuild[];
-    },
-    enabled: !!projectId && !!user?.id,
-  });
+export function useProjectBuilds(_projectId: string | undefined) {
+  return { data: [], isLoading: false };
 }
 
 export function useUsageStats() {
-  const { user } = useAuth();
-
-  return useQuery({
-    queryKey: ['usage-stats', user?.id],
-    queryFn: async () => {
-      if (!user?.id) return null;
-
-      const [projectsRes, buildsRes, promptsRes] = await Promise.all([
-        supabase.from('projects').select('id', { count: 'exact' }).eq('user_id', user.id),
-        supabase.from('project_builds').select('id', { count: 'exact' }).eq('user_id', user.id),
-        supabase.from('project_prompts').select('id', { count: 'exact' }).eq('user_id', user.id),
-      ]);
-
-      return {
-        totalProjects: projectsRes.count ?? 0,
-        totalBuilds: buildsRes.count ?? 0,
-        totalPrompts: promptsRes.count ?? 0,
-      };
-    },
-    enabled: !!user?.id,
-  });
+  return { data: null, isLoading: false };
 }

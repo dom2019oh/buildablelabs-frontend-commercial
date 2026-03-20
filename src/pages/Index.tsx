@@ -43,6 +43,7 @@ import {
   Github,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { getLoginUrl, getSignUpUrl, getDashboardUrl } from "@/lib/urls";
 import wordmarkSvg from "@/assets/buildable-wordmark.svg";
 import logoPng from "@/assets/buildable-logo.png";
 import openaiLogoPng from "@/assets/openai-logo.png";
@@ -256,16 +257,16 @@ function FloatingNav() {
           </Link>
         ) : (
           <>
-            <Link
-              to="/log-in"
+            <a
+              href={getLoginUrl()}
               className="hidden sm:block text-[13px] text-white/60 hover:text-white transition-colors"
               style={{ fontFamily: "'DM Sans', sans-serif" }}
             >
               Log in
-            </Link>
+            </a>
             <motion.span whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
-              <Link
-                to="/dashboard"
+              <a
+                href={getDashboardUrl()}
                 className="inline-flex items-center text-[13px] font-semibold px-4 py-[7px] rounded-full transition-all duration-200"
                 style={{
                   fontFamily: "'DM Sans', sans-serif",
@@ -278,7 +279,7 @@ function FloatingNav() {
                 onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.08)"; e.currentTarget.style.color = "rgba(255,255,255,0.85)"; }}
               >
                 Open Dashboard
-              </Link>
+              </a>
             </motion.span>
           </>
         )}
@@ -1323,8 +1324,8 @@ export default function Index() {
                 transition={{ duration: 0.7, delay: 0.85 }}
                 className="flex items-center gap-3 flex-wrap"
               >
-                <Link
-                  to="/sign-up"
+                <a
+                  href={getSignUpUrl()}
                   className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-[14px] font-semibold transition-all duration-200"
                   style={{
                     fontFamily: "'DM Sans', sans-serif",
@@ -1336,7 +1337,7 @@ export default function Index() {
                   onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.92)")}
                 >
                   Start Building <ArrowRight className="w-4 h-4" />
-                </Link>
+                </a>
                 <Link
                   to="/pricing"
                   className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-[14px] font-medium transition-all duration-200"
