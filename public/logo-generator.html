@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Buildable Labs — Logo Generator</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      /* checkerboard = transparency indicator */
+      background: repeating-conic-gradient(#1a1c26 0% 25%, #22243a 0% 50%) 0 0 / 20px 20px;
+      color: #c8cad8;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 52px 24px 64px;
+      gap: 0;
+    }
+    h1  { font-size: 1.2rem; font-weight: 600; letter-spacing: 0.03em; }
+    .sub{ font-size: 0.78rem; color: #3e4052; margin-top: 6px; }
+
+    .sizes-row {
+      display: flex;
+      align-items: flex-end;
+      gap: 28px;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-top: 44px;
+    }
+    .size-card { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+    .size-label { font-size: 0.7rem; color: #3e4052; letter-spacing: 0.05em; }
+    .dl-btn {
+      padding: 5px 14px;
+      background: rgba(109,40,217,0.12);
+      border: 1px solid rgba(160,120,255,0.25);
+      border-radius: 999px;
+      color: #a78bfa;
+      font-size: 0.7rem;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .dl-btn:hover { background: rgba(109,40,217,0.28); border-color: rgba(160,120,255,0.5); color: #c4b5fd; }
+    .divider { width:1px; height:48px; background:rgba(255,255,255,0.05); align-self:center; }
+  </style>
+</head>
+<body>
+
+<h1>Buildable Labs — Globe Logo</h1>
+<p class="sub">Transparent background · Download any size as PNG</p>
+
+<canvas id="master" width="600" height="600"
+  style="display:block;width:380px;height:380px;margin-top:40px;"></canvas>
+
+<div class="sizes-row" id="row"></div>
+
+<script>
+// ─── Palette ─────────────────────────────────────────────────
+const PURPLE_DEEP = [67,  20, 158];
+const LAVENDER    = [196,181,253];
+const WHITE       = [228,226,248];
+
+const SIZES = [512, 256, 128, 64, 32];
+
+// ─── Fibonacci sphere ─────────────────────────────────────────
+function buildParticles(N) {
+  const golden = Math.PI * (3 - Math.sqrt(5));
+  const pts = [];
+  for (let i = 0; i < N; i++) {
+    const cosP  = 1 - (2 * i) / (N - 1);
+    const phi   = Math.acos(Math.max(-1, Math.min(1, cosP)));
+    const theta = (golden * i) % (2 * Math.PI);
+    pts.push({ phi, theta });
+  }
+  return pts;
+}
+
+// ─── Core render ─────────────────────────────────────────────
+function renderLogo(canvas) {
+  const W  = canvas.width, H = canvas.height;
+  const ctx = canvas.getContext('2d');
+  const CX = W / 2, CY = H / 2;
+  const R  = W * 0.365;
+  const FOV = W * 0.95;
+  const s  = W / 600;
+
+  // Nice globe viewing angle — slightly elevated, diagonal
+  const rotY  = 0.55;
+  const tiltX = 0.40;
+  const cosX  = Math.cos(tiltX), sinX = Math.sin(tiltX);
+
+  ctx.clearRect(0, 0, W, H);
+
+  // Project a 3D point (with rotY already applied) → screen
+  function project(x3, y3, z3) {
+    const y2 = y3 * cosX - z3 * sinX;
+    const z2 = y3 * sinX + z3 * cosX;
+    const sc = FOV / (FOV + z2 + R * 0.05);
+    return { sx: CX + x3 * sc, sy: CY + y2 * sc, z2 };
+  }
+
+  // Sample a latitude circle (phi = polar angle, 0=north pole, π=south pole)
+  function latCircle(phi, N = 140) {
+    const sinP = Math.sin(phi), cosP = Math.cos(phi);
+    const pts = [];
+    for (let i = 0; i <= N; i++) {
+      const th = (i / N) * Math.PI * 2 + rotY;
+      pts.push(project(R * sinP * Math.cos(th), R * cosP, R * sinP * Math.sin(th)));
+    }
+    return pts;
+  }
+
+  // Sample a meridian great circle at longitude lon
+  function lonCircle(lon, N = 180) {
+    const pts = [];
+    for (let i = 0; i <= N; i++) {
+      const lat  = (i / N) * Math.PI * 2 - Math.PI; // −π → π (full great circle)
+      const cosL = Math.cos(lat);
+      const th   = lon + rotY;
+      pts.push(project(R * cosL * Math.cos(th), R * Math.sin(lat), R * cosL * Math.sin(th)));
+    }
+    return pts;
+  }
+
+  // Draw a circle with differentiated front (solid) and back (dashed, dim) arcs
+  const LC = `${LAVENDER[0]},${LAVENDER[1]},${LAVENDER[2]}`;
+
+  function drawGlobeLine(pts, fAlpha, bAlpha, lw) {
+    [false, true].forEach(isFront => {
+      ctx.lineWidth = lw;
+      ctx.strokeStyle = `rgba(${LC}, ${isFront ? fAlpha : bAlpha})`;
+      ctx.setLineDash(isFront ? [] : [Math.max(2, 2.5*s), Math.max(3, 3.5*s)]);
+
+      let open = false;
+      for (let i = 0; i <= pts.length; i++) {
+        const atEnd = i === pts.length;
+        const front = !atEnd && pts[i].z2 >= 0;
+
+        if (!atEnd && front === isFront) {
+          if (!open) { ctx.beginPath(); ctx.moveTo(pts[i].sx, pts[i].sy); open = true; }
+          else ctx.lineTo(pts[i].sx, pts[i].sy);
+        } else if (open) {
+          ctx.stroke(); open = false;
+        }
+      }
+      ctx.setLineDash([]);
+    });
+  }
+
+  const lw = Math.max(0.4, 0.7 * s);
+
+  // ── Latitude lines ───────────────────────────────────────
+  // 5 lines: 2 in each hemisphere + equator
+  [0.20, 0.38, 0.50, 0.62, 0.80].forEach(t => {
+    const phi   = t * Math.PI;
+    const isEq  = Math.abs(t - 0.50) < 0.01;
+    drawGlobeLine(latCircle(phi), isEq ? 0.32 : 0.20, isEq ? 0.09 : 0.06,
+                  isEq ? lw * 1.4 : lw);
+  });
+
+  // ── Longitude (meridian) lines ───────────────────────────
+  // 6 great circles = 12 half-arcs visible around the sphere
+  const nLon = 6;
+  for (let i = 0; i < nLon; i++) {
+    drawGlobeLine(lonCircle((i / nLon) * Math.PI), 0.20, 0.06, lw);
+  }
+
+  // ── Fibonacci sphere particles ───────────────────────────
+  const particles = buildParticles(420);
+
+  const projected = particles.map(p => {
+    const sinP = Math.sin(p.phi);
+    const x3 = R * sinP * Math.cos(p.theta + rotY);
+    const y3 = R * Math.cos(p.phi);
+    const z3 = R * sinP * Math.sin(p.theta + rotY);
+    const { sx, sy, z2 } = project(x3, y3, z3);
+    const depth = (z2 + R) / (2 * R); // 0=back, 1=front
+    return { sx, sy, z2, depth };
+  });
+
+  projected.sort((a, b) => a.z2 - b.z2); // back → front
+
+  projected.forEach(({ sx, sy, depth }) => {
+    const t = Math.pow(depth, 1.3);
+    const r = Math.round(PURPLE_DEEP[0] + t * (WHITE[0] - PURPLE_DEEP[0]));
+    const g = Math.round(PURPLE_DEEP[1] + t * (WHITE[1] - PURPLE_DEEP[1]));
+    const b = Math.round(PURPLE_DEEP[2] + t * (WHITE[2] - PURPLE_DEEP[2]));
+
+    const alpha = 0.06 + depth * 0.78;
+    const size  = s * (0.45 + depth * 2.0);
+
+    // Soft halo on front-most dots
+    if (depth > 0.62) {
+      ctx.beginPath();
+      ctx.arc(sx, sy, size * 4.5, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${r},${g},${b},${(alpha * 0.09).toFixed(3)})`;
+      ctx.fill();
+    }
+
+    ctx.beginPath();
+    ctx.arc(sx, sy, size, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(${r},${g},${b},${Math.min(alpha, 1).toFixed(3)})`;
+    ctx.fill();
+  });
+}
+
+// ─── Render master ────────────────────────────────────────────
+renderLogo(document.getElementById('master'));
+
+// ─── Render size cards ────────────────────────────────────────
+const row = document.getElementById('row');
+SIZES.forEach((sz, i) => {
+  if (i > 0) { const d = document.createElement('div'); d.className = 'divider'; row.appendChild(d); }
+
+  const card = document.createElement('div');
+  card.className = 'size-card';
+
+  const displaySz = Math.min(sz, 80);
+
+  const c = document.createElement('canvas');
+  c.width = sz; c.height = sz;
+  c.style.cssText = `display:block;width:${displaySz}px;height:${displaySz}px;`;
+  renderLogo(c);
+
+  const label = document.createElement('span');
+  label.className = 'size-label';
+  label.textContent = sz + 'px';
+
+  const btn = document.createElement('button');
+  btn.className = 'dl-btn';
+  btn.textContent = '↓ PNG';
+  btn.onclick = () => {
+    const link = document.createElement('a');
+    link.download = `buildablelabs-logo-${sz}.png`;
+    link.href = c.toDataURL('image/png');
+    link.click();
+  };
+
+  card.appendChild(c); card.appendChild(label); card.appendChild(btn);
+  row.appendChild(card);
+});
+</script>
+</body>
+</html>

@@ -8,7 +8,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useProjects } from '@/hooks/useProjects';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import logoSvg from '@/assets/logo.svg';
+import logoPng from '@/assets/buildable-logo.png';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuSeparator, DropdownMenuTrigger,
@@ -60,7 +60,7 @@ export default function DashboardSidebar() {
         style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}
       >
         <Link to="/dashboard" className="flex items-center gap-2.5 opacity-85 hover:opacity-100 transition-opacity">
-          <img src={logoSvg} alt="Buildable" className="w-[17px] h-[17px]" draggable={false} />
+          <img src={logoPng} alt="Buildable" className="w-[17px] h-[17px]" draggable={false} />
           <span className="text-[12.5px] font-semibold tracking-wide" style={{ fontFamily: "'Syne', sans-serif", color: 'rgba(255,255,255,0.72)' }}>
             Buildable
           </span>
