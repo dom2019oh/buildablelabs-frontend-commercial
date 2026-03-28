@@ -1,10 +1,9 @@
-import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import SettingsView from '@/components/dashboard/SettingsView';
 
 export default function DashboardSettings() {
   return (
-    <DashboardLayout>
+    <div className="min-h-screen" style={{ background: '#0c0c0c' }}>
       <SettingsView />
-    </DashboardLayout>
+    </div>
   );
 }

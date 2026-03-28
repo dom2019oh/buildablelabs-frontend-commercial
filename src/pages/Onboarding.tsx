@@ -2,10 +2,8 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
-import logoPng from '@/assets/buildable-logo.png';
-import wordmarkSvg from '@/assets/buildable-wordmark.svg';
-import Grainient from '@/components/Grainient';
 import { saveOnboardingAnswers } from '@/hooks/useOnboarding';
+import wordmarkSvg from '@/assets/buildable-wordmark.svg';
 import { auth } from '@/lib/firebase';
 import { getDashboardUrl } from '@/lib/urls';
 
@@ -175,52 +173,48 @@ export default function Onboarding() {
 
   return (
     <div className="min-h-screen flex overflow-hidden relative">
+      {/* Blob float keyframes */}
+      <style>{`
+        @keyframes blobFloat {
+          0%, 100% { transform: translateY(0px) scale(1); }
+          50% { transform: translateY(-20px) scale(1.05); }
+        }
+      `}</style>
 
-      {/* Background */}
+      {/* Background — Lovable-style animated mesh gradient */}
       <div className="fixed inset-0 pointer-events-none" style={{ zIndex: 0 }}>
-        <Grainient
-          color1="#3a3c42"
-          color2="#141518"
-          color3="#252729"
-          timeSpeed={0.35}
-          colorBalance={0}
-          warpStrength={1}
-          warpFrequency={5}
-          warpSpeed={2}
-          warpAmplitude={50}
-          blendAngle={0}
-          blendSoftness={0.05}
-          rotationAmount={500}
-          noiseScale={2}
-          grainAmount={0.1}
-          grainScale={2}
-          grainAnimated={false}
-          contrast={1.5}
-          gamma={1}
-          saturation={1}
-          centerX={0}
-          centerY={0}
-          zoom={0.9}
-        />
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: 'linear-gradient(180deg, #f8f6ff 0%, #c7d4f5 25%, #a5b8f0 45%, #c4a8e8 65%, #e8a8d8 85%, #f5b8d8 100%)',
+        }} />
+        {/* Animated mesh blobs */}
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: 'radial-gradient(ellipse 80% 60% at 20% 70%, rgba(200,150,255,0.45) 0%, transparent 70%)',
+          animation: 'blobFloat 8s ease-in-out infinite',
+        }} />
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: 'radial-gradient(ellipse 70% 50% at 80% 60%, rgba(150,180,255,0.35) 0%, transparent 70%)',
+          animation: 'blobFloat 10s ease-in-out infinite reverse',
+        }} />
       </div>
 
       {/* ── Left panel ── */}
       <div
         className="relative z-10 w-full md:w-[500px] lg:w-[540px] flex-shrink-0 flex flex-col min-h-screen"
         style={{
-          background: 'rgba(4, 2, 12, 0.82)',
-          backdropFilter: 'blur(48px)',
-          WebkitBackdropFilter: 'blur(48px)',
-          borderRight: '1px solid rgba(255,255,255,0.06)',
+          background: 'rgba(255,255,255,0.82)',
+          backdropFilter: 'blur(40px)',
+          WebkitBackdropFilter: 'blur(40px)',
+          borderRight: '1px solid rgba(0,0,0,0.08)',
         }}
       >
         {/* Top bar */}
-        <div className="flex items-center justify-between px-10 h-16 flex-shrink-0" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+        <div className="flex items-center justify-between px-10 h-16 flex-shrink-0" style={{ borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
           <Link to="/" className="flex items-center gap-[10px]">
-            <img src={logoPng} alt="" aria-hidden draggable={false} className="select-none block"
-              style={{ height: '26px', width: '26px', objectFit: 'contain', filter: 'invert(1)', flexShrink: 0 }} />
-            <img src={wordmarkSvg} alt="Buildable Labs" draggable={false} className="select-none block"
-              style={{ height: '22px', width: 'auto', objectFit: 'contain' }} />
+            <img src="/logo-stack-white.svg" alt="" aria-hidden draggable={false} className="select-none block" style={{ height: '20px', width: 'auto', objectFit: 'contain', flexShrink: 0 }} />
+            <img src={wordmarkSvg} alt="Buildable Labs" draggable={false} className="select-none block" style={{ height: '22px', width: 'auto', objectFit: 'contain' }} />
           </Link>
 
           {/* Step dots */}
@@ -233,10 +227,10 @@ export default function Onboarding() {
                   height: '6px',
                   borderRadius: '9999px',
                   background: i === step
-                    ? 'rgba(255,255,255,0.8)'
+                    ? 'rgba(0,0,0,0.7)'
                     : i < step
-                    ? 'rgba(255,255,255,0.4)'
-                    : 'rgba(255,255,255,0.12)',
+                    ? 'rgba(0,0,0,0.3)'
+                    : 'rgba(0,0,0,0.1)',
                   transition: 'all 0.3s ease',
                 }}
               />
@@ -245,10 +239,10 @@ export default function Onboarding() {
         </div>
 
         {/* Progress bar */}
-        <div className="w-full h-[1px]" style={{ background: 'rgba(255,255,255,0.06)' }}>
+        <div className="w-full h-[1px]" style={{ background: 'rgba(0,0,0,0.06)' }}>
           <motion.div
             className="h-full"
-            style={{ background: 'rgba(255,255,255,0.35)' }}
+            style={{ background: 'rgba(0,0,0,0.3)' }}
             animate={{ width: `${progress + (1 / QUESTIONS.length) * 100}%` }}
             transition={{ duration: 0.4, ease: 'easeOut' }}
           />
@@ -269,7 +263,7 @@ export default function Onboarding() {
                 {/* Step label */}
                 <p
                   className="mb-4"
-                  style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '10px', letterSpacing: '0.22em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)' }}
+                  style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", fontSize: '10px', letterSpacing: '0.22em', textTransform: 'uppercase', color: 'rgba(0,0,0,0.35)' }}
                 >
                   Step {current.step} of {String(QUESTIONS.length).padStart(2, '0')}
                 </p>
@@ -278,11 +272,11 @@ export default function Onboarding() {
                 <h2
                   className="mb-2"
                   style={{
-                    fontFamily: "'Instrument Serif', serif",
+                    fontFamily: "'Geist', sans-serif",
                     fontSize: '1.9rem',
-                    fontWeight: 400,
-                    fontStyle: 'italic',
-                    color: '#ffffff',
+                    fontWeight: 800,
+                    fontStyle: 'normal',
+                    color: '#0f0f0f',
                     lineHeight: 1.2,
                     letterSpacing: '-0.01em',
                   }}
@@ -291,7 +285,7 @@ export default function Onboarding() {
                 </h2>
 
                 {/* Hint */}
-                <p className="mb-8" style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '12px', color: 'rgba(255,255,255,0.35)', letterSpacing: '0.02em' }}>
+                <p className="mb-8" style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", fontSize: '12px', color: 'rgba(0,0,0,0.4)', letterSpacing: '0.02em' }}>
                   {current.hint}
                 </p>
 
@@ -304,17 +298,18 @@ export default function Onboarding() {
                     placeholder={current.placeholder}
                     autoFocus
                     onKeyDown={e => { if (e.key === 'Enter' && canProceed) handleNext(); }}
-                    className="w-full py-3 text-base text-white placeholder-white/20 outline-none transition-colors duration-200"
+                    className="w-full py-3 text-base outline-none transition-colors duration-200"
                     style={{
                       background: 'transparent',
                       border: 'none',
-                      borderBottom: '1px solid rgba(255,255,255,0.2)',
+                      borderBottom: '1px solid rgba(0,0,0,0.2)',
                       borderRadius: 0,
-                      fontFamily: "'DM Sans', sans-serif",
+                      fontFamily: "'Geist', 'DM Sans', sans-serif",
                       fontSize: '1.1rem',
+                      color: '#0f0f0f',
                     }}
-                    onFocus={e => (e.currentTarget.style.borderBottom = '1px solid rgba(255,255,255,0.6)')}
-                    onBlur={e => (e.currentTarget.style.borderBottom = '1px solid rgba(255,255,255,0.2)')}
+                    onFocus={e => (e.currentTarget.style.borderBottom = '1px solid rgba(0,0,0,0.55)')}
+                    onBlur={e => (e.currentTarget.style.borderBottom = '1px solid rgba(0,0,0,0.2)')}
                   />
                 )}
 
@@ -330,22 +325,22 @@ export default function Onboarding() {
                           onClick={() => handleSelect(option)}
                           className="w-full text-left px-4 py-3 transition-all duration-200"
                           style={{
-                            background: selected ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.03)',
-                            border: selected ? '1px solid rgba(255,255,255,0.3)' : '1px solid rgba(255,255,255,0.08)',
-                            borderRadius: '4px',
-                            fontFamily: "'DM Sans', sans-serif",
+                            background: 'white',
+                            border: selected ? '2px solid #2563EB' : '1px solid rgba(0,0,0,0.1)',
+                            borderRadius: '10px',
+                            fontFamily: "'Geist', 'DM Sans', sans-serif",
                             fontSize: '13px',
-                            color: selected ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.5)',
+                            color: selected ? '#2563EB' : 'rgba(0,0,0,0.7)',
                             letterSpacing: '0.02em',
                           }}
-                          onMouseEnter={e => { if (!selected) { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; e.currentTarget.style.color = 'rgba(255,255,255,0.75)'; }}}
-                          onMouseLeave={e => { if (!selected) { e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; e.currentTarget.style.color = 'rgba(255,255,255,0.5)'; }}}
+                          onMouseEnter={e => { if (!selected) { e.currentTarget.style.borderColor = 'rgba(0,0,0,0.22)'; }}}
+                          onMouseLeave={e => { if (!selected) { e.currentTarget.style.borderColor = 'rgba(0,0,0,0.1)'; }}}
                         >
                           <span className="flex items-center gap-3">
                             <span
                               style={{
                                 width: '14px', height: '14px', borderRadius: '50%', flexShrink: 0,
-                                border: selected ? '4px solid rgba(255,255,255,0.9)' : '1px solid rgba(255,255,255,0.25)',
+                                border: selected ? '4px solid #2563EB' : '1px solid rgba(0,0,0,0.25)',
                                 transition: 'all 0.2s',
                               }}
                             />
@@ -365,9 +360,9 @@ export default function Onboarding() {
                 <button
                   type="button"
                   onClick={handleBack}
-                  style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '11px', letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)', transition: 'color 0.2s' }}
-                  onMouseEnter={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.65)')}
-                  onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.3)')}
+                  style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", fontSize: '11px', letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(0,0,0,0.35)', transition: 'color 0.2s', background: 'none', border: 'none', cursor: 'pointer' }}
+                  onMouseEnter={e => (e.currentTarget.style.color = 'rgba(0,0,0,0.65)')}
+                  onMouseLeave={e => (e.currentTarget.style.color = 'rgba(0,0,0,0.35)')}
                 >
                   ← Back
                 </button>
@@ -377,19 +372,21 @@ export default function Onboarding() {
                 type="button"
                 onClick={handleNext}
                 disabled={!canProceed || isSubmitting}
-                whileHover={canProceed ? { opacity: 0.9 } : {}}
+                whileHover={canProceed ? { opacity: 0.88 } : {}}
                 whileTap={canProceed ? { scale: 0.99 } : {}}
                 className="flex items-center justify-center gap-2 py-3 px-8 disabled:opacity-30 transition-opacity"
                 style={{
-                  background: 'rgba(255,255,255,0.96)',
-                  color: '#0a0612',
+                  background: '#0f0f0f',
+                  color: 'white',
                   borderRadius: '3px',
-                  fontFamily: "'DM Sans', sans-serif",
+                  fontFamily: "'Geist', 'DM Sans', sans-serif",
                   fontSize: '12px',
                   fontWeight: 600,
                   letterSpacing: '0.1em',
                   textTransform: 'uppercase',
                   minWidth: '120px',
+                  border: 'none',
+                  cursor: canProceed ? 'pointer' : 'not-allowed',
                 }}
               >
                 {isSubmitting
@@ -402,9 +399,9 @@ export default function Onboarding() {
                 <button
                   type="button"
                   onClick={handleSkip}
-                  style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '11px', letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.25)', transition: 'color 0.2s' }}
-                  onMouseEnter={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.55)')}
-                  onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.25)')}
+                  style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", fontSize: '11px', letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(0,0,0,0.3)', transition: 'color 0.2s', background: 'none', border: 'none', cursor: 'pointer' }}
+                  onMouseEnter={e => (e.currentTarget.style.color = 'rgba(0,0,0,0.55)')}
+                  onMouseLeave={e => (e.currentTarget.style.color = 'rgba(0,0,0,0.3)')}
                 >
                   Skip
                 </button>
@@ -414,8 +411,8 @@ export default function Onboarding() {
         </div>
 
         {/* Footer */}
-        <div className="px-10 py-5 flex-shrink-0" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-          <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '10px', color: 'rgba(255,255,255,0.2)', letterSpacing: '0.06em' }}>
+        <div className="px-10 py-5 flex-shrink-0" style={{ borderTop: '1px solid rgba(0,0,0,0.05)' }}>
+          <p style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", fontSize: '10px', color: 'rgba(0,0,0,0.2)', letterSpacing: '0.06em' }}>
             © {new Date().getFullYear()} Buildable Labs
           </p>
         </div>
@@ -423,7 +420,7 @@ export default function Onboarding() {
 
       {/* ── Right panel — changes per step ── */}
       <div className="relative z-10 hidden md:flex flex-1 flex-col justify-end px-14 lg:px-20 pb-16 overflow-hidden">
-        <div className="absolute inset-0 pointer-events-none" style={{ background: 'rgba(0,0,0,0.22)' }} />
+        <div className="absolute inset-0 pointer-events-none" style={{ background: 'rgba(255,255,255,0.08)' }} />
 
         <div className="relative z-10 max-w-[480px]">
           <AnimatePresence mode="wait">
@@ -434,7 +431,7 @@ export default function Onboarding() {
               exit={{ opacity: 0, y: -16 }}
               transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
             >
-              <div className="mb-8" style={{ width: '40px', height: '1px', background: 'rgba(255,255,255,0.4)' }} />
+              <div className="mb-8" style={{ width: '40px', height: '1px', background: 'rgba(0,0,0,0.25)' }} />
 
               <blockquote
                 style={{
@@ -442,7 +439,7 @@ export default function Onboarding() {
                   fontSize: 'clamp(1.8rem, 2.8vw, 2.6rem)',
                   fontWeight: 400,
                   fontStyle: 'italic',
-                  color: '#ffffff',
+                  color: 'rgba(0,0,0,0.72)',
                   lineHeight: 1.25,
                   letterSpacing: '-0.015em',
                   marginBottom: '1.25rem',
@@ -452,7 +449,7 @@ export default function Onboarding() {
                 {panel.quote}
               </blockquote>
 
-              <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '11px', letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.45)' }}>
+              <p style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", fontSize: '11px', letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(0,0,0,0.38)' }}>
                 {panel.caption}
               </p>
             </motion.div>

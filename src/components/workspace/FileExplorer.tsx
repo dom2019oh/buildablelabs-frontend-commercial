@@ -122,20 +122,23 @@ function TreeNode({ node, level, selectedFile, onFileSelect, defaultExpanded = f
   return (
     <div>
       <div
-        className={cn(
-          'flex items-center gap-1 py-1 px-2 cursor-pointer rounded-sm text-sm',
-          'hover:bg-accent/50 transition-colors',
-          isSelected && 'bg-accent text-accent-foreground'
-        )}
-        style={{ paddingLeft: `${level * 12 + 8}px` }}
+        className="flex items-center gap-1 py-1 px-2 cursor-pointer rounded-sm text-sm transition-colors"
+        style={{
+          paddingLeft: `${level * 12 + 8}px`,
+          background: isSelected ? 'rgba(255,255,255,0.09)' : 'transparent',
+          color: isSelected ? 'rgba(255,255,255,0.88)' : 'rgba(255,255,255,0.55)',
+          fontFamily: "'Geist', 'DM Sans', sans-serif",
+        }}
+        onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
+        onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = 'transparent'; }}
         onClick={handleClick}
       >
         {node.type === 'folder' ? (
           <span className="w-4 h-4 flex items-center justify-center flex-shrink-0">
             {isExpanded ? (
-              <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+              <ChevronDown className="h-3.5 w-3.5" style={{ color: 'rgba(255,255,255,0.3)' }} />
             ) : (
-              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+              <ChevronRight className="h-3.5 w-3.5" style={{ color: 'rgba(255,255,255,0.3)' }} />
             )}
           </span>
         ) : (
@@ -180,10 +183,10 @@ export default function FileExplorer({ files, selectedFile, onFileSelect, classN
 
   if (files.length === 0) {
     return (
-      <div className={cn('flex flex-col items-center justify-center h-full text-muted-foreground', className)}>
-        <Package className="h-12 w-12 mb-3 opacity-50" />
-        <p className="text-sm font-medium">No files yet</p>
-        <p className="text-xs mt-1">Start building to see your project structure</p>
+      <div className={cn('flex flex-col items-center justify-center h-full', className)}>
+        <Package className="h-10 w-10 mb-3" style={{ color: 'rgba(255,255,255,0.15)' }} />
+        <p className="text-sm font-medium" style={{ color: 'rgba(255,255,255,0.35)', fontFamily: "'Geist', 'DM Sans', sans-serif" }}>No files yet</p>
+        <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.2)', fontFamily: "'Geist', 'DM Sans', sans-serif" }}>Start building to see your project structure</p>
       </div>
     );
   }

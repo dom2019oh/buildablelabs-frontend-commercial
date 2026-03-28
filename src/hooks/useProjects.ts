@@ -13,6 +13,9 @@ export interface Project {
   updated_at: string;
   template?: string;
   language?: string;
+  initialPrompt?: string;
+  deployed_url?: string;
+  preview_html?: string;
 }
 
 export interface CreateProjectOptions {
@@ -51,6 +54,9 @@ export function useProjects() {
         };
       }));
       setIsLoading(false);
+    }, (err) => {
+      console.error('[useProjects] Firestore error:', err);
+      setIsLoading(false); // Don't hang forever on permission errors
     });
 
     return unsub;
@@ -61,15 +67,15 @@ export function useProjects() {
     setCreatePending(true);
     try {
       const ref = await addDoc(collection(db, 'projects'), {
-        userId:       user.uid,
+        userId:        user.uid,
         name,
-        status:       'building',
-        template:     options.template ?? 'custom',
-        language:     options.language ?? 'python',
-        commandStyle: options.commandStyle ?? 'prefix',
+        status:        'building',
+        template:      options.template ?? 'custom',
+        language:      options.language ?? 'python',
+        commandStyle:  options.commandStyle ?? 'prefix',
         initialPrompt: options.prompt ?? '',
-        createdAt:    serverTimestamp(),
-        updatedAt:    serverTimestamp(),
+        createdAt:     serverTimestamp(),
+        updatedAt:     serverTimestamp(),
       });
       return { id: ref.id };
     } finally {
@@ -113,12 +119,15 @@ export function useProject(projectId: string | undefined) {
         const d  = snap.data();
         const ts = d.updatedAt as Timestamp | null;
         setData({
-          id:         snap.id,
-          name:       d.name ?? 'Untitled',
-          status:     d.status ?? 'ready',
-          updated_at: ts?.toDate?.()?.toISOString() ?? new Date().toISOString(),
-          template:   d.template,
-          language:   d.language,
+          id:            snap.id,
+          name:          d.name ?? 'Untitled',
+          status:        d.status ?? 'ready',
+          updated_at:    ts?.toDate?.()?.toISOString() ?? new Date().toISOString(),
+          template:      d.template,
+          language:      d.language,
+          initialPrompt: d.initialPrompt ?? undefined,
+          deployed_url:  d.deployedUrl ?? d.deployed_url ?? undefined,
+          preview_html:  d.previewHtml ?? d.preview_html ?? undefined,
         });
       }
       setLoading(false);

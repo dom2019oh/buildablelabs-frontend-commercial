@@ -2,9 +2,8 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Loader2, Eye, EyeOff } from 'lucide-react';
-import logoPng from '@/assets/buildable-logo.png';
-import wordmarkSvg from '@/assets/buildable-wordmark.svg';
 import Grainient from '@/components/Grainient';
+import wordmarkSvg from '@/assets/buildable-wordmark.svg';
 import { confirmPasswordReset, verifyPasswordResetCode } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { toast } from 'sonner';
@@ -66,10 +65,8 @@ export default function ResetPassword() {
       >
         <div className="flex items-center px-10 h-16 flex-shrink-0" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
           <Link to="/" className="flex items-center gap-[10px]">
-            <img src={logoPng} alt="" aria-hidden draggable={false} className="select-none block"
-              style={{ height: '26px', width: '26px', objectFit: 'contain', filter: 'invert(1)', flexShrink: 0 }} />
-            <img src={wordmarkSvg} alt="Buildable Labs" draggable={false} className="select-none block"
-              style={{ height: '22px', width: 'auto', objectFit: 'contain' }} />
+            <img src="/logo-stack-white.svg" alt="" aria-hidden draggable={false} className="select-none block" style={{ height: '20px', width: 'auto', objectFit: 'contain', flexShrink: 0 }} />
+            <img src={wordmarkSvg} alt="Buildable Labs" draggable={false} className="select-none block" style={{ height: '22px', width: 'auto', objectFit: 'contain' }} />
           </Link>
         </div>
 
@@ -82,24 +79,24 @@ export default function ResetPassword() {
             {verifying ? (
               <div className="flex flex-col items-center gap-4">
                 <Loader2 className="w-6 h-6 animate-spin" style={{ color: 'rgba(255,255,255,0.3)' }} />
-                <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '13px', color: 'rgba(255,255,255,0.35)' }}>
+                <p style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", fontSize: '13px', color: 'rgba(255,255,255,0.35)' }}>
                   Verifying reset link…
                 </p>
               </div>
             ) : !validCode ? (
               <div>
                 <p className="text-[11px] uppercase tracking-[0.2em] mb-3"
-                  style={{ color: 'rgba(255,255,255,0.35)', fontFamily: "'DM Sans', sans-serif" }}>
+                  style={{ color: 'rgba(255,255,255,0.35)', fontFamily: "'Geist', 'DM Sans', sans-serif" }}>
                   Link expired
                 </p>
                 <h1 style={{ fontFamily: "'Instrument Serif', serif", fontSize: '2.4rem', fontWeight: 400, fontStyle: 'italic', color: '#ffffff', lineHeight: 1.15, letterSpacing: '-0.01em', marginBottom: '1rem' }}>
                   Invalid link.
                 </h1>
-                <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '13px', color: 'rgba(255,255,255,0.45)', lineHeight: 1.7 }}>
+                <p style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", fontSize: '13px', color: 'rgba(255,255,255,0.45)', lineHeight: 1.7 }}>
                   This password reset link has expired or already been used.
                 </p>
                 <Link to="/forgot-password" className="inline-block mt-8"
-                  style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '11px', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', transition: 'color 0.2s' }}
+                  style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", fontSize: '11px', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', transition: 'color 0.2s' }}
                   onMouseEnter={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.75)')}
                   onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.4)')}
                 >
@@ -109,13 +106,13 @@ export default function ResetPassword() {
             ) : done ? (
               <div>
                 <p className="text-[11px] uppercase tracking-[0.2em] mb-3"
-                  style={{ color: 'rgba(255,255,255,0.35)', fontFamily: "'DM Sans', sans-serif" }}>
+                  style={{ color: 'rgba(255,255,255,0.35)', fontFamily: "'Geist', 'DM Sans', sans-serif" }}>
                   All done
                 </p>
                 <h1 style={{ fontFamily: "'Instrument Serif', serif", fontSize: '2.4rem', fontWeight: 400, fontStyle: 'italic', color: '#ffffff', lineHeight: 1.15, letterSpacing: '-0.01em' }}>
                   Password updated.
                 </h1>
-                <p className="mt-4" style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '13px', color: 'rgba(255,255,255,0.4)' }}>
+                <p className="mt-4" style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", fontSize: '13px', color: 'rgba(255,255,255,0.4)' }}>
                   Redirecting you to sign in…
                 </p>
               </div>
@@ -123,7 +120,7 @@ export default function ResetPassword() {
               <>
                 <div className="mb-10">
                   <p className="text-[11px] uppercase tracking-[0.2em] mb-3"
-                    style={{ color: 'rgba(255,255,255,0.35)', fontFamily: "'DM Sans', sans-serif" }}>
+                    style={{ color: 'rgba(255,255,255,0.35)', fontFamily: "'Geist', 'DM Sans', sans-serif" }}>
                     New password
                   </p>
                   <h1 style={{ fontFamily: "'Instrument Serif', serif", fontSize: '2.4rem', fontWeight: 400, fontStyle: 'italic', color: '#ffffff', lineHeight: 1.15, letterSpacing: '-0.01em' }}>
@@ -134,14 +131,14 @@ export default function ResetPassword() {
                 <form onSubmit={handleSubmit} className="space-y-7">
                   <div>
                     <label className="block mb-2"
-                      style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '10px', letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.38)' }}>
+                      style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", fontSize: '10px', letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.38)' }}>
                       New password
                     </label>
                     <div className="relative">
                       <input type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)}
                         placeholder="Min. 6 characters" disabled={loading} autoFocus
                         className="w-full py-2.5 pr-8 text-sm text-white placeholder-white/20 disabled:opacity-40 outline-none transition-colors duration-200"
-                        style={{ background: 'transparent', border: 'none', borderBottom: '1px solid rgba(255,255,255,0.15)', borderRadius: 0, fontFamily: "'DM Sans', sans-serif" }}
+                        style={{ background: 'transparent', border: 'none', borderBottom: '1px solid rgba(255,255,255,0.15)', borderRadius: 0, fontFamily: "'Geist', 'DM Sans', sans-serif" }}
                         onFocus={e => (e.currentTarget.style.borderBottom = '1px solid rgba(255,255,255,0.55)')}
                         onBlur={e => (e.currentTarget.style.borderBottom = '1px solid rgba(255,255,255,0.15)')}
                       />
@@ -157,13 +154,13 @@ export default function ResetPassword() {
 
                   <div>
                     <label className="block mb-2"
-                      style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '10px', letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.38)' }}>
+                      style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", fontSize: '10px', letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.38)' }}>
                       Confirm password
                     </label>
                     <input type={showPassword ? 'text' : 'password'} value={confirm} onChange={e => setConfirm(e.target.value)}
                       placeholder="Repeat your password" disabled={loading}
                       className="w-full py-2.5 text-sm text-white placeholder-white/20 disabled:opacity-40 outline-none transition-colors duration-200"
-                      style={{ background: 'transparent', border: 'none', borderBottom: '1px solid rgba(255,255,255,0.15)', borderRadius: 0, fontFamily: "'DM Sans', sans-serif" }}
+                      style={{ background: 'transparent', border: 'none', borderBottom: '1px solid rgba(255,255,255,0.15)', borderRadius: 0, fontFamily: "'Geist', 'DM Sans', sans-serif" }}
                       onFocus={e => (e.currentTarget.style.borderBottom = '1px solid rgba(255,255,255,0.55)')}
                       onBlur={e => (e.currentTarget.style.borderBottom = '1px solid rgba(255,255,255,0.15)')}
                     />
@@ -173,7 +170,7 @@ export default function ResetPassword() {
                     <motion.button type="submit" disabled={loading}
                       whileHover={{ opacity: 0.9 }} whileTap={{ scale: 0.99 }}
                       className="w-full flex items-center justify-center gap-2 py-3.5 disabled:opacity-40 transition-opacity"
-                      style={{ background: 'rgba(255,255,255,0.96)', color: '#0a0612', borderRadius: '3px', fontFamily: "'DM Sans', sans-serif", fontSize: '12px', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase' }}
+                      style={{ background: 'rgba(255,255,255,0.96)', color: '#0a0612', borderRadius: '3px', fontFamily: "'Geist', 'DM Sans', sans-serif", fontSize: '12px', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase' }}
                     >
                       {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Update password'}
                     </motion.button>
@@ -196,7 +193,7 @@ export default function ResetPassword() {
             "Fresh start,
             <br />same great bots."
           </blockquote>
-          <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '11px', letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.45)' }}>
+          <p style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", fontSize: '11px', letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.45)' }}>
             No code &nbsp;·&nbsp; No servers &nbsp;·&nbsp; No limits
           </p>
         </motion.div>

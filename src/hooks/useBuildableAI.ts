@@ -11,14 +11,17 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { useProjectFilesStore } from '@/stores/projectFilesStore';
-import { 
-  parseSSEEvent, 
-  buildContextSummary, 
-  type SyncEvent, 
-  type FileEvent, 
-  type CompleteEvent, 
-  type StageEvent, 
-  type ErrorEvent 
+import { API_BASE } from '@/lib/urls';
+import { db } from '@/lib/firebase';
+import { doc, onSnapshot } from 'firebase/firestore';
+import {
+  parseSSEEvent,
+  buildContextSummary,
+  type SyncEvent,
+  type FileEvent,
+  type CompleteEvent,
+  type StageEvent,
+  type ErrorEvent
 } from '@/lib/syncEngine';
 
 // =============================================================================
@@ -75,9 +78,10 @@ const STAGE_LABELS: Record<string, { phase: GenerationPhase['phase']; label: str
 // =============================================================================
 
 export function useBuildableAI(projectId: string | undefined) {
-  const { session } = useAuth();
+  const { user } = useAuth();
   const { toast } = useToast();
   const abortControllerRef = useRef<AbortController | null>(null);
+  const sessionUnsubRef = useRef<(() => void) | null>(null);
 
   const [state, setState] = useState<UseBuildableAIState>({
     isGenerating: false,
@@ -94,9 +98,8 @@ export function useBuildableAI(projectId: string | undefined) {
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
+      if (abortControllerRef.current) abortControllerRef.current.abort();
+      if (sessionUnsubRef.current) sessionUnsubRef.current();
     };
   }, []);
 
@@ -109,8 +112,9 @@ export function useBuildableAI(projectId: string | undefined) {
     onChunk?: (chunk: string, fullContent: string) => void,
     onComplete?: (files: GeneratedFile[], metadata: GenerationMetadata | null) => void,
     onError?: (error: Error) => void,
+    mode: 'plan' | 'architect' | 'build' = 'build',
   ) => {
-    if (!session?.access_token || !projectId) {
+    if (!user || !projectId) {
       const error = new Error('Not authenticated');
       onError?.(error);
       return;
@@ -123,6 +127,9 @@ export function useBuildableAI(projectId: string | undefined) {
 
     abortControllerRef.current = new AbortController();
     const signal = abortControllerRef.current.signal;
+
+    // Get Firebase ID token
+    const token = await user.getIdToken();
 
     // Get store actions for direct dispatch
     const store = useProjectFilesStore.getState();
@@ -151,19 +158,19 @@ export function useBuildableAI(projectId: string | undefined) {
 
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/buildable-generate`,
+        `${API_BASE}/api/generate/${workspaceId}`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`,
+            'Authorization': `Bearer ${token}`,
           },
           body: JSON.stringify({
             projectId,
-            workspaceId,
             prompt,
             conversationHistory: enhancedHistory,
             existingFiles,
+            mode,
           }),
           signal,
         }
@@ -177,7 +184,7 @@ export function useBuildableAI(projectId: string | undefined) {
       const contentType = response.headers.get('content-type') || '';
 
       // =====================================================================
-      // JSON FALLBACK (Railway backend or older edge function)
+      // JSON FALLBACK (Railway backend — fire-and-forget pipeline)
       // =====================================================================
       if (contentType.includes('application/json')) {
         const payload = await response.json().catch(() => null) as null | {
@@ -186,56 +193,135 @@ export function useBuildableAI(projectId: string | undefined) {
           filesGenerated?: number;
           filePaths?: string[];
           modelsUsed?: string[];
-          validationPassed?: boolean;
-          repairAttempts?: number;
           errors?: string[];
           aiMessage?: string;
-          routes?: string[];
-          suggestions?: string[];
+          message?: string;
         };
 
-        const filesGenerated = payload?.filesGenerated ?? 0;
-        const filePaths = payload?.filePaths ?? [];
-        const modelsUsed = payload?.modelsUsed ?? [];
+        if (!payload?.success) {
+          const errMsg = payload?.errors?.join('\n') || 'Generation failed';
+          setState(prev => ({
+            ...prev,
+            isGenerating: false,
+            error: errMsg,
+            phase: { phase: 'error', message: errMsg },
+          }));
+          onError?.(new Error(errMsg));
+          return;
+        }
 
+        const sessionId = payload.sessionId;
+
+        // ── Fire-and-forget: backend started the pipeline, watch Firestore ──
+        // If the HTTP response has no filesGenerated, generation is async.
+        // Subscribe to the generationSessions document for real completion.
+        if (sessionId && (payload.filesGenerated == null || payload.filesGenerated === 0)) {
+          setState(prev => ({
+            ...prev,
+            phase: { phase: 'planning', message: 'Planning architecture...', progress: 20 },
+          }));
+
+          if (sessionUnsubRef.current) sessionUnsubRef.current();
+
+          sessionUnsubRef.current = onSnapshot(
+            doc(db, 'generationSessions', sessionId),
+            (snap) => {
+              if (!snap.exists()) return;
+              const session = snap.data();
+              const status = session.status as string;
+
+              // Update progress phase
+              const phaseMap: Record<string, GenerationPhase> = {
+                planning:    { phase: 'planning',    message: 'Planning architecture...', progress: 30 },
+                scaffolding: { phase: 'planning',    message: 'Setting up structure...',  progress: 45 },
+                generating:  { phase: 'generating',  message: 'Writing code...',          progress: 65 },
+                validating:  { phase: 'validating',  message: 'Validating code...',       progress: 85 },
+              };
+              if (phaseMap[status]) {
+                setState(prev => ({
+                  ...prev,
+                  filesDelivered: session.files_generated ?? 0,
+                  phase: phaseMap[status],
+                }));
+              }
+
+              if (status === 'completed' || status === 'failed') {
+                if (sessionUnsubRef.current) { sessionUnsubRef.current(); sessionUnsubRef.current = null; }
+
+                const fileCount  = session.files_generated ?? 0;
+                const filePaths2 = session.file_paths ?? [];
+
+                const meta: GenerationMetadata = {
+                  sessionId,
+                  workspaceId,
+                  status,
+                  model: 'buildable-ai',
+                  filesGenerated: fileCount,
+                  filePaths: filePaths2,
+                  aiMessage: session.ai_message ?? undefined,
+                };
+
+                if (status === 'completed') {
+                  setState(prev => ({
+                    ...prev,
+                    isGenerating: false,
+                    metadata: meta,
+                    filesDelivered: fileCount,
+                    streamingContent: session.ai_message ?? '',
+                    phase: { phase: 'complete', message: `Generated ${fileCount} file(s)`, progress: 100 },
+                    error: null,
+                  }));
+                  if (fileCount > 0) {
+                    toast({ title: '✅ Bot Generated', description: `Created ${fileCount} file(s)` });
+                  }
+                  onComplete?.(filePaths2.map((p: string) => ({ path: p, content: '' })), meta);
+                } else {
+                  const errMsg = session.error_message ?? 'Generation failed';
+                  setState(prev => ({
+                    ...prev,
+                    isGenerating: false,
+                    error: errMsg,
+                    phase: { phase: 'error', message: errMsg },
+                  }));
+                  toast({ title: 'Generation Failed', description: errMsg, variant: 'destructive' });
+                  onError?.(new Error(errMsg));
+                }
+              }
+            },
+            (err) => {
+              console.error('[useBuildableAI] Firestore session watch error:', err);
+              setState(prev => ({ ...prev, isGenerating: false, error: err.message, phase: { phase: 'error', message: err.message } }));
+              onError?.(err);
+            }
+          );
+
+          return; // Stay in isGenerating = true until Firestore resolves
+        }
+
+        // ── Synchronous response (backend returned files in the HTTP response) ──
+        const filesGenerated = payload.filesGenerated ?? 0;
+        const filePaths = payload.filePaths ?? [];
         const metadata: GenerationMetadata = {
-          sessionId: payload?.sessionId ?? null,
+          sessionId: sessionId ?? null,
           workspaceId,
-          status: payload?.success ? 'completed' : 'failed',
-          model: modelsUsed.join(' → ') || 'unknown',
+          status: 'completed',
+          model: 'buildable-ai',
           filesGenerated,
           filePaths,
-          aiMessage: payload?.aiMessage,
-          routes: payload?.routes,
-          suggestions: payload?.suggestions,
+          aiMessage: payload.aiMessage,
         };
-
         setState(prev => ({
           ...prev,
           isGenerating: false,
           metadata,
-          aiMessage: payload?.aiMessage ?? '',
-          routes: payload?.routes ?? ['/'],
-          suggestions: payload?.suggestions ?? [],
-          phase: {
-            phase: payload?.success ? 'complete' : 'error',
-            message: payload?.success
-              ? `Generated ${filesGenerated} file(s)`
-              : (payload?.errors?.[0] || 'Generation failed'),
-            progress: 100,
-          },
-          streamingContent: payload?.aiMessage ?? '',
-          error: payload?.success ? null : (payload?.errors?.join('\n') || 'Generation failed'),
+          streamingContent: payload.aiMessage ?? '',
+          phase: { phase: 'complete', message: `Generated ${filesGenerated} file(s)`, progress: 100 },
+          error: null,
         }));
-
-        if (payload?.success && filesGenerated > 0) {
-          toast({
-            title: '✅ Generation Complete',
-            description: `Created ${filesGenerated} file(s)`,
-          });
+        if (filesGenerated > 0) {
+          toast({ title: '✅ Bot Generated', description: `Created ${filesGenerated} file(s)` });
         }
-
-        onComplete?.([], metadata);
+        onComplete?.(filePaths.map(p => ({ path: p, content: '' })), metadata);
         return;
       }
 
@@ -430,14 +516,12 @@ export function useBuildableAI(projectId: string | undefined) {
 
       onError?.(error instanceof Error ? error : new Error(errorMessage));
     }
-  }, [session?.access_token, projectId, toast]);
+  }, [user, projectId, toast]);
 
   // Cancel generation
   const cancel = useCallback(() => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
-    }
+    if (abortControllerRef.current) { abortControllerRef.current.abort(); abortControllerRef.current = null; }
+    if (sessionUnsubRef.current) { sessionUnsubRef.current(); sessionUnsubRef.current = null; }
     setState(prev => ({
       ...prev,
       isGenerating: false,

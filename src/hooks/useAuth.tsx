@@ -1,7 +1,9 @@
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import { User, onAuthStateChanged, signOut as fbSignOut } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
+
+const REMEMBER_KEY = 'buildable_remember_expires';
 
 interface Profile {
   displayName: string | null;
@@ -26,18 +28,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (firebaseUser) => {
+      // 30-day remember-me expiry check
+      if (firebaseUser) {
+        const expiresAt = localStorage.getItem(REMEMBER_KEY);
+        if (expiresAt && Date.now() > parseInt(expiresAt)) {
+          localStorage.removeItem(REMEMBER_KEY);
+          fbSignOut(auth);
+          return;
+        }
+      }
+
       setUser(firebaseUser);
-      setLoading(false); // unblock UI immediately
+      setLoading(false);
 
       if (firebaseUser) {
-        getDoc(doc(db, 'users', firebaseUser.uid)).then((snap) => {
-          setProfile(snap.exists() ? (snap.data() as Profile) : {
-            displayName: firebaseUser.displayName,
-            avatarUrl: firebaseUser.photoURL,
-          });
-        }).catch(() => {
-          setProfile({ displayName: firebaseUser.displayName, avatarUrl: firebaseUser.photoURL });
-        });
+        const unsubProfile = onSnapshot(
+          doc(db, 'users', firebaseUser.uid),
+          (snap) => {
+            setProfile(snap.exists() ? (snap.data() as Profile) : {
+              displayName: firebaseUser.displayName,
+              avatarUrl: firebaseUser.photoURL,
+            });
+          },
+          () => {
+            setProfile({ displayName: firebaseUser.displayName, avatarUrl: firebaseUser.photoURL });
+          }
+        );
+        return unsubProfile;
       } else {
         setProfile(null);
       }
@@ -47,6 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = async () => {
+    localStorage.removeItem(REMEMBER_KEY);
     await fbSignOut(auth);
   };
 

@@ -82,7 +82,7 @@ export function useWorkspaceChat(projectId: string | undefined) {
   // =========================================================================
 
   const sendMessageMutation = useMutation({
-    mutationFn: async (content: string) => {
+    mutationFn: async ({ content, mode }: { content: string; mode?: 'plan' | 'architect' | 'build' }) => {
       if (!projectId || !user || !workspaceId) {
         throw new Error("Not ready to send messages");
       }
@@ -99,7 +99,7 @@ export function useWorkspaceChat(projectId: string | undefined) {
       setPendingMessage(content);
 
       // Trigger backend generation — API keys stay server-side
-      const result = await generate(content);
+      const result = await generate(content, mode ?? 'build');
 
       // Save assistant response
       await addDoc(collection(db, "projectMessages"), {
@@ -138,8 +138,8 @@ export function useWorkspaceChat(projectId: string | undefined) {
   });
 
   const sendMessage = useCallback(
-    async (content: string) => {
-      return sendMessageMutation.mutateAsync(content);
+    async (content: string, mode?: 'plan' | 'architect' | 'build') => {
+      return sendMessageMutation.mutateAsync({ content, mode });
     },
     [sendMessageMutation]
   );

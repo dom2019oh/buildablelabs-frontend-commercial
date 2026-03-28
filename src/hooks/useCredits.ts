@@ -1,20 +1,24 @@
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  doc, getDoc, setDoc, collection, query, where, orderBy, limit, getDocs,
-  runTransaction, serverTimestamp, Timestamp,
+  doc, getDoc, collection, query, where, orderBy, limit, getDocs,
+  onSnapshot, Timestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "./useAuth";
 import { toast } from "@/hooks/use-toast";
+import { API_BASE } from "@/lib/urls";
 
 export type CreditActionType =
-  | 'question_answer'
-  | 'page_creation'
-  | 'component_generation'
-  | 'code_export'
-  | 'ai_chat'
-  | 'image_generation'
-  | 'deployment';
+  | 'full_build'
+  | 'edit_iterate'
+  | 'plan_mode'
+  | 'architect_mode'
+  | 'mermaid_diagram'
+  | 'file_repair'
+  | 'validate_review'
+  | 'clarify'
+  | 'chat';
 
 export interface UserCredits {
   id: string;
@@ -31,7 +35,7 @@ export interface UserCredits {
 export interface UserSubscription {
   id: string;
   user_id: string;
-  plan_type: 'free' | 'pro' | 'business' | 'enterprise';
+  plan_type: 'free' | 'pro' | 'max' | 'lite';
   selected_credits: number;
   price_cents: number;
   billing_period_start: string;
@@ -63,20 +67,49 @@ export interface CreditActionCost {
   description: string;
 }
 
-// Static action costs — no DB read needed. Update here when pricing changes.
 const ACTION_COSTS: Record<CreditActionType, CreditActionCost> = {
-  question_answer:      { action_type: 'question_answer',      credit_cost: 1,  description: 'Q&A' },
-  page_creation:        { action_type: 'page_creation',        credit_cost: 5,  description: 'Page creation' },
-  component_generation: { action_type: 'component_generation', credit_cost: 3,  description: 'Component generation' },
-  code_export:          { action_type: 'code_export',          credit_cost: 2,  description: 'Code export' },
-  ai_chat:              { action_type: 'ai_chat',              credit_cost: 1,  description: 'AI chat message' },
-  image_generation:     { action_type: 'image_generation',     credit_cost: 10, description: 'Image generation' },
-  deployment:           { action_type: 'deployment',           credit_cost: 5,  description: 'Deployment' },
+  full_build:      { action_type: 'full_build',      credit_cost: 2, description: 'Full bot build' },
+  edit_iterate:    { action_type: 'edit_iterate',    credit_cost: 1, description: 'Edit & iterate' },
+  plan_mode:       { action_type: 'plan_mode',       credit_cost: 1, description: 'Plan mode' },
+  architect_mode:  { action_type: 'architect_mode',  credit_cost: 1, description: 'Architect mode' },
+  mermaid_diagram: { action_type: 'mermaid_diagram', credit_cost: 1, description: 'Diagram generation' },
+  file_repair:     { action_type: 'file_repair',     credit_cost: 1, description: 'File repair' },
+  validate_review: { action_type: 'validate_review', credit_cost: 1, description: 'Validate & review' },
+  clarify:         { action_type: 'clarify',         credit_cost: 0, description: 'Clarifying question (free)' },
+  chat:            { action_type: 'chat',            credit_cost: 0, description: 'Chat message (free)' },
 };
 
-// Default credits for new users (free plan)
-const FREE_MONTHLY_CREDITS = 100;
-const DAILY_BONUS_CREDITS  = 10;
+const FREE_DAILY_CREDITS = 3;
+
+// ── UTC helpers ────────────────────────────────────────────────────────────────
+
+/** Returns "YYYY-MM-DD" in UTC for a given date (defaults to now). */
+export function getUTCDateString(date: Date = new Date()): string {
+  return date.toISOString().slice(0, 10);
+}
+
+/** Returns true if the given ISO timestamp was claimed on today's UTC date. */
+export function isClaimedToday(lastClaimedAt: string | null): boolean {
+  if (!lastClaimedAt) return false;
+  return getUTCDateString(new Date(lastClaimedAt)) === getUTCDateString();
+}
+
+/** Returns milliseconds until the next UTC midnight. */
+export function msUntilUTCMidnight(): number {
+  const now = new Date();
+  const midnight = new Date(Date.UTC(
+    now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1,
+  ));
+  return midnight.getTime() - now.getTime();
+}
+
+/** Returns "Xh Ym" string for display countdown. */
+export function formatCountdown(ms: number): string {
+  const totalSec = Math.floor(ms / 1000);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
 
 function tsToString(ts: unknown): string {
   if (!ts) return new Date().toISOString();
@@ -84,56 +117,71 @@ function tsToString(ts: unknown): string {
   return String(ts);
 }
 
+// ── Hook ──────────────────────────────────────────────────────────────────────
+
 export function useCredits() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  // User credits document
-  const { data: credits, isLoading: creditsLoading } = useQuery({
-    queryKey: ["user-credits", user?.uid],
-    queryFn: async () => {
-      if (!user?.uid) return null;
+  // Real-time credits via onSnapshot — cannot be spoofed (backend owns all writes)
+  const [credits, setCredits] = useState<UserCredits | null | undefined>(undefined);
+  const [creditsLoading, setCreditsLoading] = useState(true);
 
-      const snap = await getDoc(doc(db, "userCredits", user.uid));
-      if (!snap.exists()) {
-        // Auto-create on first read
-        const now = new Date().toISOString();
-        const defaultCredits = {
-          user_id: user.uid,
-          monthly_credits: FREE_MONTHLY_CREDITS,
-          bonus_credits: 0,
-          rollover_credits: 0,
-          topup_credits: 0,
-          last_daily_bonus_at: null,
-          created_at: now,
-          updated_at: now,
-        };
-        await setDoc(doc(db, "userCredits", user.uid), defaultCredits);
-        return { id: user.uid, ...defaultCredits } as UserCredits;
-      }
+  useEffect(() => {
+    if (!user?.uid) {
+      setCredits(null);
+      setCreditsLoading(false);
+      return;
+    }
+    setCreditsLoading(true);
 
-      const d = snap.data();
-      return {
-        id: snap.id,
-        user_id: d.user_id ?? user.uid,
-        monthly_credits: d.monthly_credits ?? 0,
-        bonus_credits: d.bonus_credits ?? 0,
-        rollover_credits: d.rollover_credits ?? 0,
-        topup_credits: d.topup_credits ?? 0,
-        last_daily_bonus_at: d.last_daily_bonus_at ? tsToString(d.last_daily_bonus_at) : null,
-        created_at: tsToString(d.created_at),
-        updated_at: tsToString(d.updated_at),
-      } as UserCredits;
-    },
-    enabled: !!user?.uid,
-  });
+    const unsub = onSnapshot(
+      doc(db, 'userCredits', user.uid),
+      async (snap) => {
+        if (snap.exists()) {
+          const d = snap.data();
+          setCredits({
+            id: snap.id,
+            user_id: d.user_id ?? user.uid,
+            monthly_credits: d.monthly_credits ?? 0,
+            bonus_credits: d.bonus_credits ?? 0,
+            rollover_credits: d.rollover_credits ?? 0,
+            topup_credits: d.topup_credits ?? 0,
+            last_daily_bonus_at: d.last_daily_bonus_at ? tsToString(d.last_daily_bonus_at) : null,
+            created_at: tsToString(d.created_at),
+            updated_at: tsToString(d.updated_at),
+          });
+        } else {
+          // Doc doesn't exist — auto-initialize via backend
+          setCredits(null);
+          try {
+            const token = await user.getIdToken();
+            await fetch(`${API_BASE}/api/credits/initialize`, {
+              method: 'POST',
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            // onSnapshot fires again once backend creates the doc
+          } catch {
+            // Silently ignore — will retry on next render
+          }
+        }
+        setCreditsLoading(false);
+      },
+      () => {
+        setCredits(null);
+        setCreditsLoading(false);
+      },
+    );
 
-  // Subscription document
+    return () => unsub();
+  }, [user?.uid]);
+
+  // Subscription document (read-only)
   const { data: subscription, isLoading: subscriptionLoading } = useQuery({
-    queryKey: ["user-subscription", user?.uid],
+    queryKey: ['user-subscription', user?.uid],
     queryFn: async () => {
       if (!user?.uid) return null;
-      const snap = await getDoc(doc(db, "subscriptions", user.uid));
+      const snap = await getDoc(doc(db, 'subscriptions', user.uid));
       if (!snap.exists()) return null;
       const d = snap.data();
       return {
@@ -156,16 +204,16 @@ export function useCredits() {
     enabled: !!user?.uid,
   });
 
-  // Credit transactions
+  // Credit transactions (read-only — backend writes these)
   const { data: transactions, isLoading: transactionsLoading } = useQuery({
-    queryKey: ["credit-transactions", user?.uid],
+    queryKey: ['credit-transactions', user?.uid],
     queryFn: async () => {
       if (!user?.uid) return [];
       const q = query(
-        collection(db, "creditTransactions"),
-        where("user_id", "==", user.uid),
-        orderBy("created_at", "desc"),
-        limit(50)
+        collection(db, 'creditTransactions'),
+        where('user_id', '==', user.uid),
+        orderBy('created_at', 'desc'),
+        limit(50),
       );
       const snap = await getDocs(q);
       return snap.docs.map((d) => ({
@@ -178,167 +226,66 @@ export function useCredits() {
   });
 
   const actionCosts = Object.values(ACTION_COSTS);
+  const currentPlanType = subscription?.plan_type ?? 'free';
 
-  const totalCredits = credits
-    ? Number(credits.monthly_credits) +
-      Number(credits.bonus_credits) +
-      Number(credits.rollover_credits) +
-      Number(credits.topup_credits)
+  // For free users, bonus_credits only count if claimed today (UTC).
+  const effectiveBonusCredits = isClaimedToday(credits?.last_daily_bonus_at ?? null)
+    ? Number(credits?.bonus_credits ?? 0)
     : 0;
 
-  // Deduct credits via Firestore transaction
-  const deductCreditsMutation = useMutation({
-    mutationFn: async ({
-      actionType,
-      description,
-      metadata,
-    }: {
-      actionType: CreditActionType;
-      description?: string;
-      metadata?: Record<string, unknown>;
-    }) => {
-      if (!user?.uid) throw new Error("Not authenticated");
+  const totalCredits = currentPlanType === 'free'
+    ? effectiveBonusCredits + Number(credits?.topup_credits ?? 0)
+    : Number(credits?.monthly_credits ?? 0) +
+      Number(credits?.bonus_credits ?? 0) +
+      Number(credits?.rollover_credits ?? 0) +
+      Number(credits?.topup_credits ?? 0);
 
-      const cost = ACTION_COSTS[actionType]?.credit_cost ?? 0;
-      const creditsRef = doc(db, "userCredits", user.uid);
+  const canClaimDailyBonus = (): boolean =>
+    !isClaimedToday(credits?.last_daily_bonus_at ?? null);
 
-      const result = await runTransaction(db, async (tx) => {
-        const snap = await tx.get(creditsRef);
-        if (!snap.exists()) throw new Error("Credits not found");
-
-        const d = snap.data();
-        let remaining =
-          Number(d.monthly_credits) +
-          Number(d.bonus_credits) +
-          Number(d.rollover_credits) +
-          Number(d.topup_credits);
-
-        if (remaining < cost) {
-          return { success: false, message: "Insufficient credits", remaining_credits: remaining };
-        }
-
-        // Deduct from bonus first, then monthly
-        let toDeduce = cost;
-        let newBonus = Number(d.bonus_credits);
-        let newMonthly = Number(d.monthly_credits);
-
-        if (newBonus >= toDeduce) {
-          newBonus -= toDeduce;
-          toDeduce = 0;
-        } else {
-          toDeduce -= newBonus;
-          newBonus = 0;
-        }
-        if (toDeduce > 0) newMonthly -= toDeduce;
-
-        remaining = newMonthly + newBonus + Number(d.rollover_credits) + Number(d.topup_credits);
-
-        tx.update(creditsRef, {
-          monthly_credits: newMonthly,
-          bonus_credits: newBonus,
-          updated_at: serverTimestamp(),
-        });
-
-        // Log transaction
-        const txRef = doc(collection(db, "creditTransactions"));
-        tx.set(txRef, {
-          user_id: user.uid,
-          transaction_type: "deduction",
-          action_type: actionType,
-          amount: -cost,
-          balance_after: remaining,
-          description: description ?? null,
-          metadata: metadata ?? {},
-          created_at: serverTimestamp(),
-        });
-
-        return { success: true, message: "Credits deducted", remaining_credits: remaining };
-      });
-
-      return [result];
-    },
-    onSuccess: (data) => {
-      const result = data?.[0];
-      if (result?.success) {
-        queryClient.invalidateQueries({ queryKey: ["user-credits"] });
-        queryClient.invalidateQueries({ queryKey: ["credit-transactions"] });
-      } else {
-        toast({
-          title: "Insufficient Credits",
-          description: result?.message || "You don't have enough credits for this action.",
-          variant: "destructive",
-        });
-      }
-    },
-    onError: (error) => {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    },
-  });
-
-  // Claim daily bonus via Firestore transaction
+  // Claim daily credits via backend — server enforces UTC date, cannot be bypassed
   const claimDailyBonusMutation = useMutation({
     mutationFn: async () => {
-      if (!user?.uid) throw new Error("Not authenticated");
-
-      const creditsRef = doc(db, "userCredits", user.uid);
-
-      const result = await runTransaction(db, async (tx) => {
-        const snap = await tx.get(creditsRef);
-        if (!snap.exists()) throw new Error("Credits not found");
-
-        const d = snap.data();
-        const lastBonus = d.last_daily_bonus_at
-          ? (d.last_daily_bonus_at instanceof Timestamp
-              ? d.last_daily_bonus_at.toDate()
-              : new Date(d.last_daily_bonus_at))
-          : null;
-
-        const today = new Date();
-        if (lastBonus && lastBonus.toDateString() === today.toDateString()) {
-          return { success: false, message: "Already claimed today", credits_added: 0 };
-        }
-
-        tx.update(creditsRef, {
-          bonus_credits: Number(d.bonus_credits) + DAILY_BONUS_CREDITS,
-          last_daily_bonus_at: serverTimestamp(),
-          updated_at: serverTimestamp(),
-        });
-
-        return { success: true, message: "Bonus claimed!", credits_added: DAILY_BONUS_CREDITS };
+      if (!user) throw new Error('Not authenticated');
+      const token = await user.getIdToken();
+      const res = await fetch(`${API_BASE}/api/credits/claim`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
       });
-
-      return [result];
+      const data = await res.json();
+      if (res.status === 409) {
+        return [{ success: false, message: data.message || 'Already claimed today', credits_added: 0 }];
+      }
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to claim credits');
+      }
+      return [{ success: true, message: 'Credits claimed!', credits_added: data.credits_added }];
     },
     onSuccess: (data) => {
       const result = data?.[0];
       if (result?.success) {
-        queryClient.invalidateQueries({ queryKey: ["user-credits"] });
+        // onSnapshot will update credits automatically; just refresh transactions
+        queryClient.invalidateQueries({ queryKey: ['credit-transactions'] });
         toast({
-          title: "Daily Bonus Claimed!",
-          description: `You received ${result.credits_added} bonus credits.`,
+          title: `${result.credits_added ?? FREE_DAILY_CREDITS} credits claimed!`,
+          description: 'Your daily credits are ready to use.',
         });
       } else {
-        toast({ title: "Daily Bonus", description: result?.message || "Not available yet." });
+        toast({ title: 'Daily Credits', description: result?.message || 'Not available yet.' });
       }
     },
     onError: (error) => {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ title: 'Error', description: (error as Error).message, variant: 'destructive' });
     },
   });
 
   const canPerformAction = (actionType: CreditActionType): boolean => {
-    const cost = ACTION_COSTS[actionType]?.credit_cost ?? 0;
+    const cost = ACTION_COSTS[actionType]?.credit_cost ?? 1;
     return totalCredits >= cost;
   };
 
   const getActionCost = (actionType: CreditActionType): number =>
-    ACTION_COSTS[actionType]?.credit_cost ?? 0;
-
-  const canClaimDailyBonus = (): boolean => {
-    if (!credits?.last_daily_bonus_at) return true;
-    const lastBonus = new Date(credits.last_daily_bonus_at);
-    return lastBonus.toDateString() !== new Date().toDateString();
-  };
+    ACTION_COSTS[actionType]?.credit_cost ?? 1;
 
   return {
     credits,
@@ -346,11 +293,14 @@ export function useCredits() {
     transactions,
     actionCosts,
     totalCredits,
+    effectiveBonusCredits,
+    currentPlanType,
     isLoading: creditsLoading || subscriptionLoading,
     transactionsLoading,
-    deductCredits: deductCreditsMutation.mutate,
-    deductCreditsAsync: deductCreditsMutation.mutateAsync,
-    isDeducting: deductCreditsMutation.isPending,
+    // All credit deductions are handled server-side (generate.ts → checkAndDeductCredits)
+    deductCredits: () => {},
+    deductCreditsAsync: async () => [{ success: true, message: 'Handled server-side', remaining_credits: totalCredits }],
+    isDeducting: false,
     claimDailyBonus: claimDailyBonusMutation.mutate,
     isClaimingBonus: claimDailyBonusMutation.isPending,
     canPerformAction,

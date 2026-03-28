@@ -76,7 +76,7 @@ export default function DashboardTopBar({ onNewBot }: DashboardTopBarProps) {
             <DropdownMenuItem onClick={() => navigate('/dashboard/settings')}>
               Settings
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => navigate('/dashboard/billing')}>
+            <DropdownMenuItem onClick={() => navigate('/dashboard/settings?tab=billing')}>
               Billing
             </DropdownMenuItem>
             <DropdownMenuSeparator />

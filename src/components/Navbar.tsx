@@ -1,9 +1,8 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Settings, BookOpen, HelpCircle, Users, LogOut, User } from "lucide-react";
-import buildableLogo from "@/assets/buildable-logo.png";
-import buildableText from "@/assets/buildable-text.svg";
 import { useAuth } from "@/hooks/useAuth";
+import wordmarkSvg from "@/assets/buildable-wordmark.svg";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -55,8 +54,8 @@ export default function Navbar() {
       <div className="w-full max-w-6xl mx-auto flex items-center justify-between">
         {/* Logo on the left */}
         <Link to="/" className="flex items-center gap-2">
-          <img src={buildableLogo} alt="Buildable" className="h-7 w-7 object-contain" />
-          <img src={buildableText} alt="Buildable" className="h-7 object-contain" />
+          <img src="/logo-stack-white.svg" alt="" aria-hidden className="object-contain" style={{ height: '18px', width: 'auto' }} />
+          <img src={wordmarkSvg} alt="Buildable Labs" className="object-contain" style={{ height: '22px', width: 'auto' }} />
         </Link>
 
         {/* Links and account on the right */}

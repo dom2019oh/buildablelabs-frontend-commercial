@@ -1,30 +1,16 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
-import { Check, Zap, Users, Building2, Info, Loader2 } from 'lucide-react';
-import Aurora from '@/components/Aurora';
-import Navbar from '@/components/Navbar';
+import { Check, Loader2, ChevronDown } from 'lucide-react';
+import FloatingNav from '@/components/FloatingNav';
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
 import { Button } from '@/components/ui/button';
 import { useSubscriptionPlans } from '@/hooks/useSubscriptionPlans';
 import { useStripeCheckout } from '@/hooks/useStripeCheckout';
@@ -32,236 +18,454 @@ import { useCredits } from '@/hooks/useCredits';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/use-toast';
 
-interface CreditTierWithStripe {
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface TierDisplay {
   credits: number;
   price: number;
+  annualPrice: number;
   priceId: string | null;
 }
 
-// Credit tiers are static config — loaded from useSubscriptionPlans
-function useCreditTiers() {
-  const { creditTiers } = useSubscriptionPlans();
-  return { data: creditTiers, isLoading: false };
-}
+// ─── FAQ data ─────────────────────────────────────────────────────────────────
 
 const faqs = [
   {
-    question: 'What is Buildable?',
-    answer: 'Buildable is an AI-powered development platform that helps you build web applications faster with intelligent code generation, debugging assistance, and architectural guidance.',
+    question: 'What is a credit?',
+    answer:
+      '1 credit = 1 full bot pipeline run. Each time Buildable Labs builds or rebuilds a bot for you, one credit is consumed — regardless of bot size or complexity.',
   },
   {
-    question: 'How do credits work?',
-    answer: 'Credits are used for AI-powered actions. Simple questions cost 0.15 credits, while full page creation costs 1.15 credits. You can see the exact cost before each action. Credits reset monthly, and unused credits can roll over on paid plans.',
-  },
-  {
-    question: 'Can I upgrade or downgrade anytime?',
-    answer: 'Yes! You can change your plan or credit tier at any time. Upgrades take effect immediately, and downgrades apply at the end of your current billing period.',
+    question: 'What is the pipeline?',
+    answer:
+      'The Buildable pipeline is an 8-stage AI system that plans, writes, tests, and deploys your Discord bot. Free and Lite plans run a simplified version (Claude Haiku). Pro and Max use the full 8-stage pipeline with Haiku + Sonnet for higher quality output.',
   },
   {
     question: 'What happens when I run out of credits?',
-    answer: 'When you run out of credits, you can either wait for your daily bonus credits (5/day on paid plans), purchase a top-up, or upgrade your plan. Your projects remain accessible.',
+    answer:
+      'Hard stop — no overages, ever. Free users receive 5 new credits the next midnight. Pro and Max users wait for their monthly reset, or upgrade to a higher tier.',
   },
   {
-    question: 'What does "credit rollover" mean?',
-    answer: 'Credit rollover means unused monthly credits carry over to the next month (up to 2x your monthly limit). This is available on Pro and Business plans.',
+    question: 'What is credit rollover?',
+    answer:
+      'Unused monthly credits carry forward. Pro rolls over up to 1 month of credits. Max rolls over up to 2 months. Free credits never roll over.',
   },
   {
-    question: 'Is my code kept private?',
-    answer: 'Absolutely. Your code and projects are private by default on paid plans. We use industry-standard encryption and never share your data with third parties.',
+    question: 'What is the Buildable watermark?',
+    answer:
+      'On the Free plan, every bot has a "Powered by Buildable Labs" embed footer and responds to /buildable. Upgrading to Pro or Max removes both.',
+  },
+  {
+    question: 'How does annual billing work?',
+    answer:
+      'Annual plans are billed upfront for 10 months and give you 12 months of access — 2 months free. No recurring monthly charges. Refunds are not available after the annual charge is made.',
+  },
+  {
+    question: 'Can I downgrade?',
+    answer:
+      'Yes. Downgrading moves you to the Lite plan ($7/mo), which is only available through the downgrade flow — it will not appear on the public pricing page.',
+  },
+  {
+    question: 'Is my bot code mine?',
+    answer:
+      'Yes. All generated code is yours. Export it at any time and self-host if you prefer.',
   },
 ];
+
+// ─── Stack mark ───────────────────────────────────────────────────────────────
+
+const PLAN_COLORS: Record<string, { from: string; to: string }> = {
+  free: { from: '#3b3352', to: '#108961' },
+  pro:  { from: '#6366f1', to: '#a78bfa' },
+  max:  { from: '#f97316', to: '#fbbf24' },
+};
+
+function StackMark({ planType, size = 28 }: { planType: string; size?: number }) {
+  const { from, to } = PLAN_COLORS[planType] ?? PLAN_COLORS.free;
+  const uid = `sm-${planType}`;
+  return (
+    <svg viewBox="0 0 36 29" fill="none" style={{ width: size, height: Math.round(size * 29 / 36) }}>
+      <defs>
+        <linearGradient id={uid} x1="18" y1="0" x2="18" y2="29" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor={from} />
+          <stop offset="100%" stopColor={to} />
+        </linearGradient>
+      </defs>
+      <rect x="0" y="0"  width="36" height="7" rx="3.5" fill={`url(#${uid})`} />
+      <rect x="0" y="11" width="26" height="7" rx="3.5" fill={`url(#${uid})`} />
+      <rect x="0" y="22" width="16" height="7" rx="3.5" fill={`url(#${uid})`} />
+    </svg>
+  );
+}
+
+// ─── Plan Card ────────────────────────────────────────────────────────────────
 
 interface PlanCardProps {
   name: string;
   tagline: string;
-  basePrice: number;
-  icon: React.ElementType;
+  planType: 'free' | 'pro' | 'max';
   features: string[];
-  bestFor: string[];
-  creditTiers?: CreditTierWithStripe[];
-  isEnterprise?: boolean;
+  tiers?: TierDisplay[];
   isAnnual: boolean;
-  onSubscribe?: (priceId: string) => void;
+  highlighted?: boolean;
+  onSubscribe?: (priceId: string | null) => void;
   isCheckoutLoading?: boolean;
   isAuthenticated?: boolean;
   currentPlanType?: string;
 }
 
-function PlanCard({ 
-  name, 
-  tagline, 
-  basePrice, 
-  icon: Icon, 
-  features, 
-  bestFor,
-  creditTiers,
-  isEnterprise,
+function PlanCard({
+  name,
+  tagline,
+  planType,
+  features,
+  tiers,
   isAnnual,
+  highlighted,
   onSubscribe,
   isCheckoutLoading,
   isAuthenticated,
   currentPlanType,
 }: PlanCardProps) {
-  const [selectedCredits, setSelectedCredits] = useState(
-    creditTiers?.[0]?.credits?.toString() || ''
-  );
+  const [selectedIdx, setSelectedIdx] = useState(0);
+  const selectedTier = tiers?.[selectedIdx];
+  const isFree = planType === 'free';
+  const isCurrentPlan = currentPlanType === planType;
 
-  const selectedTier = creditTiers?.find(
-    (t) => t.credits.toString() === selectedCredits
-  );
+  const monthlyPrice = isFree ? 0 : (selectedTier?.price ?? 0);
+  const annualPrice  = isFree ? 0 : (selectedTier?.annualPrice ?? 0);
 
-  const monthlyPrice = isAnnual && selectedTier 
-    ? Math.round(selectedTier.price * 0.8) 
-    : selectedTier?.price || basePrice;
+  const featuresHeader =
+    isFree
+      ? "What's included"
+      : planType === 'pro'
+      ? 'Everything in Free, plus'
+      : 'Everything in Pro, plus';
 
-  const isCurrentPlan = currentPlanType === name.toLowerCase();
-
-  const handleSubscribe = () => {
-    if (selectedTier?.priceId && onSubscribe) {
-      onSubscribe(selectedTier.priceId);
-    }
-  };
+  const ctaLabel = isCurrentPlan
+    ? 'Current Plan'
+    : isFree
+    ? 'Get Started Free'
+    : `Upgrade to ${name}`;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-      className={`glass-card p-6 flex flex-col h-full ${isCurrentPlan ? 'ring-2 ring-primary' : ''}`}
+    <div
+      style={{
+        background: highlighted
+          ? 'rgba(109,40,217,0.10)'
+          : 'rgba(255,255,255,0.025)',
+        border: `1px solid ${highlighted ? 'rgba(160,120,255,0.30)' : 'rgba(255,255,255,0.07)'}`,
+        borderRadius: '20px',
+        padding: '28px',
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+        position: 'relative',
+      }}
     >
-      {/* Plan Header */}
-      <div className="mb-4">
-        <div className="flex items-center gap-3 mb-2">
-          <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center">
-            <Icon className="w-5 h-5 text-primary" />
-          </div>
-          <h3 className="text-xl font-bold">{name}</h3>
+      {highlighted && !isCurrentPlan && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '-12px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: 'linear-gradient(90deg, #6d28d9, #4f46e5)',
+            borderRadius: '999px',
+            padding: '3px 14px',
+            fontSize: '0.7rem',
+            fontFamily: "'Geist', 'DM Sans', sans-serif",
+            fontWeight: 600,
+            color: 'rgba(255,255,255,0.95)',
+            letterSpacing: '0.05em',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          MOST POPULAR
+        </div>
+      )}
+
+      {/* Header */}
+      <div style={{ marginBottom: '20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+          <StackMark planType={planType} size={28} />
+          <span
+            style={{
+              fontFamily: "'Geist', sans-serif",
+              fontWeight: 700,
+              fontSize: '1.15rem',
+              color: 'rgba(255,255,255,0.92)',
+            }}
+          >
+            {name}
+          </span>
           {isCurrentPlan && (
-            <span className="text-xs px-2 py-1 rounded-full bg-primary/20 text-primary">
-              Current Plan
+            <span
+              style={{
+                fontSize: '0.65rem',
+                padding: '2px 8px',
+                borderRadius: '999px',
+                background: 'rgba(109,40,217,0.25)',
+                color: '#a78bfa',
+                fontFamily: "'Geist', 'DM Sans', sans-serif",
+              }}
+            >
+              Current
             </span>
           )}
         </div>
-        <p className="text-sm text-muted-foreground">{tagline}</p>
+        <p
+          style={{
+            fontFamily: "'Geist', 'DM Sans', sans-serif",
+            fontSize: '0.82rem',
+            color: 'rgba(255,255,255,0.35)',
+          }}
+        >
+          {tagline}
+        </p>
       </div>
 
       {/* Price */}
-      <div className="mb-4">
-        {isEnterprise ? (
+      <div style={{ marginBottom: '18px' }}>
+        {isFree ? (
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
+            <span
+              style={{
+                fontFamily: "'Geist', sans-serif",
+                fontWeight: 800,
+                fontSize: '2.2rem',
+                color: 'rgba(255,255,255,0.9)',
+              }}
+            >
+              $0
+            </span>
+            <span
+              style={{
+                fontFamily: "'Geist', 'DM Sans', sans-serif",
+                fontSize: '0.85rem',
+                color: 'rgba(255,255,255,0.3)',
+              }}
+            >
+              /mo
+            </span>
+          </div>
+        ) : isAnnual ? (
           <div>
-            <span className="text-3xl font-bold">Custom</span>
-            <p className="text-sm text-muted-foreground mt-1">Flexible plans</p>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
+              <span
+                style={{
+                  fontFamily: "'Geist', sans-serif",
+                  fontWeight: 800,
+                  fontSize: '2.2rem',
+                  color: 'rgba(255,255,255,0.9)',
+                }}
+              >
+                ${annualPrice}
+              </span>
+              <span
+                style={{
+                  fontFamily: "'Geist', 'DM Sans', sans-serif",
+                  fontSize: '0.85rem',
+                  color: 'rgba(255,255,255,0.3)',
+                }}
+              >
+                /yr
+              </span>
+            </div>
+            <p
+              style={{
+                fontFamily: "'Geist', 'DM Sans', sans-serif",
+                fontSize: '0.75rem',
+                color: 'rgba(167,139,250,0.75)',
+                marginTop: '3px',
+              }}
+            >
+              ${monthlyPrice}/mo · 2 months free
+            </p>
           </div>
         ) : (
-          <div>
-            <div className="flex items-baseline gap-1">
-              <span className="text-3xl font-bold">${monthlyPrice}</span>
-              <span className="text-muted-foreground">per month</span>
-              <span className="text-xs text-muted-foreground ml-1">incl. VAT</span>
-            </div>
-            {isAnnual && selectedTier && (
-              <p className="text-xs text-secondary mt-1">
-                Save ${Math.round(selectedTier.price * 12 * 0.2)}/year
-              </p>
-            )}
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
+            <span
+              style={{
+                fontFamily: "'Geist', sans-serif",
+                fontWeight: 800,
+                fontSize: '2.2rem',
+                color: 'rgba(255,255,255,0.9)',
+              }}
+            >
+              ${monthlyPrice}
+            </span>
+            <span
+              style={{
+                fontFamily: "'Geist', 'DM Sans', sans-serif",
+                fontSize: '0.85rem',
+                color: 'rgba(255,255,255,0.3)',
+              }}
+            >
+              /mo
+            </span>
           </div>
         )}
       </div>
 
-      {/* Credit Selector */}
-      {creditTiers && creditTiers.length > 0 && (
-        <div className="mb-4">
-          <Select value={selectedCredits} onValueChange={setSelectedCredits}>
-            <SelectTrigger className="w-full glass-button border-border/50">
-              <SelectValue placeholder="Select credits" />
-            </SelectTrigger>
-            <SelectContent>
-              {creditTiers.map((tier) => (
-                <SelectItem key={tier.credits} value={tier.credits.toString()}>
-                  {tier.credits.toLocaleString()} credits / month
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+      {/* Credit Tier Selector */}
+      {tiers && tiers.length > 0 && (
+        <div style={{ marginBottom: '18px', position: 'relative' }}>
+          <select
+            value={selectedIdx}
+            onChange={(e) => setSelectedIdx(Number(e.target.value))}
+            style={{
+              width: '100%',
+              padding: '9px 36px 9px 12px',
+              background: 'rgba(255,255,255,0.05)',
+              border: '1px solid rgba(255,255,255,0.10)',
+              borderRadius: '10px',
+              color: 'rgba(255,255,255,0.75)',
+              fontFamily: "'Geist', 'DM Sans', sans-serif",
+              fontSize: '0.82rem',
+              cursor: 'pointer',
+              appearance: 'none',
+              outline: 'none',
+            }}
+          >
+            {tiers.map((t, i) => (
+              <option key={i} value={i} style={{ background: '#12131a' }}>
+                {t.credits} credits / month
+              </option>
+            ))}
+          </select>
+          <ChevronDown
+            size={14}
+            color="rgba(255,255,255,0.35)"
+            style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}
+          />
         </div>
       )}
 
-      {/* CTA Button */}
-      {isEnterprise ? (
+      {/* CTA */}
+      {isFree ? (
         <Link
-          to="/contact"
-          className="block text-center py-3 rounded-lg font-medium glass-button mb-6"
+          to={isAuthenticated ? '/dashboard' : '/sign-up'}
+          style={{
+            display: 'block',
+            textAlign: 'center',
+            padding: '11px 0',
+            borderRadius: '12px',
+            fontFamily: "'Geist', 'DM Sans', sans-serif",
+            fontWeight: 600,
+            fontSize: '0.88rem',
+            color: isCurrentPlan ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.75)',
+            background: isCurrentPlan ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.07)',
+            border: '1px solid rgba(255,255,255,0.10)',
+            marginBottom: '22px',
+            cursor: isCurrentPlan ? 'default' : 'pointer',
+            textDecoration: 'none',
+            pointerEvents: isCurrentPlan ? 'none' : 'auto',
+          }}
         >
-          Book a demo
+          {ctaLabel}
         </Link>
       ) : isAuthenticated ? (
-        <Button
-          onClick={handleSubscribe}
-          disabled={isCheckoutLoading || !selectedTier?.priceId || isCurrentPlan}
-          className="w-full py-3 rounded-lg font-medium gradient-button mb-6"
+        <button
+          onClick={() => onSubscribe?.(selectedTier?.priceId ?? null)}
+          disabled={isCheckoutLoading || isCurrentPlan}
+          style={{
+            width: '100%',
+            padding: '11px 0',
+            borderRadius: '12px',
+            fontFamily: "'Geist', 'DM Sans', sans-serif",
+            fontWeight: 600,
+            fontSize: '0.88rem',
+            color: isCurrentPlan ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.95)',
+            background: isCurrentPlan
+              ? 'rgba(255,255,255,0.04)'
+              : highlighted
+              ? 'linear-gradient(135deg, #6d28d9, #4f46e5)'
+              : 'rgba(109,40,217,0.35)',
+            border: isCurrentPlan
+              ? '1px solid rgba(255,255,255,0.07)'
+              : '1px solid rgba(160,120,255,0.30)',
+            marginBottom: '22px',
+            cursor: isCurrentPlan || isCheckoutLoading ? 'default' : 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '6px',
+          }}
         >
-          {isCheckoutLoading ? (
-            <Loader2 className="w-4 h-4 animate-spin mr-2" />
-          ) : isCurrentPlan ? (
-            'Current Plan'
-          ) : (
-            name === 'Pro' ? 'Upgrade to Pro' : 'Upgrade to Business'
-          )}
-        </Button>
+          {isCheckoutLoading ? <Loader2 size={14} className="animate-spin" /> : ctaLabel}
+        </button>
       ) : (
         <Link
           to="/sign-up"
           state={{ returnTo: '/pricing' }}
-          className="block text-center py-3 rounded-lg font-medium gradient-button mb-6"
+          style={{
+            display: 'block',
+            textAlign: 'center',
+            padding: '11px 0',
+            borderRadius: '12px',
+            fontFamily: "'Geist', 'DM Sans', sans-serif",
+            fontWeight: 600,
+            fontSize: '0.88rem',
+            color: 'rgba(255,255,255,0.95)',
+            background: highlighted
+              ? 'linear-gradient(135deg, #6d28d9, #4f46e5)'
+              : 'rgba(109,40,217,0.35)',
+            border: '1px solid rgba(160,120,255,0.30)',
+            marginBottom: '22px',
+            textDecoration: 'none',
+          }}
         >
-          {name === 'Pro' ? 'Get Started' : 'Get Started'}
+          Get Started
         </Link>
       )}
 
-      {/* Features Header */}
-      <p className="text-sm text-muted-foreground mb-3">
-        {name === 'Pro' ? 'Includes' : name === 'Business' ? 'Everything in Pro, plus' : 'Everything in Business, plus'}
-      </p>
-
       {/* Features */}
-      <ul className="space-y-2 mb-6 flex-1">
-        {features.map((feature) => (
-          <li key={feature} className="flex items-start gap-2 text-sm">
-            <Check className="w-4 h-4 text-secondary shrink-0 mt-0.5" />
-            <span className="text-muted-foreground">{feature}</span>
+      <p
+        style={{
+          fontFamily: "'Geist', 'DM Sans', sans-serif",
+          fontSize: '0.75rem',
+          color: 'rgba(255,255,255,0.3)',
+          marginBottom: '10px',
+          textTransform: 'uppercase',
+          letterSpacing: '0.06em',
+        }}
+      >
+        {featuresHeader}
+      </p>
+      <ul style={{ listStyle: 'none', padding: 0, margin: 0, flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        {features.map((f) => (
+          <li
+            key={f}
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '8px',
+              fontFamily: "'Geist', 'DM Sans', sans-serif",
+              fontSize: '0.82rem',
+              color: 'rgba(255,255,255,0.55)',
+            }}
+          >
+            <Check size={13} color="#7c3aed" style={{ flexShrink: 0, marginTop: '2px' }} />
+            {f}
           </li>
         ))}
       </ul>
-
-      {/* Best For */}
-      <div className="mt-auto pt-4 border-t border-border/30">
-        <p className="text-xs text-muted-foreground mb-2">Best for</p>
-        <div className="flex flex-wrap gap-2">
-          {bestFor.map((item) => (
-            <span
-              key={item}
-              className="text-xs px-2 py-1 rounded-full bg-muted/50 text-muted-foreground"
-            >
-              {item}
-            </span>
-          ))}
-        </div>
-      </div>
-    </motion.div>
+    </div>
   );
 }
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function Pricing() {
   const [isAnnual, setIsAnnual] = useState(false);
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { isLoading: plansLoading } = useSubscriptionPlans();
-  const { data: creditTiersData, isLoading: tiersLoading } = useCreditTiers();
   const { startCheckout, isLoading: isCheckoutLoading } = useStripeCheckout();
   const { subscription } = useCredits();
   const { user } = useAuth();
+  const { creditTiers } = useSubscriptionPlans();
 
-  // Handle canceled checkout
   useEffect(() => {
     if (searchParams.get('canceled') === 'true') {
       toast({
@@ -272,117 +476,152 @@ export default function Pricing() {
     }
   }, [searchParams, navigate]);
 
-  // Transform database tiers to component format
-  const proCreditTiers: CreditTierWithStripe[] = creditTiersData
-    ?.filter(t => t.plan_type === 'pro')
-    .map(t => ({
+  const proCreditTiers: TierDisplay[] = creditTiers
+    .filter((t) => t.plan_type === 'pro')
+    .map((t) => ({
       credits: t.credits,
       price: t.price_cents / 100,
-      priceId: t.stripe_price_id,
-    })) || [];
+      annualPrice: t.annual_price_cents / 100,
+      priceId: null,
+    }));
 
-  const businessCreditTiers: CreditTierWithStripe[] = creditTiersData
-    ?.filter(t => t.plan_type === 'business')
-    .map(t => ({
+  const maxCreditTiers: TierDisplay[] = creditTiers
+    .filter((t) => t.plan_type === 'max')
+    .map((t) => ({
       credits: t.credits,
       price: t.price_cents / 100,
-      priceId: t.stripe_price_id,
-    })) || [];
-
-  const handleSubscribe = (priceId: string) => {
-    startCheckout(priceId);
-  };
+      annualPrice: t.annual_price_cents / 100,
+      priceId: null,
+    }));
 
   const plans = [
     {
+      name: 'Free',
+      tagline: 'Build your first Discord bot',
+      planType: 'free' as const,
+      tiers: undefined,
+      highlighted: false,
+      features: [
+        '3 credits/day (resets at midnight)',
+        '2 bots max',
+        'Simplified pipeline (Claude Haiku)',
+        'Buildable Labs watermark on bots',
+        '/buildable command active',
+        'Community support',
+      ],
+    },
+    {
       name: 'Pro',
-      tagline: 'For solo builders and creators',
-      basePrice: 15,
-      icon: Zap,
-      creditTiers: proCreditTiers,
+      tagline: 'For serious bot builders',
+      planType: 'pro' as const,
+      tiers: proCreditTiers,
+      highlighted: true,
       features: [
-        'Prompt → website generation',
-        'Prompt → app UI generation',
-        'Code export (React / Vite)',
-        'Unlimited projects',
-        'Private & public projects',
-        'Credit rollover',
-        'Daily bonus credits (5/day)',
-        'Custom domains',
-        'Remove Buildable branding',
-        'On-demand credit top-ups',
+        '30–300 credits/month',
+        '10 bots max',
+        'Full 8-stage pipeline (Haiku + Sonnet)',
+        'No Buildable watermark',
+        'No /buildable command',
+        '1 month credit rollover',
+        'Email support',
       ],
-      bestFor: ['Solo devs', 'Roblox creators', 'Students', 'Indie SaaS builders'],
     },
     {
-      name: 'Business',
-      tagline: 'For teams and studios',
-      basePrice: 29,
-      icon: Users,
-      creditTiers: businessCreditTiers,
+      name: 'Max',
+      tagline: 'For power users and agencies',
+      planType: 'max' as const,
+      tiers: maxCreditTiers,
+      highlighted: false,
       features: [
-        'Team workspaces',
-        'Shared projects',
-        'Up to 5 team members',
-        'Role-based access (Owner / Editor / Viewer)',
-        'Internal preview links',
-        'Personal sandbox projects',
-        'Design templates',
-        'Advanced AI generation modes',
-        'SSO (Google, GitHub)',
+        '100–1,000 credits/month',
+        'Unlimited bots',
+        'Full 8-stage pipeline (Haiku + Sonnet)',
+        'Priority queue',
+        'No Buildable watermark',
+        'No /buildable command',
+        '2 month credit rollover',
+        'REST API access (headless)',
+        'Custom embed domain (white-label)',
+        'Early access to new features',
+        'Priority support',
       ],
-      bestFor: ['Agencies', 'Small studios', 'Roblox Milsim teams', 'Startup teams'],
-    },
-    {
-      name: 'Enterprise',
-      tagline: 'For large orgs & platforms',
-      basePrice: 0,
-      icon: Building2,
-      isEnterprise: true,
-      features: [
-        'Unlimited team members',
-        'Custom credit plans',
-        'Dedicated support',
-        'Onboarding & training',
-        'Group-based access control',
-        'Audit logs',
-        'SCIM provisioning',
-        'Custom design systems',
-        'Private deployments',
-        'SLA & priority infrastructure',
-      ],
-      bestFor: ['Large studios', 'Platforms', 'Companies with internal tools'],
     },
   ];
 
+  const card = {
+    background: 'rgba(255,255,255,0.025)',
+    border: '1px solid rgba(255,255,255,0.07)',
+    borderRadius: '20px',
+    padding: '28px',
+  };
+
   return (
-    <div className="relative min-h-screen overflow-hidden">
-      {/* Aurora Background */}
-      <div className="absolute inset-0 z-0">
-        <Aurora
-          colorStops={["#666bff", "#ce2c2c", "#29ff90"]}
-          blend={0.59}
-          amplitude={1.0}
-          speed={1.5}
-        />
-      </div>
+    <div
+      style={{
+        minHeight: '100vh',
+        background: '#080a0c',
+        position: 'relative',
+        overflow: 'hidden',
+      }}
+    >
+      {/* Subtle top bloom */}
+      <div
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          width: '700px',
+          height: '340px',
+          background: 'radial-gradient(ellipse at top, rgba(90,30,200,0.10) 0%, transparent 70%)',
+          pointerEvents: 'none',
+          zIndex: 0,
+        }}
+      />
 
-      <div className="relative z-10">
-        <Navbar />
+      <FloatingNav hidePricing />
 
-        <section className="min-h-screen flex flex-col items-center px-6 pt-32 pb-24">
+      <div style={{ position: 'relative', zIndex: 1 }}>
+        <section
+          style={{
+            maxWidth: '1100px',
+            margin: '0 auto',
+            padding: '120px 24px 96px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+          }}
+        >
           {/* Header */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 22 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
-            className="text-center mb-8"
+            style={{ textAlign: 'center', marginBottom: '36px' }}
           >
-            <h1 className="text-4xl md:text-5xl font-bold mb-4">
-              Buildable <span className="text-gradient">Pricing</span>
+            <h1
+              style={{
+                fontFamily: "'Geist', sans-serif",
+                fontWeight: 800,
+                fontSize: 'clamp(2rem, 5vw, 3rem)',
+                color: 'rgba(255,255,255,0.92)',
+                marginBottom: '14px',
+                letterSpacing: '-0.01em',
+              }}
+            >
+              Simple, honest pricing.
             </h1>
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Scale your creative output with flexible credit-based plans. Upgrade or downgrade anytime.
+            <p
+              style={{
+                fontFamily: "'Geist', 'DM Sans', sans-serif",
+                fontSize: '1rem',
+                color: 'rgba(255,255,255,0.38)',
+                maxWidth: '480px',
+                margin: '0 auto',
+                lineHeight: 1.6,
+              }}
+            >
+              1 credit = 1 full bot pipeline run. No overages. No hidden fees.
             </p>
           </motion.div>
 
@@ -390,10 +629,23 @@ export default function Pricing() {
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
-            className="flex items-center gap-3 mb-12"
+            transition={{ duration: 0.5, delay: 0.15 }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              marginBottom: '56px',
+            }}
           >
-            <Label htmlFor="annual-toggle" className={!isAnnual ? 'text-foreground' : 'text-muted-foreground'}>
+            <Label
+              htmlFor="annual-toggle"
+              style={{
+                fontFamily: "'Geist', 'DM Sans', sans-serif",
+                fontSize: '0.85rem',
+                color: !isAnnual ? 'rgba(255,255,255,0.75)' : 'rgba(255,255,255,0.30)',
+                cursor: 'pointer',
+              }}
+            >
               Monthly
             </Label>
             <Switch
@@ -401,30 +653,59 @@ export default function Pricing() {
               checked={isAnnual}
               onCheckedChange={setIsAnnual}
             />
-            <Label htmlFor="annual-toggle" className={isAnnual ? 'text-foreground' : 'text-muted-foreground'}>
+            <Label
+              htmlFor="annual-toggle"
+              style={{
+                fontFamily: "'Geist', 'DM Sans', sans-serif",
+                fontSize: '0.85rem',
+                color: isAnnual ? 'rgba(255,255,255,0.75)' : 'rgba(255,255,255,0.30)',
+                cursor: 'pointer',
+              }}
+            >
               Annual
             </Label>
             {isAnnual && (
-              <span className="text-xs px-2 py-1 rounded-full bg-secondary/20 text-secondary ml-2">
-                Save 20%
+              <span
+                style={{
+                  fontFamily: "'Geist', 'DM Sans', sans-serif",
+                  fontSize: '0.72rem',
+                  padding: '3px 10px',
+                  borderRadius: '999px',
+                  background: 'rgba(109,40,217,0.20)',
+                  border: '1px solid rgba(160,120,255,0.25)',
+                  color: '#a78bfa',
+                  fontWeight: 600,
+                }}
+              >
+                2 months free
               </span>
             )}
           </motion.div>
 
-          {/* Pricing Cards */}
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto w-full mb-16">
-            {plans.map((plan, index) => (
+          {/* Plan Cards */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+              gap: '20px',
+              width: '100%',
+              maxWidth: '960px',
+              marginBottom: '64px',
+              alignItems: 'start',
+            }}
+          >
+            {plans.map((plan, i) => (
               <motion.div
                 key={plan.name}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: index * 0.1 }}
+                transition={{ duration: 0.5, delay: i * 0.08 }}
+                style={{ height: '100%' }}
               >
                 <PlanCard
                   {...plan}
                   isAnnual={isAnnual}
-                  isEnterprise={plan.isEnterprise}
-                  onSubscribe={handleSubscribe}
+                  onSubscribe={(priceId) => { if (priceId) startCheckout(priceId); }}
                   isCheckoutLoading={isCheckoutLoading}
                   isAuthenticated={!!user}
                   currentPlanType={subscription?.plan_type}
@@ -433,127 +714,176 @@ export default function Pricing() {
             ))}
           </div>
 
-          {/* Credit Costs Info */}
+          {/* How Credits Work */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.3 }}
-            className="glass-card p-8 max-w-4xl mx-auto w-full mb-16"
+            transition={{ duration: 0.6, delay: 0.25 }}
+            style={{ ...card, width: '100%', maxWidth: '860px', marginBottom: '24px' }}
           >
-            <div className="flex items-center gap-2 mb-6">
-              <h2 className="text-2xl font-bold">Credit Usage</h2>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger>
-                    <Info className="w-4 h-4 text-muted-foreground" />
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Credits are deducted based on the complexity of each action</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </div>
-            <div className="grid md:grid-cols-3 gap-6">
-              <div className="space-y-3">
-                <h4 className="font-medium text-sm text-muted-foreground uppercase tracking-wide">Light Usage</h4>
-                <div className="flex justify-between text-sm">
-                  <span>AI Chat Message</span>
-                  <span className="text-secondary font-medium">0.10 credits</span>
+            <h2
+              style={{
+                fontFamily: "'Geist', sans-serif",
+                fontWeight: 700,
+                fontSize: '1.2rem',
+                color: 'rgba(255,255,255,0.85)',
+                marginBottom: '20px',
+              }}
+            >
+              How Credits Work
+            </h2>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '24px' }}>
+              {[
+                { title: '1 Credit = 1 Run', body: 'Each full bot pipeline run consumes exactly 1 credit, regardless of bot size or complexity.' },
+                { title: 'Hard Limit', body: 'No overages. When you hit your limit, builds pause until credits reset or you upgrade.' },
+                { title: 'Per Build, Not Per Bot', body: 'Running the same bot multiple times each consumes 1 credit per run. Not per bot owned.' },
+              ].map(({ title, body }) => (
+                <div key={title}>
+                  <p
+                    style={{
+                      fontFamily: "'Geist', 'DM Sans', sans-serif",
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      color: 'rgba(167,139,250,0.8)',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.07em',
+                      marginBottom: '6px',
+                    }}
+                  >
+                    {title}
+                  </p>
+                  <p
+                    style={{
+                      fontFamily: "'Geist', 'DM Sans', sans-serif",
+                      fontSize: '0.83rem',
+                      color: 'rgba(255,255,255,0.38)',
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    {body}
+                  </p>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span>Question Answer</span>
-                  <span className="text-secondary font-medium">0.15 credits</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span>Code Export</span>
-                  <span className="text-secondary font-medium">0.25 credits</span>
-                </div>
-              </div>
-              <div className="space-y-3">
-                <h4 className="font-medium text-sm text-muted-foreground uppercase tracking-wide">Standard Usage</h4>
-                <div className="flex justify-between text-sm">
-                  <span>Component Generation</span>
-                  <span className="text-secondary font-medium">0.50 credits</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span>Image Generation</span>
-                  <span className="text-secondary font-medium">0.75 credits</span>
-                </div>
-              </div>
-              <div className="space-y-3">
-                <h4 className="font-medium text-sm text-muted-foreground uppercase tracking-wide">Heavy Usage</h4>
-                <div className="flex justify-between text-sm">
-                  <span>Full Page Creation</span>
-                  <span className="text-secondary font-medium">1.15 credits</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span>Deployment</span>
-                  <span className="text-secondary font-medium">Free</span>
-                </div>
-              </div>
+              ))}
             </div>
           </motion.div>
 
-          {/* Fair Usage Section */}
+          {/* Fair Usage Rules */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.4 }}
-            className="glass-card p-8 max-w-4xl mx-auto w-full mb-16"
+            transition={{ duration: 0.6, delay: 0.32 }}
+            style={{ ...card, width: '100%', maxWidth: '860px', marginBottom: '24px' }}
           >
-            <h2 className="text-2xl font-bold text-center mb-6">
-              Fair Usage & Protection
+            <h2
+              style={{
+                fontFamily: "'Geist', sans-serif",
+                fontWeight: 700,
+                fontSize: '1.2rem',
+                color: 'rgba(255,255,255,0.85)',
+                marginBottom: '20px',
+              }}
+            >
+              Fair Usage Rules
             </h2>
-            <ul className="grid md:grid-cols-2 gap-4">
-              <li className="flex items-center gap-3 text-muted-foreground">
-                <span className="w-2 h-2 rounded-full bg-secondary shrink-0" />
-                Monthly credits reset on billing date
-              </li>
-              <li className="flex items-center gap-3 text-muted-foreground">
-                <span className="w-2 h-2 rounded-full bg-secondary shrink-0" />
-                Rate limiting: 1 request every 5-10 seconds
-              </li>
-              <li className="flex items-center gap-3 text-muted-foreground">
-                <span className="w-2 h-2 rounded-full bg-secondary shrink-0" />
-                Cancel anytime, no questions asked
-              </li>
-              <li className="flex items-center gap-3 text-muted-foreground">
-                <span className="w-2 h-2 rounded-full bg-secondary shrink-0" />
-                Credit rollover up to 2x monthly limit
-              </li>
-              <li className="flex items-center gap-3 text-muted-foreground">
-                <span className="w-2 h-2 rounded-full bg-secondary shrink-0" />
-                Daily bonus: 5 credits/day on paid plans
-              </li>
-              <li className="flex items-center gap-3 text-muted-foreground">
-                <span className="w-2 h-2 rounded-full bg-secondary shrink-0" />
-                On-demand top-ups available anytime
-              </li>
+            <ul
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+                gap: '10px',
+                listStyle: 'none',
+                padding: 0,
+                margin: 0,
+              }}
+            >
+              {[
+                'Free credits reset at midnight — no rollover',
+                'Pro credits roll over for 1 month',
+                'Max credits roll over for 2 months',
+                'No overages — hard stop at credit limit',
+                'Credits consumed per build, not per bot',
+                'Lite plan is month-to-month only, no annual',
+                'Annual billing is charged upfront for the full year',
+                'Cancel anytime — no questions asked',
+              ].map((rule) => (
+                <li
+                  key={rule}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '10px',
+                    fontFamily: "'Geist', 'DM Sans', sans-serif",
+                    fontSize: '0.83rem',
+                    color: 'rgba(255,255,255,0.45)',
+                  }}
+                >
+                  <span
+                    style={{
+                      width: '5px',
+                      height: '5px',
+                      borderRadius: '50%',
+                      background: '#7c3aed',
+                      flexShrink: 0,
+                      marginTop: '7px',
+                    }}
+                  />
+                  {rule}
+                </li>
+              ))}
             </ul>
           </motion.div>
 
-          {/* FAQ Section */}
+          {/* FAQ */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.5 }}
-            className="max-w-3xl mx-auto w-full"
+            transition={{ duration: 0.6, delay: 0.38 }}
+            style={{ width: '100%', maxWidth: '860px' }}
           >
-            <h2 className="text-2xl font-bold text-center mb-8">
+            <h2
+              style={{
+                fontFamily: "'Geist', sans-serif",
+                fontWeight: 700,
+                fontSize: '1.2rem',
+                color: 'rgba(255,255,255,0.85)',
+                textAlign: 'center',
+                marginBottom: '24px',
+              }}
+            >
               Frequently Asked Questions
             </h2>
-            <Accordion type="single" collapsible className="glass-card p-6">
-              {faqs.map((faq, index) => (
-                <AccordionItem key={index} value={`item-${index}`} className="border-border/50">
-                  <AccordionTrigger className="text-left hover:no-underline">
-                    {faq.question}
-                  </AccordionTrigger>
-                  <AccordionContent className="text-muted-foreground">
-                    {faq.answer}
-                  </AccordionContent>
-                </AccordionItem>
-              ))}
-            </Accordion>
+            <div style={{ ...card }}>
+              <Accordion type="single" collapsible>
+                {faqs.map((faq, i) => (
+                  <AccordionItem
+                    key={i}
+                    value={`item-${i}`}
+                    style={{ borderColor: 'rgba(255,255,255,0.06)' }}
+                  >
+                    <AccordionTrigger
+                      style={{
+                        fontFamily: "'Geist', 'DM Sans', sans-serif",
+                        fontSize: '0.88rem',
+                        color: 'rgba(255,255,255,0.75)',
+                        textAlign: 'left',
+                      }}
+                      className="hover:no-underline"
+                    >
+                      {faq.question}
+                    </AccordionTrigger>
+                    <AccordionContent
+                      style={{
+                        fontFamily: "'Geist', 'DM Sans', sans-serif",
+                        fontSize: '0.83rem',
+                        color: 'rgba(255,255,255,0.38)',
+                        lineHeight: 1.65,
+                      }}
+                    >
+                      {faq.answer}
+                    </AccordionContent>
+                  </AccordionItem>
+                ))}
+              </Accordion>
+            </div>
           </motion.div>
         </section>
       </div>

@@ -172,8 +172,16 @@ Users describe a bot in plain English → Buildable AI generates code → deploy
 | `projectFiles` | Frontend | Frontend |
 | `fileVersions` | Frontend | Frontend |
 | `projects` | Frontend | Frontend |
-| `userCredits/{uid}` | Frontend (transactions) | Frontend |
-| `subscriptions/{uid}` | Stripe webhook (future) | Frontend |
+| `userCredits/{uid}` | **Backend only (Admin SDK)** | Frontend (onSnapshot, read-only) |
+| `subscriptions/{uid}` | **Backend only (Stripe webhook)** | Frontend (read-only) |
+| `creditTransactions/{txId}` | **Backend only (Admin SDK)** | Frontend (read-only) |
+
+### Credit System Security
+- **Firestore rules**: `userCredits`, `subscriptions`, `creditTransactions` are all `allow write: if false` on the client — only the backend Admin SDK can write
+- **useCredits hook**: All credit data via `onSnapshot` (real-time, cannot be stale). Claim calls `POST /api/credits/claim` — server enforces UTC date check, SET not +=
+- **Generation gate**: `checkAndDeductCredits()` in `generate.ts` runs atomically before any AI pipeline — 402 returned if insufficient
+- **Backend credit API** (`src/api/credits.ts`): `POST /initialize`, `POST /claim`, `GET /` — all require Firebase Bearer token
+- **No client-side credit writes** — `useCredits.deductCredits` is a no-op stub; all real deductions go through backend
 
 ### Backend API Endpoints (all require Firebase Bearer token)
 - `POST /api/workspace` — get or create workspace
@@ -185,7 +193,92 @@ Users describe a bot in plain English → Buildable AI generates code → deploy
 - `POST /api/speech-to-text` — voice transcription
 - `POST /api/chat` — AI chat messages
 
+## Debug Log System
+
+- Backend writes all 4xx/5xx errors to Firestore `_debugLogs` collection automatically
+- Frontend unhandled errors POST to `/api/internal/logs/client-error`
+- Read logs anytime: `node scripts/read-logs.mjs` (from frontend root)
+- Clear logs: `node scripts/read-logs.mjs --clear`
+- Key: `buildable-debug-2026` (sent via `x-log-key` header, not query string — Cloudflare WAF blocks key= params)
+
+## Known Infrastructure Notes
+
+- **Firestore on Railway uses REST, not gRPC** — `preferRest: true` is set in `src/index.ts` on the backend. Do NOT remove this. gRPC is blocked on Railway's network and will cause all Firestore calls to hang silently.
+- **CORS_ORIGINS on Railway** must include `https://dashboard.buildablelabs.dev,https://buildablelabs.dev` (full URLs with `https://`). Missing the protocol prefix causes CORS failures.
+- **Cloudflare WAF** blocks requests with `key=` query string params on `/api/` routes. Use headers instead.
+
+---
+
 ## Last Updated
+
+**2026-03-28 (session 2)** — Infrastructure fixes + debug log system:
+- Fixed CORS: `CORS_ORIGINS` Railway env var updated to include `https://` prefix
+- Fixed Firestore: switched to REST transport (`preferRest: true`) — gRPC was silently hanging on Railway, causing all workspace init to fail (the real cause of the 30s–1min load time)
+- Fixed Firestore rules: `generationSessions` and `fileOperations` now use `get()` workspace ownership check (consistent with `workspaceFiles`) so collection queries work
+- Added debug log system: `_debugLogs` Firestore collection, `/api/internal/logs/*` endpoints, `scripts/read-logs.mjs`
+- CardSwap: restored classic animation logic, fixed text opacity on cards, removed emojis from card banner
+
+**2026-03-28 (session 1)** — WorkspaceMode system + Dashboard prompt bar parity:
+
+### WorkspaceMode (frontend + backend)
+- Replaced the boolean `isPlanMode` toggle with a tri-state `WorkspaceMode = 'plan' | 'architect' | 'build'`
+- `ChatInputV2.tsx` — full rewrite with Mode button + BorderGlow dropdown; exports `WorkspaceMode` and `MODE_CONFIG` (single source of truth)
+  - Plan: blue glow `#3b82f6`, Architect: orange `#f97316`, Build: green `#22c55e`
+  - Mode button shows colored dot + "Mode" label + rotating chevron
+  - Dropdown uses `BorderGlow` with per-mode glow color, click-outside to dismiss
+  - Textarea placeholder updates per mode
+- `ChatPanelV2.tsx` — holds `mode: WorkspaceMode` state (default `'build'`), passes to `ChatInputV2` and `onSendMessage`
+- `ProjectWorkspaceV3.tsx` — `handleSendMessage(content, mode)` threads mode to `useBuildableAI.generate()`
+- `useBuildableAI.ts` — `generate()` accepts optional `mode` param (last arg), includes in POST body
+- `useWorkspace.ts` — `generate(prompt, mode?)` passes mode to backend API
+- `useWorkspaceChat.ts` — `sendMessage(content, mode?)` threads through to `generate()`
+- `ProjectsView.tsx` — Dashboard prompt bar now matches workspace: same Mode button + BorderGlow dropdown; outer BorderGlow dynamically shifts glow color to match selected mode; imports `WorkspaceMode` and `MODE_CONFIG` from `ChatInputV2`
+
+### Backend: mode-aware pipeline (`buildablelabs-backend`)
+- `generate.ts` — schema now accepts `mode: enum(['plan','architect','build'])` (default `'build'`); also accepts `projectId`, `conversationHistory`, `existingFiles` as optional passthroughs
+- `pipeline.ts` — `PipelineOptions` has `mode?: WorkspaceMode`; `run()` dispatches to:
+  - `runPlanMode()` — Architect phase only → writes `PLAN.md` to workspace files, no code generated
+  - `runArchitectMode()` — Architect phase → writes `ARCHITECTURE.md` (Mermaid dependency graph + command flow diagram) + `PLAN.md`
+  - `runBuildMode()` — full 4-phase pipeline (plan → scaffold → generate → validate), unchanged behavior
+
+### Billing route cleanup
+- `/dashboard/billing` route removed — replaced with `<Navigate to="/dashboard/settings?tab=billing" replace />`
+- All 7 navigation points across the codebase updated to use `settings?tab=billing`
+- All settings navigation now uses `settings?tab=` prefix consistently
+
+### Other changes this session
+- `BorderGlow.tsx` + `BorderGlow.css` — new component (mouse-proximity edge glow, animated conic-gradient border)
+- `WorkspaceTopBarV2.tsx` — Preview tab now uses Discord SVG icon (replacing Globe); on-page section header renamed to "Live Discord Simulator"
+- `useWorkspace.ts` — retry config: `retry: 4`, exponential backoff up to 20s (Railway cold-start tolerance)
+- `ProjectWorkspaceV3.tsx` — card stack redesign: double-rim border trick, solid ghost card backgrounds, per-template BorderGlow with colored banner header, proper Discord dark theme colors in empty state
+
+**2026-03-25 (session 2)** — Credit system security hardening:
+- Firestore rules locked: `userCredits`, `subscriptions`, `creditTransactions` → `allow write: if false` (client can only read)
+- `useCredits.ts` rewritten: credits now via `onSnapshot` (real-time), claim + initialize call backend API
+- `src/api/credits.ts` mounted at `/api/credits` in backend `index.ts`
+- `BillingView.tsx` now shows live credit count + progress bar + countdown
+- `DashboardSidebar.tsx` now shows credit pill with "Claim" badge when daily credits are available
+- Deployed: Firebase hosting + Firestore rules + backend pushed to Railway
+
+**2026-03-25 (session 1)** — Session summary:
+- Firebase Storage enabled (Blaze plan) — created `storage.rules` (authenticated users can write their own avatar, public read), added storage section to `firebase.json`, deployed rules
+- Avatar upload fixed in `SettingsView.tsx` — was silently hanging due to missing storage rules
+- Avatar size increased from `h-14 w-14` to `h-20 w-20`, added explicit `object-fit: cover` to `AvatarImage` in SettingsView, CardNav, and DashboardSidebar
+- `useAuth.tsx` switched from `getDoc` (one-time) to `onSnapshot` (real-time) for profile — avatar updates now propagate live across all components/domains without page refresh
+- Logo updated site-wide: `logo-stack-white.svg` (three-bar icon mark from `public/`) paired with `buildable-wordmark.svg` (imported via Vite from `src/assets/`) — replaces old `buildable-logo.png` + `buildable-text.svg` / `buildable-wordmark.svg` combo
+  - Updated: `CardNav.tsx`, `FloatingNav.tsx`, `Navbar.tsx`, `Index.tsx` (footer), `Login.tsx`, `SignUp.tsx`, `ForgotPassword.tsx`, `ResetPassword.tsx`, `Onboarding.tsx`
+  - `buildable-wordmark.svg` must be imported via Vite (`import wordmarkSvg from "@/assets/buildable-wordmark.svg"`) — serving from `public/` as a static URL causes broken image in browser
+  - `public/buildable-wordmark.svg` copy exists but is not used — Vite import is the correct approach
+
+**2026-03-24** — Session summary:
+- Deleted dead code: `ProjectEditor.tsx` and `ProjectDetailView.tsx` (unused — `DashboardProject` uses `ProjectWorkspaceV3`)
+- Restyled workspace to match dark glass design system:
+  - `ProjectWorkspaceV3`: BG changed from `#1A1A1A` to `#0e0d12`; floating "Open Chat" button restyled to dark glass
+  - `WorkspaceTopBarV2`: active mode tab changed from `#2563EB` blue to neutral `rgba(255,255,255,0.12)` glass
+  - `ChatPanelV2`: zinc-900/800/700 backgrounds replaced with dark glass; bubble colors unified
+  - `ChatInputV2`: all zinc classes replaced with dark glass inline styles; send button matches dashboard style
+  - `FileExplorer`: purple `--accent` selected state replaced with dark glass; chevrons/empty state restyled
+  - `CodeViewer`: filename + button labels use proper opacity-white colors
 
 **2026-03-20** — Session summary:
 - Committed & pushed all previously uncommitted changes (dashboard redesign, Firebase config files, new pages)

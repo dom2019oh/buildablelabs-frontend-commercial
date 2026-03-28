@@ -1,5 +1,7 @@
 import { useLocation } from "react-router-dom";
 import { useEffect } from "react";
+import { motion } from "framer-motion";
+import { Link } from "react-router-dom";
 
 const NotFound = () => {
   const location = useLocation();
@@ -9,14 +11,77 @@ const NotFound = () => {
   }, [location.pathname]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted">
-      <div className="text-center">
-        <h1 className="mb-4 text-4xl font-bold">404</h1>
-        <p className="mb-4 text-xl text-muted-foreground">Oops! Page not found</p>
-        <a href="/" className="text-primary underline hover:text-primary/90">
-          Return to Home
-        </a>
-      </div>
+    <div
+      style={{
+        minHeight: "100vh",
+        background: "#080a0c",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        position: "relative",
+        overflow: "hidden",
+        fontFamily: "'Geist', sans-serif",
+      }}
+    >
+      {/* Top purple bloom */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          background:
+            "radial-gradient(ellipse 80% 40% at 50% 0%, rgba(90,30,200,0.10) 0%, transparent 70%)",
+          pointerEvents: "none",
+        }}
+      />
+
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.55, ease: "easeOut" }}
+        style={{ textAlign: "center", position: "relative", zIndex: 1 }}
+      >
+        <h1
+          style={{
+            fontFamily: "'Geist', sans-serif",
+            fontSize: "clamp(96px, 18vw, 160px)",
+            fontWeight: 800,
+            color: "rgba(255,255,255,0.88)",
+            lineHeight: 1,
+            marginBottom: "24px",
+            letterSpacing: "-0.02em",
+          }}
+        >
+          404
+        </h1>
+        <p
+          style={{
+            fontFamily: "'Geist', sans-serif",
+            fontSize: "18px",
+            color: "rgba(255,255,255,0.5)",
+            marginBottom: "40px",
+          }}
+        >
+          This page doesn&apos;t exist.
+        </p>
+        <Link
+          to="/"
+          style={{
+            fontFamily: "'Geist', sans-serif",
+            fontSize: "14px",
+            color: "rgba(140,100,255,0.8)",
+            textDecoration: "none",
+            transition: "color 0.2s ease",
+          }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLElement).style.color = "rgba(140,100,255,1)";
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLElement).style.color = "rgba(140,100,255,0.8)";
+          }}
+        >
+          ← Back to Home
+        </Link>
+      </motion.div>
     </div>
   );
 };

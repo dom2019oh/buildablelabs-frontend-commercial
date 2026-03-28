@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { formatDistanceToNow, format } from 'date-fns';
 import {
@@ -7,9 +7,12 @@ import {
   Trash2, RefreshCw, RotateCcw, Play, Pause, Globe,
   CheckCircle2, XCircle, Clock, ChevronRight, Terminal,
   Loader2, Bell, BellOff, Filter, Download, UploadCloud,
-  Radio, Hammer, WifiOff, Shield,
+  Radio, Hammer, WifiOff, Shield, Save,
 } from 'lucide-react';
 import { useProject } from '@/hooks/useProjects';
+import { useAuth } from '@/hooks/useAuth';
+import { db } from '@/lib/firebase';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -29,6 +32,20 @@ interface Deployment {
 
 interface ErrorEntry {
   id: string; ts: string; type: string; msg: string; trace: string; count: number; resolved: boolean;
+}
+
+// ── Firestore env var helpers ──────────────────────────────────────────────────
+async function loadEnvVars(projectId: string): Promise<Omit<EnvVar, 'revealed'>[]> {
+  const snap = await getDoc(doc(db, 'projectEnvVars', projectId));
+  if (!snap.exists()) return [];
+  return (snap.data().vars ?? []) as Omit<EnvVar, 'revealed'>[];
+}
+
+async function saveEnvVars(projectId: string, vars: EnvVar[]) {
+  await setDoc(doc(db, 'projectEnvVars', projectId), {
+    vars: vars.map(({ key, value }) => ({ key, value })),
+    updatedAt: serverTimestamp(),
+  }, { merge: true });
 }
 
 // ── Placeholder data ───────────────────────────────────────────────────────────
@@ -71,18 +88,47 @@ export default function BotSettingsView() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
   const { data: project, isLoading } = useProject(projectId);
+  const { user } = useAuth();
 
   const [activeTab, setActiveTab] = useState<Tab>('hosting');
 
-  // ENV state
-  const [envVars, setEnvVars] = useState<EnvVar[]>([
-    { key: 'DISCORD_TOKEN',   value: 'MTMy...redacted', revealed: false },
-    { key: 'SPOTIFY_CLIENT',  value: 'abc123secretkey',  revealed: false },
-    { key: 'SPOTIFY_SECRET',  value: '9f2d...redacted',  revealed: false },
-    { key: 'BOT_PREFIX',      value: '!',                revealed: true  },
-  ]);
+  // ENV state — loaded from Firestore
+  const [envVars, setEnvVars] = useState<EnvVar[]>([]);
+  const [envLoading, setEnvLoading] = useState(false);
+  const [envSaving, setEnvSaving] = useState(false);
   const [newKey, setNewKey]     = useState('');
   const [newVal, setNewVal]     = useState('');
+
+  // Load env vars from Firestore on mount
+  useEffect(() => {
+    if (!projectId) return;
+    setEnvLoading(true);
+    loadEnvVars(projectId)
+      .then(vars => setEnvVars(vars.map(v => ({ ...v, revealed: false }))))
+      .catch(() => {})
+      .finally(() => setEnvLoading(false));
+  }, [projectId]);
+
+  const handleSaveEnv = async () => {
+    if (!projectId) return;
+    setEnvSaving(true);
+    await saveEnvVars(projectId, envVars).catch(() => {});
+    setEnvSaving(false);
+  };
+
+  const handleAddEnvVar = async () => {
+    if (!newKey.trim()) return;
+    const updated = [...envVars, { key: newKey.trim(), value: newVal, revealed: false }];
+    setEnvVars(updated);
+    setNewKey(''); setNewVal('');
+    if (projectId) await saveEnvVars(projectId, updated).catch(() => {});
+  };
+
+  const handleDeleteEnvVar = async (i: number) => {
+    const updated = envVars.filter((_, j) => j !== i);
+    setEnvVars(updated);
+    if (projectId) await saveEnvVars(projectId, updated).catch(() => {});
+  };
 
   // Logs state
   const [logFilter, setLogFilter]   = useState<'all' | 'INFO' | 'WARN' | 'ERROR'>('all');
@@ -135,7 +181,7 @@ export default function BotSettingsView() {
   return (
     <div
       className="min-h-screen flex flex-col"
-      style={{ fontFamily: "'DM Sans', sans-serif" }}
+      style={{ fontFamily: "'Geist', 'DM Sans', sans-serif" }}
     >
       {/* Top bar */}
       <div
@@ -385,7 +431,7 @@ export default function BotSettingsView() {
                       {/* Delete */}
                       <IconBtn
                         icon={Trash2}
-                        onClick={() => setEnvVars(vars => vars.filter((_, j) => j !== i))}
+                        onClick={() => handleDeleteEnvVar(i)}
                         title="Delete"
                         danger
                       />
@@ -411,17 +457,21 @@ export default function BotSettingsView() {
                     style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)' }}
                   />
                   <button
-                    onClick={() => {
-                      if (!newKey.trim()) return;
-                      setEnvVars(v => [...v, { key: newKey.trim(), value: newVal, revealed: false }]);
-                      setNewKey(''); setNewVal('');
-                    }}
+                    onClick={handleAddEnvVar}
                     className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs transition-colors"
                     style={{ background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.12)' }}
                     onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.15)')}
                     onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.1)')}
                   >
                     <Plus className="w-3.5 h-3.5" /> Add
+                  </button>
+                  <button
+                    onClick={handleSaveEnv}
+                    disabled={envSaving}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs transition-colors ml-auto"
+                    style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.08)' }}
+                  >
+                    {envSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} Save
                   </button>
                 </div>
               </Card>

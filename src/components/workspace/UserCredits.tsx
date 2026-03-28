@@ -143,7 +143,7 @@ export function UserCredits() {
 
         <div className="border-t px-4 py-3 bg-muted/50">
           <Button variant="ghost" size="sm" className="w-full text-xs" asChild>
-            <a href="/dashboard/billing">Upgrade Plan →</a>
+            <a href="/dashboard/settings?tab=billing">Upgrade Plan →</a>
           </Button>
         </div>
       </PopoverContent>

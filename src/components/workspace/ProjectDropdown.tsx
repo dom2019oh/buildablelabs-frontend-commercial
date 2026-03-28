@@ -72,7 +72,7 @@ export default function ProjectDropdown({ projectName, projectId }: ProjectDropd
         <div className="px-2 py-3 mx-2 mb-2 rounded-md bg-muted/50 border border-border/50">
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm font-medium">Credits</span>
-            <Link to="/dashboard/billing" className="flex items-center gap-1 text-sm text-primary hover:underline">
+            <Link to="/dashboard/settings?tab=billing" className="flex items-center gap-1 text-sm text-primary hover:underline">
               {totalCredits.toFixed(1)} left
               <ChevronRight className="h-3 w-3" />
             </Link>
@@ -86,7 +86,7 @@ export default function ProjectDropdown({ projectName, projectId }: ProjectDropd
         
         {/* Get Free Credits */}
         <DropdownMenuItem asChild className="gap-2 cursor-pointer text-primary">
-          <Link to="/dashboard/billing">
+          <Link to="/dashboard/settings?tab=billing">
             <Zap className="h-4 w-4" />
             Get free credits
           </Link>
@@ -111,7 +111,7 @@ export default function ProjectDropdown({ projectName, projectId }: ProjectDropd
         
         {/* Bonuses */}
         <DropdownMenuItem asChild className="gap-2 cursor-pointer">
-          <Link to="/dashboard/billing">
+          <Link to="/dashboard/settings?tab=billing">
             <Gift className="h-4 w-4" />
             Bonuses
             <Badge variant="secondary" className="ml-auto text-[10px] px-1.5 py-0">New</Badge>

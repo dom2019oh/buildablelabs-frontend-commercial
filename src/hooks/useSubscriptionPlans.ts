@@ -4,25 +4,32 @@
 export interface SubscriptionPlan {
   id: string;
   name: string;
-  plan_type: 'free' | 'pro' | 'business' | 'enterprise';
+  plan_type: 'free' | 'lite' | 'pro' | 'max';
   description: string | null;
-  base_price_cents: number;
-  min_credits: number;
-  max_credits: number;
-  daily_bonus_credits: number;
-  allows_rollover: boolean;
-  allows_custom_domain: boolean;
-  allows_remove_branding: boolean;
-  max_team_members: number | null;
+  monthly_price_cents: number;
+  daily_credits: number;        // Free plan only
+  monthly_credits: number;      // Non-free plans base tier
+  max_bots: number | null;      // null = unlimited
+  pipeline: 'simplified' | 'full';
+  has_watermark: boolean;
+  has_buildable_command: boolean;
+  rollover_months: number;
+  has_api_access: boolean;
+  has_white_label: boolean;
+  is_hidden: boolean;           // Lite: downgrade flow only
+  priority_queue: boolean;
+  support: 'community' | 'email' | 'priority';
   features: string[];
   is_active: boolean;
 }
 
 export interface CreditTier {
   id: string;
-  plan_type: 'free' | 'pro' | 'business' | 'enterprise';
+  plan_type: 'pro' | 'max';
+  tier_number: number;
   credits: number;
-  price_cents: number;
+  price_cents: number;          // monthly
+  annual_price_cents: number;   // charged upfront (10x monthly)
   is_popular: boolean;
 }
 
@@ -31,16 +38,56 @@ const PLANS: SubscriptionPlan[] = [
     id: 'free',
     name: 'Free',
     plan_type: 'free',
-    description: 'Get started building Discord bots',
-    base_price_cents: 0,
-    min_credits: 100,
-    max_credits: 100,
-    daily_bonus_credits: 10,
-    allows_rollover: false,
-    allows_custom_domain: false,
-    allows_remove_branding: false,
-    max_team_members: 1,
-    features: ['100 monthly credits', '10 daily bonus credits', 'Community bots', 'Buildable badge on hosted bots'],
+    description: 'Start building Discord bots today',
+    monthly_price_cents: 0,
+    daily_credits: 3,
+    monthly_credits: 0,
+    max_bots: 2,
+    pipeline: 'simplified',
+    has_watermark: true,
+    has_buildable_command: true,
+    rollover_months: 0,
+    has_api_access: false,
+    has_white_label: false,
+    is_hidden: false,
+    priority_queue: false,
+    support: 'community',
+    features: [
+      '3 credits/day (resets at midnight)',
+      '2 bots max',
+      'Simplified pipeline (Claude Haiku)',
+      'Buildable Labs watermark on bots',
+      '/buildable command active',
+      'Community support',
+    ],
+    is_active: true,
+  },
+  {
+    id: 'lite',
+    name: 'Lite',
+    plan_type: 'lite',
+    description: 'Light usage, no watermark',
+    monthly_price_cents: 700,
+    daily_credits: 0,
+    monthly_credits: 20,
+    max_bots: 2,
+    pipeline: 'simplified',
+    has_watermark: false,
+    has_buildable_command: false,
+    rollover_months: 0,
+    has_api_access: false,
+    has_white_label: false,
+    is_hidden: true,
+    priority_queue: false,
+    support: 'community',
+    features: [
+      '20 credits/month',
+      '2 bots max',
+      'Simplified pipeline (Claude Haiku)',
+      'No Buildable watermark',
+      'No /buildable command',
+      'Community support',
+    ],
     is_active: true,
   },
   {
@@ -48,48 +95,92 @@ const PLANS: SubscriptionPlan[] = [
     name: 'Pro',
     plan_type: 'pro',
     description: 'For serious bot builders',
-    base_price_cents: 1900,
-    min_credits: 500,
-    max_credits: 5000,
-    daily_bonus_credits: 25,
-    allows_rollover: true,
-    allows_custom_domain: true,
-    allows_remove_branding: true,
-    max_team_members: 1,
-    features: ['500–5,000 credits/month', '25 daily bonus credits', 'Credit rollover', 'Custom domain', 'No branding'],
+    monthly_price_cents: 1800,
+    daily_credits: 0,
+    monthly_credits: 30,
+    max_bots: 10,
+    pipeline: 'full',
+    has_watermark: false,
+    has_buildable_command: false,
+    rollover_months: 1,
+    has_api_access: false,
+    has_white_label: false,
+    is_hidden: false,
+    priority_queue: false,
+    support: 'email',
+    features: [
+      '30–300 credits/month',
+      '10 bots max',
+      'Full 8-stage pipeline (Haiku + Sonnet)',
+      'No Buildable watermark',
+      'No /buildable command',
+      '1 month credit rollover',
+      'Email support',
+    ],
     is_active: true,
   },
   {
-    id: 'business',
-    name: 'Business',
-    plan_type: 'business',
-    description: 'For teams and agencies',
-    base_price_cents: 4900,
-    min_credits: 2000,
-    max_credits: 20000,
-    daily_bonus_credits: 50,
-    allows_rollover: true,
-    allows_custom_domain: true,
-    allows_remove_branding: true,
-    max_team_members: 10,
-    features: ['2,000–20,000 credits/month', '50 daily bonus credits', 'Team seats (up to 10)', 'Priority support'],
+    id: 'max',
+    name: 'Max',
+    plan_type: 'max',
+    description: 'For power users and agencies',
+    monthly_price_cents: 5900,
+    daily_credits: 0,
+    monthly_credits: 100,
+    max_bots: null,
+    pipeline: 'full',
+    has_watermark: false,
+    has_buildable_command: false,
+    rollover_months: 2,
+    has_api_access: true,
+    has_white_label: true,
+    is_hidden: false,
+    priority_queue: true,
+    support: 'priority',
+    features: [
+      '100–1,000 credits/month',
+      'Unlimited bots',
+      'Full 8-stage pipeline (Haiku + Sonnet)',
+      'Priority queue',
+      'No Buildable watermark',
+      'No /buildable command',
+      '2 month credit rollover',
+      'REST API access (headless)',
+      'Custom embed domain (white-label)',
+      'Early access to new features',
+      'Priority support',
+    ],
     is_active: true,
   },
 ];
 
 const CREDIT_TIERS: CreditTier[] = [
-  { id: 'pro-500',    plan_type: 'pro',      credits: 500,   price_cents: 1900, is_popular: false },
-  { id: 'pro-1000',   plan_type: 'pro',      credits: 1000,  price_cents: 2900, is_popular: true  },
-  { id: 'pro-2500',   plan_type: 'pro',      credits: 2500,  price_cents: 5900, is_popular: false },
-  { id: 'pro-5000',   plan_type: 'pro',      credits: 5000,  price_cents: 9900, is_popular: false },
-  { id: 'biz-2000',   plan_type: 'business', credits: 2000,  price_cents: 4900, is_popular: false },
-  { id: 'biz-5000',   plan_type: 'business', credits: 5000,  price_cents: 9900, is_popular: true  },
-  { id: 'biz-10000',  plan_type: 'business', credits: 10000, price_cents: 17900, is_popular: false },
-  { id: 'biz-20000',  plan_type: 'business', credits: 20000, price_cents: 29900, is_popular: false },
+  // Pro — 30 base + 30/tier (repriced for 30%+ margin with Sonnet)
+  { id: 'pro-t1',  plan_type: 'pro', tier_number: 1,  credits: 30,   price_cents: 1800,  annual_price_cents: 18000,  is_popular: false },
+  { id: 'pro-t2',  plan_type: 'pro', tier_number: 2,  credits: 60,   price_cents: 3600,  annual_price_cents: 36000,  is_popular: false },
+  { id: 'pro-t3',  plan_type: 'pro', tier_number: 3,  credits: 90,   price_cents: 5500,  annual_price_cents: 55000,  is_popular: true  },
+  { id: 'pro-t4',  plan_type: 'pro', tier_number: 4,  credits: 120,  price_cents: 7200,  annual_price_cents: 72000,  is_popular: false },
+  { id: 'pro-t5',  plan_type: 'pro', tier_number: 5,  credits: 150,  price_cents: 8900,  annual_price_cents: 89000,  is_popular: false },
+  { id: 'pro-t6',  plan_type: 'pro', tier_number: 6,  credits: 180,  price_cents: 10800, annual_price_cents: 108000, is_popular: false },
+  { id: 'pro-t7',  plan_type: 'pro', tier_number: 7,  credits: 210,  price_cents: 12500, annual_price_cents: 125000, is_popular: false },
+  { id: 'pro-t8',  plan_type: 'pro', tier_number: 8,  credits: 240,  price_cents: 14400, annual_price_cents: 144000, is_popular: false },
+  { id: 'pro-t9',  plan_type: 'pro', tier_number: 9,  credits: 270,  price_cents: 16200, annual_price_cents: 162000, is_popular: false },
+  { id: 'pro-t10', plan_type: 'pro', tier_number: 10, credits: 300,  price_cents: 17900, annual_price_cents: 179000, is_popular: false },
+  // Max — 100 base + 100/tier (repriced for 30%+ margin with Sonnet)
+  { id: 'max-t1',  plan_type: 'max', tier_number: 1,  credits: 100,  price_cents: 5900,  annual_price_cents: 59000,  is_popular: false },
+  { id: 'max-t2',  plan_type: 'max', tier_number: 2,  credits: 200,  price_cents: 11900, annual_price_cents: 119000, is_popular: false },
+  { id: 'max-t3',  plan_type: 'max', tier_number: 3,  credits: 300,  price_cents: 17900, annual_price_cents: 179000, is_popular: true  },
+  { id: 'max-t4',  plan_type: 'max', tier_number: 4,  credits: 400,  price_cents: 23900, annual_price_cents: 239000, is_popular: false },
+  { id: 'max-t5',  plan_type: 'max', tier_number: 5,  credits: 500,  price_cents: 29900, annual_price_cents: 299000, is_popular: false },
+  { id: 'max-t6',  plan_type: 'max', tier_number: 6,  credits: 600,  price_cents: 35900, annual_price_cents: 359000, is_popular: false },
+  { id: 'max-t7',  plan_type: 'max', tier_number: 7,  credits: 700,  price_cents: 41900, annual_price_cents: 419000, is_popular: false },
+  { id: 'max-t8',  plan_type: 'max', tier_number: 8,  credits: 800,  price_cents: 47900, annual_price_cents: 479000, is_popular: false },
+  { id: 'max-t9',  plan_type: 'max', tier_number: 9,  credits: 900,  price_cents: 53900, annual_price_cents: 539000, is_popular: false },
+  { id: 'max-t10', plan_type: 'max', tier_number: 10, credits: 1000, price_cents: 59900, annual_price_cents: 599000, is_popular: false },
 ];
 
 export function useSubscriptionPlans() {
-  const getTiersForPlan = (planType: 'pro' | 'business'): CreditTier[] =>
+  const getTiersForPlan = (planType: 'pro' | 'max'): CreditTier[] =>
     CREDIT_TIERS.filter((t) => t.plan_type === planType);
 
   const getPlanByType = (planType: string): SubscriptionPlan | undefined =>

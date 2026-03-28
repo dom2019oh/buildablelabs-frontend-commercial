@@ -167,7 +167,7 @@ const CodeViewer = forwardRef<HTMLDivElement, CodeViewerProps>(function CodeView
       {filename && (
         <div className="flex items-center justify-between px-4 py-2 bg-[#252526] border-b border-[#3c3c3c]">
           <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground font-mono">{filename}</span>
+            <span className="text-sm font-mono" style={{ color: 'rgba(255,255,255,0.45)', fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace" }}>{filename}</span>
             {isEditing && (
               <span className="text-xs text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded">
                 Editing
@@ -180,7 +180,7 @@ const CodeViewer = forwardRef<HTMLDivElement, CodeViewerProps>(function CodeView
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-7 px-2 text-xs gap-1.5 text-muted-foreground hover:text-foreground"
+                  className="h-7 px-2 text-xs gap-1.5 hover:text-white/80" style={{ color: 'rgba(255,255,255,0.4)' }}
                   onClick={handleCancelEdit}
                 >
                   <X className="h-3.5 w-3.5" />
@@ -202,7 +202,7 @@ const CodeViewer = forwardRef<HTMLDivElement, CodeViewerProps>(function CodeView
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-7 px-2 text-xs gap-1.5 text-muted-foreground hover:text-foreground"
+                    className="h-7 px-2 text-xs gap-1.5 hover:text-white/80" style={{ color: 'rgba(255,255,255,0.4)' }}
                     onClick={handleStartEdit}
                   >
                     <Edit2 className="h-3.5 w-3.5" />
@@ -212,7 +212,7 @@ const CodeViewer = forwardRef<HTMLDivElement, CodeViewerProps>(function CodeView
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-7 px-2 text-xs gap-1.5 text-muted-foreground hover:text-foreground"
+                  className="h-7 px-2 text-xs gap-1.5 hover:text-white/80" style={{ color: 'rgba(255,255,255,0.4)' }}
                   onClick={handleCopy}
                 >
                   {copied ? (

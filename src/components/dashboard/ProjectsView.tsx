@@ -1,44 +1,47 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
-  Plus, Loader2, Bot, Sparkles, ArrowUp,
-  Search, SlidersHorizontal, Wifi, WifiOff, Hammer, RefreshCw,
-} from 'lucide-react';
+import { Plus, Loader2, ArrowUp, ChevronRight, Sparkles, ChevronDown, Check } from 'lucide-react';
 import { useProjects } from '@/hooks/useProjects';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
+import { useToast } from '@/hooks/use-toast';
 import ProjectCard from './ProjectCard';
 import NewBotGuide from './NewBotGuide';
-import { cn } from '@/lib/utils';
+import BorderGlow from '@/components/workspace/BorderGlow';
+import { type WorkspaceMode, MODE_CONFIG } from '@/components/workspace/ChatInputV2';
 
-type Filter = 'all' | 'online' | 'building' | 'offline';
+const FONT = "'Geist', 'DM Sans', sans-serif";
+
+type Tab = 'my-bots' | 'recent' | 'templates';
 
 interface Props {
   showNew?: boolean;
   onShowNewChange?: (v: boolean) => void;
 }
 
+
 export default function ProjectsView({ showNew: externalShowNew, onShowNewChange }: Props = {}) {
   const { projects, isLoading, createProject, createPending, duplicateProject, deleteProject } = useProjects();
   const { user, profile } = useAuth();
-  const navigate = useNavigate();
+  const navigate  = useNavigate();
+  const { toast } = useToast();
 
-  const [internalShowNew, setInternalShowNew] = useState(false);
-  const [duplicatingId,   setDuplicatingId]   = useState<string | null>(null);
-  const [deletingId,      setDeletingId]       = useState<string | null>(null);
-  const [filter,          setFilter]           = useState<Filter>('all');
-  const [search,          setSearch]           = useState('');
-  const [quickPrompt,     setQuickPrompt]      = useState('');
-  const [promptOpen,      setPromptOpen]       = useState(false);
-  const [focused,         setFocused]          = useState(false);
-  const promptRef = useRef<HTMLTextAreaElement>(null);
+  const [internalShowNew,  setInternalShowNew]  = useState(false);
+  const [duplicatingId,    setDuplicatingId]    = useState<string | null>(null);
+  const [deletingId,       setDeletingId]       = useState<string | null>(null);
+  const [activeTab,        setActiveTab]        = useState<Tab>('my-bots');
+  const [quickPrompt,      setQuickPrompt]      = useState('');
+  const [mode,             setMode]             = useState<WorkspaceMode>('build');
+  const [showModeDropdown, setShowModeDropdown] = useState(false);
+  const promptRef      = useRef<HTMLTextAreaElement>(null);
+  const modeDropdownRef = useRef<HTMLDivElement>(null);
 
   const showNew    = externalShowNew !== undefined ? externalShowNew : internalShowNew;
   const setShowNew = (v: boolean) => { setInternalShowNew(v); onShowNewChange?.(v); };
 
   const displayName = profile?.displayName || user?.email?.split('@')[0] || 'there';
 
-  // Auto-grow prompt textarea
+  // Auto-grow textarea
   useEffect(() => {
     const el = promptRef.current;
     if (!el) return;
@@ -46,22 +49,30 @@ export default function ProjectsView({ showNew: externalShowNew, onShowNewChange
     el.style.height = `${Math.min(el.scrollHeight, 140)}px`;
   }, [quickPrompt]);
 
-  // Focus textarea when prompt opens
+  // Close mode dropdown on outside click
   useEffect(() => {
-    if (promptOpen) setTimeout(() => promptRef.current?.focus(), 50);
-  }, [promptOpen]);
+    if (!showModeDropdown) return;
+    const handler = (e: MouseEvent) => {
+      if (modeDropdownRef.current && !modeDropdownRef.current.contains(e.target as Node)) {
+        setShowModeDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showModeDropdown]);
 
   const handleSubmit = async () => {
     if (!quickPrompt.trim() || createPending) return;
     try {
       const { id } = await createProject(quickPrompt.trim().slice(0, 60), { prompt: quickPrompt.trim() });
       navigate(`/dashboard/project/${id}`);
-    } catch (e) { console.error(e); }
+    } catch (e: any) {
+      toast({ title: 'Failed to create project', description: e?.message ?? 'Check your connection and try again.', variant: 'destructive' });
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmit(); }
-    if (e.key === 'Escape') setPromptOpen(false);
   };
 
   const handleDuplicate = async (id: string) => {
@@ -71,69 +82,170 @@ export default function ProjectsView({ showNew: externalShowNew, onShowNewChange
     setDeletingId(id); try { await deleteProject(id); } finally { setDeletingId(null); }
   };
 
-  // Filter + search
-  const visible = projects.filter(p => {
-    if (filter === 'online'   && p.status !== 'ready')    return false;
-    if (filter === 'building' && p.status !== 'building') return false;
-    if (filter === 'offline'  && p.status !== 'failed')   return false;
-    if (search && !p.name.toLowerCase().includes(search.toLowerCase())) return false;
-    return true;
-  });
+  // Tab content
+  const tabProjects =
+    activeTab === 'recent'    ? projects.slice(0, 8) :
+    activeTab === 'templates' ? []                   :
+    projects;
 
-  const online   = projects.filter(p => p.status === 'ready').length;
-  const building = projects.filter(p => p.status === 'building').length;
-  const offline  = projects.filter(p => p.status === 'failed').length;
+  return (
+    <div className="h-screen flex flex-col overflow-hidden">
 
-  // ── No bots yet → onboarding view ──────────────────────────────────────────
-  if (!isLoading && projects.length === 0) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center px-6 text-center">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-          <div
-            className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6"
-            style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
+      {/* ── Hero (transparent — Grainient shows through) ────────── */}
+      <div className="flex-1 flex flex-col items-center justify-center px-6 pb-4">
+
+        {/* Badge */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+          className="flex items-center gap-2 mb-5 px-3 py-1.5 rounded-full"
+          style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)' }}
+        >
+          <Sparkles className="w-3.5 h-3.5" style={{ color: 'rgba(255,255,255,0.6)' }} />
+          <span className="text-[12px]" style={{ color: 'rgba(255,255,255,0.65)', fontFamily: FONT }}>AI Discord bot builder</span>
+          <ChevronRight className="w-3 h-3" style={{ color: 'rgba(255,255,255,0.3)' }} />
+        </motion.div>
+
+        {/* Greeting */}
+        <motion.h1
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.05 }}
+          className="text-[28px] sm:text-[34px] font-bold text-center mb-8 leading-tight"
+          style={{ fontFamily: "'Syne', 'Geist', sans-serif", color: 'rgba(255,255,255,0.92)' }}
+        >
+          What should we build, {displayName}?
+        </motion.h1>
+
+        {/* Prompt input */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.08 }}
+          className="w-full max-w-[640px]"
+        >
+          <BorderGlow
+            backgroundColor="#1a1a1a"
+            borderRadius={20}
+            glowColor={MODE_CONFIG[mode].glowHsl}
+            colors={MODE_CONFIG[mode].glowColors}
+            glowRadius={32}
+            glowIntensity={0.85}
+            coneSpread={20}
+            fillOpacity={0.25}
+            animated
+            style={{ width: '100%' }}
           >
-            <Bot className="w-7 h-7" style={{ color: 'rgba(255,255,255,0.3)' }} />
-          </div>
-          <h1 className="text-2xl font-bold mb-2" style={{ fontFamily: "'Syne', sans-serif", color: 'rgba(255,255,255,0.88)' }}>
-            No bots in your fleet yet
-          </h1>
-          <p className="text-sm mb-8 max-w-sm mx-auto leading-relaxed" style={{ fontFamily: "'DM Sans', sans-serif", color: 'rgba(255,255,255,0.35)' }}>
-            Describe what your Discord bot should do — Buildable AI writes the code, deploys it, and keeps it running.
-          </p>
+            <div style={{ borderRadius: '19px', background: '#1a1a1a', overflow: 'hidden' }}>
+              <div className="px-4 pt-4 pb-2">
+                <textarea
+                  ref={promptRef}
+                  value={quickPrompt}
+                  onChange={e => setQuickPrompt(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder={MODE_CONFIG[mode].placeholder}
+                  rows={2}
+                  className="w-full bg-transparent resize-none outline-none text-sm leading-relaxed placeholder:text-white/25"
+                  style={{ fontFamily: FONT, color: 'rgba(255,255,255,0.88)', minHeight: '52px', maxHeight: '140px', overflow: 'auto' }}
+                />
+              </div>
+              <div className="flex items-center justify-between px-3 pb-3 gap-2">
+                {/* Left: + button */}
+                <button
+                  onClick={() => setShowNew(true)}
+                  className="flex items-center justify-center w-7 h-7 rounded-lg flex-shrink-0 transition-all"
+                  style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.4)' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.12)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.07)')}
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                </button>
 
-          {/* Inline prompt */}
-          <div className="w-full max-w-lg mx-auto">
-            <div
-              className="rounded-2xl transition-all duration-300"
-              style={{
-                padding: '1px',
-                background: focused ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.1)',
-                boxShadow: focused ? '0 0 0 3px rgba(255,255,255,0.05)' : '0 8px 32px rgba(0,0,0,0.5)',
-              }}
-            >
-              <div className="rounded-[calc(1rem-1px)]" style={{ background: 'rgba(14,13,18,0.9)', backdropFilter: 'blur(32px)' }}>
-                <div className="px-4 pt-4 pb-2">
-                  <textarea
-                    ref={promptRef}
-                    value={quickPrompt}
-                    onChange={e => setQuickPrompt(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    onFocus={() => setFocused(true)}
-                    onBlur={() => setFocused(false)}
-                    placeholder="e.g. A moderation bot with auto-ban, warn commands, and a mute system…"
-                    rows={2}
-                    className="w-full bg-transparent resize-none outline-none text-sm leading-relaxed placeholder:text-white/20"
-                    style={{ fontFamily: "'DM Sans', sans-serif", color: 'rgba(255,255,255,0.85)', minHeight: '52px', maxHeight: '140px', overflow: 'auto' }}
-                  />
-                </div>
-                <div className="flex items-center justify-between px-3 pb-3">
-                  <span className="text-[11px]" style={{ color: 'rgba(255,255,255,0.2)', fontFamily: "'DM Sans', sans-serif" }}>Enter to build · Shift+Enter for new line</span>
+                {/* Right: Mode dropdown + Send */}
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {/* Mode button + dropdown */}
+                  <div className="relative" ref={modeDropdownRef}>
+                    {/* Dropdown panel */}
+                    {showModeDropdown && (
+                      <div
+                        className="absolute bottom-full mb-2 right-0 z-50"
+                        style={{ width: '230px' }}
+                      >
+                        <BorderGlow
+                          backgroundColor="#13121a"
+                          borderRadius={14}
+                          glowColor={MODE_CONFIG[mode].glowHsl}
+                          colors={MODE_CONFIG[mode].glowColors}
+                          glowRadius={28}
+                          glowIntensity={0.9}
+                          coneSpread={20}
+                          animated
+                          style={{ width: '100%' }}
+                        >
+                          <div style={{ borderRadius: '13px', overflow: 'hidden', background: '#13121a' }}>
+                            {(Object.entries(MODE_CONFIG) as [WorkspaceMode, typeof MODE_CONFIG[WorkspaceMode]][]).map(([key, cfg]) => (
+                              <button
+                                key={key}
+                                onClick={() => { setMode(key); setShowModeDropdown(false); }}
+                                className="w-full flex items-center gap-3 px-3 py-2.5 transition-all text-left"
+                                style={{ background: mode === key ? 'rgba(255,255,255,0.07)' : 'transparent' }}
+                                onMouseEnter={e => { if (mode !== key) e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
+                                onMouseLeave={e => { if (mode !== key) e.currentTarget.style.background = 'transparent'; }}
+                              >
+                                <div
+                                  className="w-2 h-2 rounded-full flex-shrink-0"
+                                  style={{ background: cfg.color, boxShadow: `0 0 6px ${cfg.color}80` }}
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-[13px] font-medium leading-tight" style={{ color: 'rgba(255,255,255,0.9)', fontFamily: FONT }}>{cfg.label}</p>
+                                  <p className="text-[11px] leading-tight mt-0.5" style={{ color: 'rgba(255,255,255,0.38)', fontFamily: FONT }}>{cfg.description}</p>
+                                </div>
+                                {mode === key && (
+                                  <Check className="h-3.5 w-3.5 flex-shrink-0" style={{ color: cfg.color }} />
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        </BorderGlow>
+                      </div>
+                    )}
+
+                    {/* Mode button */}
+                    <button
+                      onClick={() => setShowModeDropdown(v => !v)}
+                      className="flex items-center gap-1.5 text-[12px] px-2.5 py-1 rounded-lg transition-all"
+                      style={{
+                        color: 'rgba(255,255,255,0.75)',
+                        fontFamily: FONT,
+                        background: showModeDropdown ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.05)',
+                        border: `1px solid ${MODE_CONFIG[mode].color}35`,
+                      }}
+                    >
+                      <div
+                        className="w-1.5 h-1.5 rounded-full"
+                        style={{ background: MODE_CONFIG[mode].color, boxShadow: `0 0 5px ${MODE_CONFIG[mode].color}` }}
+                      />
+                      Mode
+                      <ChevronDown
+                        className="w-3 h-3 transition-transform"
+                        style={{
+                          color: 'rgba(255,255,255,0.35)',
+                          transform: showModeDropdown ? 'rotate(180deg)' : 'rotate(0deg)',
+                        }}
+                      />
+                    </button>
+                  </div>
+
+                  {/* Send button */}
                   <button
                     onClick={handleSubmit}
                     disabled={!quickPrompt.trim() || createPending}
-                    className="w-8 h-8 rounded-lg flex items-center justify-center transition-all"
-                    style={{ background: quickPrompt.trim() ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.07)', cursor: quickPrompt.trim() ? 'pointer' : 'default' }}
+                    className="w-8 h-8 rounded-full flex items-center justify-center transition-all"
+                    style={{
+                      background: quickPrompt.trim() ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.08)',
+                      cursor: quickPrompt.trim() ? 'pointer' : 'default',
+                    }}
                   >
                     {createPending
                       ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: '#0e0d12' }} />
@@ -143,253 +255,148 @@ export default function ProjectsView({ showNew: externalShowNew, onShowNewChange
                 </div>
               </div>
             </div>
+          </BorderGlow>
 
-            <p className="text-xs mt-4 mb-3" style={{ color: 'rgba(255,255,255,0.22)', fontFamily: "'DM Sans', sans-serif" }}>or start from a template</p>
-            <div className="grid grid-cols-3 gap-2">
-              {TEMPLATES.slice(0, 6).map(t => (
-                <button
-                  key={t.name}
-                  onClick={() => { setQuickPrompt(`Create a ${t.name.toLowerCase()}`); promptRef.current?.focus(); }}
-                  className="rounded-xl text-left transition-all overflow-hidden"
-                  style={{ border: '1px solid rgba(255,255,255,0.1)' }}
-                  onMouseEnter={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.22)')}
-                  onMouseLeave={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)')}
-                >
-                  {t.banner ? (
-                    <div className="h-10 w-full" style={{ backgroundImage: `url(${t.banner})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
-                  ) : (
-                    <div className="h-10 w-full" style={{ background: 'rgba(255,255,255,0.06)' }} />
-                  )}
-                  <div className="px-2.5 py-1.5" style={{ background: 'rgba(255,255,255,0.04)' }}>
-                    <span className="text-[11.5px] font-medium truncate block" style={{ fontFamily: "'DM Sans', sans-serif", color: 'rgba(255,255,255,0.72)' }}>{t.name}</span>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
         </motion.div>
-        <AnimatePresence>{showNew && <NewBotGuide onClose={() => setShowNew(false)} />}</AnimatePresence>
       </div>
-    );
-  }
 
-  // ── Has bots → Fleet dashboard ─────────────────────────────────────────────
-  return (
-    <div className="p-6 min-h-screen">
-
-      {/* ── Top row: greeting + status chips + new bot ── */}
-      <div className="flex items-start justify-between mb-6 gap-4">
-        <div>
-          <h1 className="text-[17px] font-bold leading-tight mb-1" style={{ fontFamily: "'Syne', sans-serif", color: 'rgba(255,255,255,0.88)' }}>
-            Bot Fleet
-          </h1>
-          <p className="text-[13px]" style={{ fontFamily: "'DM Sans', sans-serif", color: 'rgba(255,255,255,0.3)' }}>
-            {isLoading ? 'Loading…' : `${projects.length} bot${projects.length === 1 ? '' : 's'} · ${displayName}`}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2 flex-shrink-0">
-          {/* Status chips */}
-          {[
-            { icon: Wifi,     color: '#22c55e', count: online,   label: 'Online',   value: 'online'   },
-            { icon: Hammer,   color: '#f59e0b', count: building, label: 'Building', value: 'building' },
-            { icon: WifiOff,  color: '#6b7280', count: offline,  label: 'Offline',  value: 'offline'  },
-          ].map(chip => (
+      {/* ── Bottom: Tab bar + project grid ─────────────────────── */}
+      <div className="px-3 pb-3 flex-shrink-0">
+      <div
+        style={{
+          background: '#0c0c0c',
+          border: '1px solid rgb(39,39,37)',
+          borderRadius: '16px',
+          overflow: 'hidden',
+        }}
+      >
+        {/* Tab bar */}
+        <div className="flex items-center gap-1 px-4 pt-3 pb-2">
+          {([
+            { id: 'my-bots',   label: 'My Projects'      },
+            { id: 'recent',    label: 'Recently Viewed'  },
+            { id: 'templates', label: 'Templates'        },
+          ] as { id: Tab; label: string }[]).map(t => (
             <button
-              key={chip.value}
-              onClick={() => setFilter(f => f === chip.value ? 'all' : chip.value as Filter)}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px] transition-all"
+              key={t.id}
+              onClick={() => setActiveTab(t.id)}
+              className="relative px-3 py-1.5 rounded-lg text-[13px]"
               style={{
-                fontFamily: "'DM Sans', sans-serif",
-                background: filter === chip.value ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.04)',
-                border: `1px solid ${filter === chip.value ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.07)'}`,
-                color: filter === chip.value ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.4)',
+                fontFamily: FONT,
+                color: activeTab === t.id ? 'rgb(252,251,248)' : 'rgb(120,116,110)',
+                transition: 'color 0.2s',
               }}
             >
-              <chip.icon className="w-3 h-3" style={{ color: chip.color }} />
-              <span className="tabular-nums font-semibold">{chip.count}</span>
-              <span className="hidden sm:inline">{chip.label}</span>
+              {activeTab === t.id && (
+                <motion.span
+                  layoutId="tab-pill"
+                  className="absolute inset-0 rounded-lg"
+                  style={{ background: 'rgb(30,30,30)' }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                />
+              )}
+              <span className="relative z-10">{t.label}</span>
             </button>
           ))}
 
-          {/* New Bot */}
+          <div className="flex-1" />
+
           <button
-            onClick={() => setPromptOpen(v => !v)}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-[13px] font-medium transition-all"
-            style={{
-              fontFamily: "'DM Sans', sans-serif",
-              background: promptOpen ? 'rgba(255,255,255,0.14)' : 'rgba(255,255,255,0.09)',
-              border: '1px solid rgba(255,255,255,0.12)',
-              color: 'rgba(255,255,255,0.82)',
-            }}
-            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.14)')}
-            onMouseLeave={e => (e.currentTarget.style.background = promptOpen ? 'rgba(255,255,255,0.14)' : 'rgba(255,255,255,0.09)')}
+            onClick={() => navigate('/dashboard/templates')}
+            className="flex items-center gap-1 text-[12px] transition-all"
+            style={{ color: 'rgba(255,255,255,0.3)', fontFamily: FONT }}
+            onMouseEnter={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.65)')}
+            onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.3)')}
           >
-            <Plus className="w-3.5 h-3.5" />
-            New Bot
+            Browse all
+            <ChevronRight className="w-3.5 h-3.5" />
           </button>
         </div>
-      </div>
 
-      {/* ── Inline prompt (collapses when closed) ── */}
-      <AnimatePresence>
-        {promptOpen && (
-          <motion.div
-            key="prompt"
-            initial={{ opacity: 0, height: 0, marginBottom: 0 }}
-            animate={{ opacity: 1, height: 'auto', marginBottom: 16 }}
-            exit={{ opacity: 0, height: 0, marginBottom: 0 }}
-            className="overflow-hidden"
-          >
-            <div
-              className="rounded-xl transition-all duration-200"
-              style={{
-                padding: '1px',
-                background: focused ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.1)',
-                boxShadow: focused ? '0 0 0 3px rgba(255,255,255,0.04)' : 'none',
-              }}
-            >
-              <div className="rounded-[calc(0.75rem-1px)]" style={{ background: 'rgba(14,13,18,0.9)', backdropFilter: 'blur(28px)' }}>
-                <div className="px-4 pt-3 pb-1">
-                  <textarea
-                    ref={promptRef}
-                    value={quickPrompt}
-                    onChange={e => setQuickPrompt(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    onFocus={() => setFocused(true)}
-                    onBlur={() => setFocused(false)}
-                    placeholder="Describe your new Discord bot…"
-                    rows={2}
-                    className="w-full bg-transparent resize-none outline-none text-sm leading-relaxed placeholder:text-white/20"
-                    style={{ fontFamily: "'DM Sans', sans-serif", color: 'rgba(255,255,255,0.85)', minHeight: '44px', maxHeight: '140px', overflow: 'auto' }}
-                  />
-                </div>
-                <div className="flex items-center justify-between px-3 pb-3">
-                  <div className="flex gap-1.5">
-                    {TEMPLATES.slice(0, 4).map(t => (
-                      <button
-                        key={t.name}
-                        onClick={() => { setQuickPrompt(`Create a ${t.name.toLowerCase()}`); promptRef.current?.focus(); }}
-                        className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] transition-all"
-                        style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.45)' }}
-                        onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.09)')}
-                        onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
-                      >
-                        {t.name}
-                      </button>
-                    ))}
-                  </div>
-                  <button
-                    onClick={handleSubmit}
-                    disabled={!quickPrompt.trim() || createPending}
-                    className="w-8 h-8 rounded-lg flex items-center justify-center transition-all"
-                    style={{ background: quickPrompt.trim() ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.07)', cursor: quickPrompt.trim() ? 'pointer' : 'default' }}
-                  >
-                    {createPending
-                      ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: '#0e0d12' }} />
-                      : <ArrowUp className="w-4 h-4" style={{ color: quickPrompt.trim() ? '#0e0d12' : 'rgba(255,255,255,0.25)' }} />
-                    }
-                  </button>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* ── Search row ── */}
-      <div className="flex items-center gap-2 mb-5">
+        {/* Project grid — only expands when there's content */}
         <div
-          className="flex items-center gap-2 flex-1 px-3 py-2 rounded-xl"
-          style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', maxWidth: '280px' }}
+          className="overflow-y-auto"
+          style={{
+            maxHeight: tabProjects.length > 0 || activeTab === 'templates' ? '42vh' : '0',
+            paddingLeft: tabProjects.length > 0 ? '1.5rem' : 0,
+            paddingRight: tabProjects.length > 0 ? '1.5rem' : 0,
+            paddingBottom: tabProjects.length > 0 ? '1.5rem' : 0,
+            overflow: tabProjects.length > 0 || activeTab === 'templates' ? 'auto' : 'hidden',
+          }}
         >
-          <Search className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'rgba(255,255,255,0.22)' }} />
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search bots…"
-            className="bg-transparent outline-none text-[13px] w-full placeholder:text-white/20"
-            style={{ fontFamily: "'DM Sans', sans-serif", color: 'rgba(255,255,255,0.78)' }}
-          />
-        </div>
+          {activeTab === 'templates' ? (
+            <div className="py-10 text-center">
+              <p className="text-sm" style={{ color: 'rgba(255,255,255,0.3)', fontFamily: FONT }}>
+                Browse templates to get started quickly.
+              </p>
+              <button
+                onClick={() => navigate('/dashboard/templates')}
+                className="mt-3 text-[13px] px-4 py-1.5 rounded-lg transition-all"
+                style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.72)', fontFamily: FONT }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.12)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.07)')}
+              >
+                View Templates
+              </button>
+            </div>
+          ) : isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-5 h-5 animate-spin" style={{ color: 'rgba(255,255,255,0.2)' }} />
+            </div>
+          ) : tabProjects.length === 0 ? (
+            <div className="py-10 text-center">
+              <p className="text-sm" style={{ color: 'rgba(255,255,255,0.3)', fontFamily: FONT }}>
+                {activeTab === 'recent' ? 'No recently viewed bots.' : 'No bots yet — describe one above to get started.'}
+              </p>
+            </div>
+          ) : (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pt-2"
+            >
+              {tabProjects.map((project, i) => (
+                <motion.div
+                  key={project.id}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.04 }}
+                >
+                  <ProjectCard
+                    id={project.id}
+                    name={project.name}
+                    status={project.status}
+                    updatedAt={project.updated_at}
+                    template={project.template}
+                    language={project.language}
+                    onDuplicate={() => handleDuplicate(project.id)}
+                    onDelete={() => handleDelete(project.id)}
+                    isDuplicating={duplicatingId === project.id}
+                    isDeleting={deletingId === project.id}
+                  />
+                </motion.div>
+              ))}
 
-        {filter !== 'all' && (
-          <button
-            onClick={() => setFilter('all')}
-            className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl text-[12px] transition-all"
-            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.4)', fontFamily: "'DM Sans', sans-serif" }}
-            onMouseEnter={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.7)')}
-            onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.4)')}
-          >
-            <RefreshCw className="w-3 h-3" /> Clear filter
-          </button>
-        )}
-      </div>
-
-      {/* ── Bot grid ── */}
-      {isLoading ? (
-        <div className="flex items-center justify-center py-24">
-          <Loader2 className="w-5 h-5 animate-spin" style={{ color: 'rgba(255,255,255,0.2)' }} />
-        </div>
-      ) : visible.length === 0 ? (
-        <div className="text-center py-20">
-          <p className="text-sm" style={{ fontFamily: "'DM Sans', sans-serif", color: 'rgba(255,255,255,0.3)' }}>
-            No bots match your filter
-          </p>
-        </div>
-      ) : (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
-        >
-          {visible.map((project, i) => (
-            <motion.div key={project.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}>
-              <ProjectCard
-                id={project.id}
-                name={project.name}
-                status={project.status}
-                updatedAt={project.updated_at}
-                template={project.template}
-                language={project.language}
-                onDuplicate={() => handleDuplicate(project.id)}
-                onDelete={() => handleDelete(project.id)}
-                isDuplicating={duplicatingId === project.id}
-                isDeleting={deletingId === project.id}
-              />
+              {/* Add new card */}
+              <motion.button
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                onClick={() => promptRef.current?.focus()}
+                className="rounded-2xl flex flex-col items-center justify-center gap-2 py-12 transition-all"
+                style={{ border: '1px dashed rgba(255,255,255,0.1)', minHeight: '160px' }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; }}
+              >
+                <Plus className="w-5 h-5" style={{ color: 'rgba(255,255,255,0.2)' }} />
+                <span className="text-[12px]" style={{ fontFamily: FONT, color: 'rgba(255,255,255,0.25)' }}>New bot</span>
+              </motion.button>
             </motion.div>
-          ))}
-
-          {/* Add new bot card */}
-          <motion.button
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            onClick={() => setPromptOpen(true)}
-            className="rounded-2xl flex flex-col items-center justify-center gap-2 py-12 transition-all group"
-            style={{ border: '1px dashed rgba(255,255,255,0.12)', minHeight: '160px' }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.22)'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)'; }}
-          >
-            <Plus className="w-5 h-5 transition-colors" style={{ color: 'rgba(255,255,255,0.22)' }} />
-            <span className="text-[12px] transition-colors" style={{ fontFamily: "'DM Sans', sans-serif", color: 'rgba(255,255,255,0.28)' }}>
-              New bot
-            </span>
-          </motion.button>
-        </motion.div>
-      )}
+          )}
+        </div>
+      </div>
+      </div>
 
       <AnimatePresence>{showNew && <NewBotGuide onClose={() => setShowNew(false)} />}</AnimatePresence>
     </div>
   );
 }
-
-// ── Constants ─────────────────────────────────────────────────────────────────
-
-const TEMPLATES = [
-  { name: 'Moderation Bot', key: 'moderation', banner: '/templates/moderation.png', desc: 'Auto-mod, warns, bans & mutes'   },
-  { name: 'Ticketing Bot',  key: 'ticket',     banner: '/templates/ticket.png',     desc: 'Support ticket system'           },
-  { name: 'Community Bot',  key: 'community',  banner: '/templates/community.png',  desc: 'Welcome, roles & announcements' },
-  { name: 'AI Chat Bot',    key: 'ai-chat',    banner: '/templates/ai-chat.png',    desc: 'GPT-powered chat assistant'      },
-  { name: 'Custom Bot',     key: 'custom',     banner: '/templates/custom.png',     desc: 'Start from a blank slate'        },
-  { name: 'Music Bot',      key: 'music',      banner: null,                        desc: 'YouTube & Spotify playback'      },
-];

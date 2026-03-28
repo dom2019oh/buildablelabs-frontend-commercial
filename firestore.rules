@@ -2,22 +2,106 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // User profiles — only the owner can read/write
+    // User profiles — owner only
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // Onboarding answers — only the owner can read/write
+    // Onboarding answers — owner only
     match /onboarding/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // Projects — owner can read/write/delete their own
+    // Projects — owner only
     match /projects/{projectId} {
       allow read, update, delete: if request.auth != null
         && request.auth.uid == resource.data.userId;
       allow create: if request.auth != null
         && request.auth.uid == request.resource.data.userId;
+    }
+
+    // Project messages — owner only (was: any authenticated user could read all)
+    match /projectMessages/{messageId} {
+      allow read: if request.auth != null
+        && resource.data.user_id == request.auth.uid;
+      allow create: if request.auth != null
+        && request.resource.data.user_id == request.auth.uid;
+      allow update, delete: if request.auth != null
+        && resource.data.user_id == request.auth.uid;
+    }
+
+    // Workspaces — backend Admin SDK creates/updates; frontend reads own only
+    match /workspaces/{workspaceId} {
+      allow read: if request.auth != null
+        && resource.data.user_id == request.auth.uid;
+      // writes: backend Admin SDK only (bypasses rules)
+    }
+
+    // Workspace files — backend Admin SDK creates/deletes; frontend reads and updates own workspace files only
+    match /workspaceFiles/{fileId} {
+      allow read, update: if request.auth != null
+        && get(/databases/$(database)/documents/workspaces/$(resource.data.workspace_id)).data.user_id == request.auth.uid;
+      // create/delete: backend Admin SDK only
+    }
+
+    // Generation sessions — backend Admin SDK writes; frontend reads own only
+    match /generationSessions/{sessionId} {
+      allow read: if request.auth != null
+        && get(/databases/$(database)/documents/workspaces/$(resource.data.workspace_id)).data.user_id == request.auth.uid;
+      // writes: backend Admin SDK only
+    }
+
+    // File operations — backend Admin SDK writes; frontend reads own only
+    match /fileOperations/{opId} {
+      allow read: if request.auth != null
+        && get(/databases/$(database)/documents/workspaces/$(resource.data.workspace_id)).data.user_id == request.auth.uid;
+      // writes: backend Admin SDK only
+    }
+
+    // File versions — owner only
+    match /fileVersions/{versionId} {
+      allow read, update, delete: if request.auth != null
+        && resource.data.user_id == request.auth.uid;
+      allow create: if request.auth != null
+        && request.resource.data.user_id == request.auth.uid;
+    }
+
+    // Project files — owner only
+    match /projectFiles/{fileId} {
+      allow read, update, delete: if request.auth != null
+        && resource.data.user_id == request.auth.uid;
+      allow create: if request.auth != null
+        && request.resource.data.user_id == request.auth.uid;
+    }
+
+    // Bot environment variables — owner only (scoped by project ownership is enforced client-side)
+    match /projectEnvVars/{projectId} {
+      allow read, write: if request.auth != null
+        && get(/databases/$(database)/documents/projects/$(projectId)).data.userId == request.auth.uid;
+    }
+
+    // Debug logs — backend Admin SDK writes only; no client access
+    match /_debugLogs/{logId} {
+      allow read, write: if false;
+    }
+
+    // User credits — read-only for owner; all writes via backend Admin SDK
+    match /userCredits/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if false;
+    }
+
+    // Subscriptions — read-only for owner; written by Stripe webhook via Admin SDK
+    match /subscriptions/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if false;
+    }
+
+    // Credit transactions — read-only for owner; written by backend only
+    match /creditTransactions/{txId} {
+      allow read: if request.auth != null
+        && resource.data.user_id == request.auth.uid;
+      allow write: if false;
     }
   }
 }

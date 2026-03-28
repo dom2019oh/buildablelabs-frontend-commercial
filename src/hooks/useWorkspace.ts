@@ -116,7 +116,8 @@ export function useWorkspace(projectId: string | undefined) {
     },
     enabled: isAuthed && !!projectId && !!userId,
     staleTime: 30000,
-    retry: 2,
+    retry: 4,
+    retryDelay: (attempt: number) => Math.min(2000 * 2 ** attempt, 20000),
   });
 
   const workspace   = workspaceData;
@@ -304,7 +305,7 @@ export function useWorkspace(projectId: string | undefined) {
   const [generationError, setGenerationError]   = useState<Error | null>(null);
 
   const generate = useCallback(
-    async (prompt: string) => {
+    async (prompt: string, mode: 'plan' | 'architect' | 'build' = 'build') => {
       if (!workspaceId || !user) throw new Error("Not authenticated or no workspace");
 
       setIsGenerating(true);
@@ -320,7 +321,7 @@ export function useWorkspace(projectId: string | undefined) {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({ prompt }),
+          body: JSON.stringify({ prompt, mode }),
         });
 
         if (!res.ok) {

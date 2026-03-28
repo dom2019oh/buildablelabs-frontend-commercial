@@ -116,7 +116,7 @@ export default function BuildableAIIntro() {
             left: tag.x, top: tag.y,
             background: 'rgba(255,255,255,0.04)',
             border: '1px solid rgba(255,255,255,0.08)',
-            fontFamily: "'DM Sans', sans-serif",
+            fontFamily: "'Geist', 'DM Sans', sans-serif",
             fontSize: '0.72rem',
             color: 'rgba(255,255,255,0.28)',
             letterSpacing: '0.04em',
@@ -141,7 +141,7 @@ export default function BuildableAIIntro() {
           <span
             className="inline-block text-[11px] tracking-[0.22em] uppercase mb-5 px-3.5 py-1.5 rounded-full"
             style={{
-              fontFamily: "'DM Sans', sans-serif",
+              fontFamily: "'Geist', 'DM Sans', sans-serif",
               color: 'rgba(255,255,255,0.3)',
               background: 'rgba(255,255,255,0.04)',
               border: '1px solid rgba(255,255,255,0.07)',
@@ -152,7 +152,7 @@ export default function BuildableAIIntro() {
 
           <h2
             className="text-5xl md:text-7xl font-extrabold leading-[1.1] tracking-tight mb-6"
-            style={{ fontFamily: "'Syne', sans-serif" }}
+            style={{ fontFamily: "'Geist', sans-serif" }}
           >
             <span style={{ color: 'rgba(255,255,255,0.92)' }}>Meet </span>
             <span
@@ -170,7 +170,7 @@ export default function BuildableAIIntro() {
           <p
             className="max-w-lg mx-auto text-base leading-relaxed"
             style={{
-              fontFamily: "'DM Sans', sans-serif",
+              fontFamily: "'Geist', 'DM Sans', sans-serif",
               color: 'rgba(226,232,240,0.5)',
               fontSize: '1.05rem',
             }}
@@ -344,13 +344,13 @@ export default function BuildableAIIntro() {
                 <Icon className="w-4 h-4 mb-3" style={{ color: 'rgba(255,255,255,0.25)' }} />
                 <div
                   className="text-3xl font-bold mb-1"
-                  style={{ fontFamily: "'Syne', sans-serif", color: 'rgba(255,255,255,0.88)' }}
+                  style={{ fontFamily: "'Geist', sans-serif", color: 'rgba(255,255,255,0.88)' }}
                 >
                   {stat.value}
                 </div>
                 <div
                   className="text-sm"
-                  style={{ fontFamily: "'DM Sans', sans-serif", color: 'rgba(255,255,255,0.32)' }}
+                  style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.32)' }}
                 >
                   {stat.label}
                 </div>

@@ -44,249 +44,14 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { getLoginUrl, getSignUpUrl, getDashboardUrl } from "@/lib/urls";
-import wordmarkSvg from "@/assets/buildable-wordmark.svg";
 import logoPng from "@/assets/buildable-logo.png";
+import wordmarkSvg from "@/assets/buildable-wordmark.svg";
 import openaiLogoPng from "@/assets/openai-logo.png";
 import Grainient from "@/components/Grainient";
 import SplitText from "@/components/SplitText";
 import AIThinkingOrb from "@/components/AIThinkingOrb";
 import BuildableSimulation from "@/components/home/BuildableSimulation";
-
-// ─── Nav dropdown data ────────────────────────────────────────────────────────
-type DropItem = { label: string; href: string; icon: React.ElementType<{ className?: string }> };
-type NavEntry = { label: string; items: DropItem[] };
-
-const NAV_ENTRIES: NavEntry[] = [
-  {
-    label: "Solutions",
-    items: [
-      { label: "Bot Builder",  href: "/",          icon: Bot },
-      { label: "Templates",    href: "/explore",   icon: LayoutGrid },
-      { label: "Pro Hosting",  href: "/pricing",   icon: Cloud },
-      { label: "Multi-Bot",    href: "/pricing",   icon: Layers },
-      { label: "Analytics",    href: "/dashboard", icon: BarChart2 },
-    ],
-  },
-  {
-    label: "Resources",
-    items: [
-      { label: "Documentation", href: "/docs",    icon: BookOpen },
-      { label: "Tutorials",     href: "/docs",    icon: GraduationCap },
-      { label: "Community",     href: "/explore", icon: Users },
-      { label: "Changelog",     href: "/docs",    icon: History },
-    ],
-  },
-  {
-    label: "About",
-    items: [
-      { label: "Our Story", href: "/",    icon: Heart },
-      { label: "Blog",      href: "/docs", icon: FileText },
-      { label: "Careers",   href: "/",    icon: Briefcase },
-      { label: "Contact",   href: "/",    icon: Mail },
-    ],
-  },
-];
-
-// ─── Dropdown Nav ─────────────────────────────────────────────────────────────
-function DropNav() {
-  const [open, setOpen] = useState<string | null>(null);
-  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const handleEnter = (label: string) => {
-    if (closeTimer.current) clearTimeout(closeTimer.current);
-    setOpen(label);
-  };
-
-  const handleLeave = () => {
-    closeTimer.current = setTimeout(() => setOpen(null), 120);
-  };
-
-  return (
-    <div className="flex items-center gap-0.5">
-      {NAV_ENTRIES.map((entry) => (
-        <div
-          key={entry.label}
-          className="relative"
-          onMouseEnter={() => handleEnter(entry.label)}
-          onMouseLeave={handleLeave}
-        >
-          <button
-            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[13px] transition-colors duration-200 hover:bg-white/[0.06]"
-            style={{
-              fontFamily: "'DM Sans', sans-serif",
-              fontWeight: 400,
-              color: open === entry.label ? "rgba(255,255,255,1)" : "rgba(255,255,255,0.78)",
-            }}
-          >
-            {entry.label}
-            <ChevronDown
-              className="w-3 h-3 transition-transform duration-200"
-              style={{ transform: open === entry.label ? "rotate(180deg)" : "none", opacity: 0.5 }}
-            />
-          </button>
-
-          <AnimatePresence>
-            {open === entry.label && (
-              <motion.div
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 6 }}
-                transition={{ duration: 0.14, ease: "easeOut" }}
-                className="absolute left-0 top-full mt-1.5 w-48 rounded-xl overflow-hidden"
-                style={{
-                  zIndex: 200,
-                  background: "#18181b",
-                  border: "1px solid rgba(255,255,255,0.08)",
-                  boxShadow: "0 16px 48px rgba(0,0,0,0.7)",
-                }}
-                onMouseEnter={() => handleEnter(entry.label)}
-                onMouseLeave={handleLeave}
-              >
-                <div className="py-1.5">
-                  {entry.items.map((item) => {
-                    const Icon = item.icon;
-                    return (
-                      <Link
-                        key={item.label}
-                        to={item.href}
-                        onClick={() => setOpen(null)}
-                        className="flex items-center gap-2.5 px-3.5 py-2 transition-colors duration-100 group"
-                        style={{ color: "rgba(255,255,255,0.72)" }}
-                        onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.055)")}
-                        onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                      >
-                        <Icon className="w-[15px] h-[15px] shrink-0" style={{ color: "rgba(255,255,255,0.38)" }} />
-                        <span
-                          className="text-[13px] font-normal leading-none group-hover:text-white transition-colors"
-                          style={{ fontFamily: "'DM Sans', sans-serif" }}
-                        >
-                          {item.label}
-                        </span>
-                      </Link>
-                    );
-                  })}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-      ))}
-
-      {/* Direct Pricing link */}
-      <Link
-        to="/pricing"
-        className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[13px] transition-colors duration-200 hover:bg-white/[0.06]"
-        style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 400, color: "rgba(255,255,255,0.78)" }}
-      >
-        Pricing
-      </Link>
-    </div>
-  );
-}
-
-// ─── Floating Nav ─────────────────────────────────────────────────────────────
-// Full-width Lovable-style top bar
-function FloatingNav() {
-  const { user } = useAuth();
-  const [scrolled, setScrolled] = useState(false);
-
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 24);
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
-  return (
-    <motion.header
-      initial={{ opacity: 0, y: -8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.6, ease: "easeOut" }}
-      className="fixed top-0 left-0 right-0 z-50 h-[58px] flex items-center px-6 md:px-10"
-      style={{
-        background: scrolled ? "rgba(12, 6, 28, 0.65)" : "transparent",
-        backdropFilter: scrolled ? "blur(18px) saturate(140%)" : "none",
-        WebkitBackdropFilter: scrolled ? "blur(18px) saturate(140%)" : "none",
-        borderBottom: scrolled ? "1px solid rgba(255,255,255,0.06)" : "1px solid transparent",
-        transition: "background 0.35s ease, backdrop-filter 0.35s ease, border-color 0.35s ease",
-      }}
-    >
-      {/* LEFT: Logo + wordmark */}
-      <Link to="/" className="flex items-center gap-[10px] flex-shrink-0 mr-8">
-        <img
-          src={logoPng}
-          alt=""
-          aria-hidden
-          draggable={false}
-          className="select-none block"
-          style={{
-            height: "32px",
-            width: "32px",
-            objectFit: "contain",
-            filter: "invert(1)",
-            flexShrink: 0,
-          }}
-        />
-        <img
-          src={wordmarkSvg}
-          alt="Buildable Labs"
-          draggable={false}
-          className="select-none block"
-          style={{
-            height: "30px",
-            width: "auto",
-            objectFit: "contain",
-            display: "block",
-          }}
-        />
-      </Link>
-
-      {/* CENTER: nav links */}
-      <div className="hidden md:flex items-center flex-1">
-        <DropNav />
-      </div>
-
-      {/* RIGHT: CTA */}
-      <div className="ml-auto flex items-center gap-4 flex-shrink-0">
-        {user ? (
-          <Link
-            to="/dashboard"
-            className="text-[13px] font-medium text-white/70 hover:text-white transition-colors"
-            style={{ fontFamily: "'DM Sans', sans-serif" }}
-          >
-            Dashboard →
-          </Link>
-        ) : (
-          <>
-            <a
-              href={getLoginUrl()}
-              className="hidden sm:block text-[13px] text-white/60 hover:text-white transition-colors"
-              style={{ fontFamily: "'DM Sans', sans-serif" }}
-            >
-              Log in
-            </a>
-            <motion.span whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
-              <a
-                href={getDashboardUrl()}
-                className="inline-flex items-center text-[13px] font-semibold px-4 py-[7px] rounded-full transition-all duration-200"
-                style={{
-                  fontFamily: "'DM Sans', sans-serif",
-                  background: "rgba(255,255,255,0.08)",
-                  border: "1px solid rgba(255,255,255,0.14)",
-                  color: "rgba(255,255,255,0.85)",
-                  letterSpacing: "-0.01em",
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.14)"; e.currentTarget.style.color = "#fff"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.08)"; e.currentTarget.style.color = "rgba(255,255,255,0.85)"; }}
-              >
-                Open Dashboard
-              </a>
-            </motion.span>
-          </>
-        )}
-      </div>
-    </motion.header>
-  );
-}
+import FloatingNav, { NAV_ENTRIES } from "@/components/FloatingNav";
 
 
 // ─── Feature Ticker ───────────────────────────────────────────────────────────
@@ -326,7 +91,7 @@ function FeatureTicker() {
             <span
               key={i}
               className="flex-shrink-0 text-[13px] flex items-center gap-2"
-              style={{ color: "rgba(255,255,255,0.28)", fontFamily: "'DM Sans', sans-serif" }}
+              style={{ color: "rgba(255,255,255,0.28)", fontFamily: "'Geist', 'DM Sans', sans-serif" }}
             >
               <Icon className="w-3.5 h-3.5 shrink-0" style={{ color: "rgba(255,255,255,0.22)" }} />
               {item.label}
@@ -470,13 +235,13 @@ function HowItWorksStep({
       >
         <h3
           className="font-bold text-white mb-3"
-          style={{ fontFamily: "'Syne', sans-serif", fontSize: "clamp(1.2rem, 2vw, 1.65rem)", lineHeight: 1.2 }}
+          style={{ fontFamily: "'Geist', sans-serif", fontSize: "clamp(1.2rem, 2vw, 1.65rem)", lineHeight: 1.2 }}
         >
           {title}
         </h3>
         <p
           className="text-base leading-relaxed mb-6"
-          style={{ fontFamily: "'DM Sans', sans-serif", color: "rgba(255,255,255,0.92)", maxWidth: "430px" }}
+          style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: "rgba(255,255,255,0.92)", maxWidth: "430px" }}
         >
           {desc}
         </p>
@@ -505,7 +270,7 @@ function HowItWorksStep({
               <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
             </svg>
           </div>
-          <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "0.7rem", color: "rgba(255,255,255,0.15)", letterSpacing: "0.12em", textTransform: "uppercase" as const }}>
+          <span style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", fontSize: "0.7rem", color: "rgba(255,255,255,0.15)", letterSpacing: "0.12em", textTransform: "uppercase" as const }}>
             Image coming soon
           </span>
         </motion.div>
@@ -513,6 +278,339 @@ function HowItWorksStep({
     </motion.div>
   );
 }
+
+// ─── Bot Showcase (card shuffle) ─────────────────────────────────────────────
+function BotShowcaseSection() {
+  const sectionRef = useRef<HTMLDivElement>(null);
+  const inView = useInView(sectionRef, { once: true, margin: "-120px" });
+  const [active, setActive] = useState(0);
+  const [leaving, setLeaving] = useState(false);
+  const TOTAL = 8;
+
+  useEffect(() => {
+    let t2: ReturnType<typeof setTimeout> | undefined;
+    const t = setInterval(() => {
+      setLeaving(true);
+      t2 = setTimeout(() => { setActive(p => (p + 1) % TOTAL); setLeaving(false); }, 380);
+    }, 4000);
+    return () => { clearInterval(t); clearTimeout(t2); };
+  }, []);
+
+  const FEATURES = ['Music Playback','Auto-Moderation','Welcome & Roles','Slash Commands','AI Conversations','Ticket System','Giveaways','Live Deployment'];
+
+  const BG2 = '#313338';
+  const MUTED = 'rgba(255,255,255,0.35)';
+  const MSG = 'rgba(255,255,255,0.85)';
+  const BLURPLE = '#5865f2';
+  const F = "'DM Sans',sans-serif";
+
+  // Sidebar channel list (shared across all cards)
+  const Sidebar = () => (
+    <div style={{ width: 56, background: '#1e1f22', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 12, gap: 6 }}>
+      <div style={{ width: 36, height: 36, borderRadius: '50%', background: BLURPLE, marginBottom: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 800, color: '#fff', fontFamily: F }}>B</div>
+      {['#','#','#','#'].map((_, i) => <div key={i} style={{ width: 32, height: 32, borderRadius: i === 0 ? 8 : '50%', background: i === 0 ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.04)' }} />)}
+    </div>
+  );
+
+  // Channel header
+  const ChanHead = ({ name }: { name: string }) => (
+    <div style={{ height: 44, borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', padding: '0 16px', gap: 6, flexShrink: 0 }}>
+      <span style={{ color: MUTED, fontSize: 17 }}>#</span>
+      <span style={{ color: MSG, fontSize: 14, fontWeight: 600, fontFamily: F }}>{name}</span>
+    </div>
+  );
+
+  // Message row
+  const Msg = ({ av, avC, name, nameC, bot, time, children }: { av: string; avC: string; name: string; nameC?: string; bot?: boolean; time: string; children?: any }) => (
+    <div style={{ display: 'flex', gap: 10, marginBottom: 12, padding: '0 16px', fontFamily: F }}>
+      <div style={{ width: 32, height: 32, borderRadius: '50%', background: avC, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, color: '#fff' }}>{av}</div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 3, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: nameC || MSG }}>{name}</span>
+          {bot && <span style={{ fontSize: 9, padding: '1px 5px', background: 'rgba(88,101,242,0.4)', borderRadius: 3, color: 'rgba(255,255,255,0.8)', fontWeight: 700 }}>BOT</span>}
+          <span style={{ fontSize: 11, color: MUTED }}>{time}</span>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+
+  // Embed
+  const Embed = ({ color, children }: { color: string; children?: any }) => (
+    <div style={{ borderLeft: `3px solid ${color}`, background: 'rgba(255,255,255,0.04)', borderRadius: '0 8px 8px 0', padding: '9px 12px', marginTop: 3 }}>
+      {children}
+    </div>
+  );
+
+  // Row inside embed
+  const Row = ({ label, value }: { label: string; value: string }) => (
+    <div style={{ display: 'flex', gap: 10, marginBottom: 3 }}>
+      <span style={{ fontSize: 11, color: MUTED, minWidth: 62, fontFamily: F }}>{label}</span>
+      <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.72)', fontFamily: F }}>{value}</span>
+    </div>
+  );
+
+  const CARDS = [
+    /* 0 — Music */
+    <div key="music" style={{ height: '100%', display: 'flex', background: BG2 }}>
+      <Sidebar />
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        <ChanHead name="music-bot-test" />
+        <div style={{ flex: 1, overflow: 'hidden', paddingTop: 14 }}>
+          <Msg av="J" avC="rgba(124,58,237,0.8)" name="james" nameC="#c084fc" time="Today 3:41 PM">
+            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)', fontFamily: F }}>!play Blinding Lights</div>
+          </Msg>
+          <Msg av="M" avC={BLURPLE} name="MusicBot" nameC={BLURPLE} bot time="Today 3:41 PM">
+            <Embed color="#1db954">
+              <div style={{ fontSize: 10, color: MUTED, marginBottom: 4, letterSpacing: '0.07em', fontFamily: F }}>NOW PLAYING</div>
+              <div style={{ fontSize: 14, color: MSG, fontWeight: 700, marginBottom: 1, fontFamily: F }}>Blinding Lights</div>
+              <div style={{ fontSize: 12, color: MUTED, marginBottom: 9, fontFamily: F }}>The Weeknd · 3:20</div>
+              <div style={{ height: 3, background: 'rgba(255,255,255,0.1)', borderRadius: 2, marginBottom: 9 }}>
+                <div style={{ width: '38%', height: '100%', background: '#1db954', borderRadius: 2 }} />
+              </div>
+              <div style={{ display: 'flex', gap: 14 }}>{['⏮','⏸','⏭','🔀'].map(c => <span key={c} style={{ fontSize: 16 }}>{c}</span>)}</div>
+            </Embed>
+          </Msg>
+        </div>
+      </div>
+    </div>,
+
+    /* 1 — Moderation */
+    <div key="mod" style={{ height: '100%', display: 'flex', background: BG2 }}>
+      <Sidebar />
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        <ChanHead name="general" />
+        <div style={{ flex: 1, overflow: 'hidden', paddingTop: 14 }}>
+          <Msg av="S" avC="rgba(239,68,68,0.7)" name="spammer99" nameC="#f87171" time="Today 2:12 PM">
+            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)', textDecoration: 'line-through', fontFamily: F }}>buy cheap discord nitro at best-deals.xyz...</div>
+          </Msg>
+          <Msg av="B" avC="rgba(239,68,68,0.8)" name="BuildableBot" nameC="#f87171" bot time="Today 2:12 PM">
+            <Embed color="#ef4444">
+              <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.9)', fontWeight: 700, marginBottom: 7, fontFamily: F }}>🛡️ Auto-moderation action</div>
+              <Row label="User" value="spammer99#1234" />
+              <Row label="Reason" value="Detected spam link" />
+              <Row label="Action" value="Message deleted + 1h timeout" />
+            </Embed>
+          </Msg>
+        </div>
+      </div>
+    </div>,
+
+    /* 2 — Welcome */
+    <div key="welcome" style={{ height: '100%', display: 'flex', background: BG2 }}>
+      <Sidebar />
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        <ChanHead name="welcome" />
+        <div style={{ flex: 1, overflow: 'hidden', paddingTop: 12 }}>
+          <div style={{ textAlign: 'center', fontSize: 11, color: MUTED, marginBottom: 14, fontFamily: F }}>— alex_new joined the server —</div>
+          <Msg av="B" avC={BLURPLE} name="BuildableBot" nameC={BLURPLE} bot time="Today 4:00 PM">
+            <Embed color={BLURPLE}>
+              <div style={{ fontSize: 14, color: MSG, fontWeight: 700, marginBottom: 4, fontFamily: F }}>Welcome to the server, alex_new! 👋</div>
+              <div style={{ fontSize: 12, color: MUTED, marginBottom: 10, lineHeight: 1.6, fontFamily: F }}>You're member #847. Pick your roles below to get started.</div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {['🎮 Gaming', '🎵 Music', '💻 Dev', '🎨 Art'].map(r => (
+                  <div key={r} style={{ padding: '3px 10px', background: 'rgba(88,101,242,0.3)', borderRadius: 5, fontSize: 11, color: 'rgba(255,255,255,0.85)', border: '1px solid rgba(88,101,242,0.5)', fontFamily: F }}>{r}</div>
+                ))}
+              </div>
+            </Embed>
+          </Msg>
+        </div>
+      </div>
+    </div>,
+
+    /* 3 — Slash commands */
+    <div key="slash" style={{ height: '100%', display: 'flex', background: BG2 }}>
+      <Sidebar />
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        <ChanHead name="bot-commands" />
+        <div style={{ flex: 1, overflow: 'hidden', paddingTop: 14 }}>
+          <Msg av="J" avC="rgba(124,58,237,0.8)" name="james" nameC="#c084fc" time="Today 5:22 PM">
+            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)', marginBottom: 8, fontFamily: F }}>/</div>
+            <div style={{ background: '#2b2d31', borderRadius: 8, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.08)' }}>
+              {([['/ play','Play a song or playlist'],['/ skip','Skip the current track'],['/ queue','View the queue'],['/ ban','Ban a member from the server']] as [string,string][]).map(([cmd,desc],i) => (
+                <div key={cmd} style={{ display: 'flex', gap: 12, padding: '8px 12px', background: i === 0 ? 'rgba(88,101,242,0.2)' : 'transparent', borderBottom: i < 3 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
+                  <span style={{ fontSize: 12, color: '#a78bfa', fontWeight: 700, minWidth: 64, fontFamily: F }}>{cmd}</span>
+                  <span style={{ fontSize: 12, color: MUTED, fontFamily: F }}>{desc}</span>
+                </div>
+              ))}
+            </div>
+          </Msg>
+        </div>
+      </div>
+    </div>,
+
+    /* 4 — AI chat */
+    <div key="ai" style={{ height: '100%', display: 'flex', background: BG2 }}>
+      <Sidebar />
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        <ChanHead name="ai-chat" />
+        <div style={{ flex: 1, overflow: 'hidden', paddingTop: 14 }}>
+          <Msg av="D" avC="rgba(16,185,129,0.7)" name="dan_c" nameC="#6ee7b7" time="Today 1:15 PM">
+            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)', fontFamily: F }}>@BuildableBot what's the capital of Japan?</div>
+          </Msg>
+          <Msg av="B" avC={BLURPLE} name="BuildableBot" nameC={BLURPLE} bot time="Today 1:15 PM">
+            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.78)', lineHeight: 1.7, fontFamily: F }}>
+              The capital of Japan is <strong style={{ color: MSG }}>Tokyo</strong> (東京). It's the most populous metropolitan area in the world, home to over 37 million people.
+            </div>
+            <div style={{ marginTop: 8, display: 'flex', gap: 6 }}>
+              {['👍 12', '🤔 2'].map(r => <span key={r} style={{ padding: '3px 9px', background: 'rgba(255,255,255,0.06)', borderRadius: 12, fontSize: 12, color: MUTED, border: '1px solid rgba(255,255,255,0.09)', fontFamily: F }}>{r}</span>)}
+            </div>
+          </Msg>
+        </div>
+      </div>
+    </div>,
+
+    /* 5 — Ticket system */
+    <div key="ticket" style={{ height: '100%', display: 'flex', background: BG2 }}>
+      <Sidebar />
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        <ChanHead name="support" />
+        <div style={{ flex: 1, overflow: 'hidden', paddingTop: 14 }}>
+          <Msg av="S" avC="rgba(251,191,36,0.7)" name="sarah_m" nameC="#fbbf24" time="Today 11:30 AM">
+            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)', fontFamily: F }}>!ticket I can't access my account</div>
+          </Msg>
+          <Msg av="B" avC={BLURPLE} name="BuildableBot" nameC={BLURPLE} bot time="Today 11:30 AM">
+            <Embed color="#fbbf24">
+              <div style={{ fontSize: 13, color: MSG, fontWeight: 700, marginBottom: 7, fontFamily: F }}>🎫 Ticket #0042 created</div>
+              <Row label="User" value="sarah_m#5541" />
+              <Row label="Category" value="Account Access" />
+              <Row label="Channel" value="#ticket-0042 (private)" />
+              <div style={{ marginTop: 8, padding: '5px 8px', background: 'rgba(251,191,36,0.12)', borderRadius: 5, fontSize: 11, color: '#fbbf24', fontFamily: F }}>A support agent will assist you shortly.</div>
+            </Embed>
+          </Msg>
+        </div>
+      </div>
+    </div>,
+
+    /* 6 — Giveaway */
+    <div key="giveaway" style={{ height: '100%', display: 'flex', background: BG2 }}>
+      <Sidebar />
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        <ChanHead name="giveaways" />
+        <div style={{ flex: 1, overflow: 'hidden', paddingTop: 14 }}>
+          <Msg av="B" avC={BLURPLE} name="BuildableBot" nameC={BLURPLE} bot time="Today 9:00 AM">
+            <Embed color="#f59e0b">
+              <div style={{ fontSize: 15, color: '#fbbf24', fontWeight: 800, marginBottom: 4, fontFamily: F }}>🎉 GIVEAWAY 🎉</div>
+              <div style={{ fontSize: 14, color: MSG, fontWeight: 700, marginBottom: 7, fontFamily: F }}>Discord Nitro (1 Year)</div>
+              <Row label="Ends in" value="23h 59m 48s" />
+              <Row label="Hosted by" value="james#0001" />
+              <Row label="Winners" value="1 winner" />
+              <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 9 }}>
+                <div style={{ padding: '4px 12px', background: 'rgba(245,158,11,0.2)', borderRadius: 12, fontSize: 13, border: '1px solid rgba(245,158,11,0.4)' }}>🎉 <span style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12, fontFamily: F }}>142 entries</span></div>
+                <span style={{ fontSize: 11, color: MUTED, fontFamily: F }}>React to enter</span>
+              </div>
+            </Embed>
+          </Msg>
+        </div>
+      </div>
+    </div>,
+
+    /* 7 — Live */
+    <div key="live" style={{ height: '100%', display: 'flex', background: BG2 }}>
+      <Sidebar />
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        <ChanHead name="bot-status" />
+        <div style={{ flex: 1, overflow: 'hidden', paddingTop: 14 }}>
+          <Msg av="B" avC={BLURPLE} name="BuildableBot" nameC={BLURPLE} bot time="Just now">
+            <Embed color="#22c55e">
+              <div style={{ fontSize: 14, color: '#4ade80', fontWeight: 700, marginBottom: 8, fontFamily: F }}>✅ Your bot is live!</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e' }} />
+                <span style={{ fontSize: 12, color: MUTED, fontFamily: F }}>BuildableBot#1337 is online</span>
+              </div>
+              <Row label="Uptime" value="100%" />
+              <Row label="Latency" value="43ms" />
+              <Row label="Servers" value="1 connected" />
+              <div style={{ marginTop: 6, fontSize: 11, color: MUTED, fontFamily: F }}>Invite link ready · buildablelabs.dev/invite</div>
+            </Embed>
+          </Msg>
+        </div>
+      </div>
+    </div>,
+  ];
+
+  return (
+    <section ref={sectionRef} className="relative w-full" style={{ zIndex: 10 }}>
+      <div className="max-w-6xl mx-auto px-8 py-24">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+
+          {/* Left — heading */}
+          <motion.div
+            initial={{ opacity: 0, y: 28 }}
+            animate={inView ? { opacity: 1, y: 0 } : {}}
+            transition={{ duration: 0.7 }}
+          >
+            <p style={{ fontSize: 11, fontFamily: "'Geist','DM Sans',sans-serif", color: 'rgba(167,139,250,0.55)', fontWeight: 500, letterSpacing: '0.3em', textTransform: 'uppercase', marginBottom: 20 }}>
+              Simulator
+            </p>
+            <h2 style={{ fontFamily: "'Geist',sans-serif", fontSize: 'clamp(2rem,3.8vw,3rem)', fontWeight: 700, color: '#fff', lineHeight: 1.15, marginBottom: 20 }}>
+              Your bot, doing<br />what you imagined.
+            </h2>
+            <p style={{ fontFamily: "'Geist','DM Sans',sans-serif", fontSize: 15, color: 'rgba(148,163,184,0.6)', lineHeight: 1.7, maxWidth: 340, marginBottom: 32 }}>
+              From music playback to AI replies — describe it once and your bot handles it automatically, 24/7.
+            </p>
+
+            {/* Feature cycling pill */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#2563EB', boxShadow: '0 0 10px rgba(37,99,235,0.5)', flexShrink: 0 }} />
+              <div style={{ height: 28, overflow: 'hidden', position: 'relative', minWidth: 160 }}>
+                <motion.div
+                  key={active}
+                  initial={{ y: 20, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  exit={{ y: -20, opacity: 0 }}
+                  transition={{ duration: 0.35, ease: 'easeOut' }}
+                  style={{ fontFamily: "'Geist','DM Sans',sans-serif", fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.65)', lineHeight: '28px', whiteSpace: 'nowrap' }}
+                >
+                  {FEATURES[active]}
+                </motion.div>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Right — card stack */}
+          <motion.div
+            initial={{ opacity: 0, y: 32 }}
+            animate={inView ? { opacity: 1, y: 0 } : {}}
+            transition={{ duration: 0.75, delay: 0.1 }}
+            style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}
+          >
+            <div style={{ position: 'relative', width: '100%', maxWidth: 520, height: 320 }}>
+              {/* Ghost cards */}
+              <div style={{ position: 'absolute', inset: 0, background: '#252628', borderRadius: 16, transform: 'translateY(16px) scale(0.91) rotate(2.8deg)', zIndex: 1, border: '1px solid rgba(255,255,255,0.04)' }} />
+              <div style={{ position: 'absolute', inset: 0, background: '#2b2d30', borderRadius: 16, transform: 'translateY(8px) scale(0.955) rotate(-1.4deg)', zIndex: 2, border: '1px solid rgba(255,255,255,0.05)' }} />
+              {/* Active card */}
+              <div style={{
+                position: 'absolute', inset: 0, zIndex: 3,
+                borderRadius: 16, overflow: 'hidden',
+                border: '1px solid rgba(255,255,255,0.1)',
+                boxShadow: '0 32px 80px rgba(0,0,0,0.7)',
+                transform: leaving ? 'translateY(-32px) scale(0.95)' : 'translateY(0) scale(1)',
+                opacity: leaving ? 0 : 1,
+                transition: 'transform 0.36s cubic-bezier(0.4,0,0.2,1), opacity 0.32s ease',
+              }}>
+                {CARDS[active]}
+              </div>
+            </div>
+
+            {/* Dots */}
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              {Array.from({ length: TOTAL }).map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => { if (!leaving) { setLeaving(true); setTimeout(() => { setActive(i); setLeaving(false); }, 380); } }}
+                  style={{ width: i === active ? 20 : 6, height: 6, borderRadius: 3, background: i === active ? '#2563EB' : 'rgba(255,255,255,0.14)', border: 'none', cursor: 'pointer', padding: 0, transition: 'all 0.3s ease' }}
+                />
+              ))}
+            </div>
+          </motion.div>
+
+        </div>
+      </div>
+    </section>
+  );
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 function HowItWorks() {
   const headingRef = useRef<HTMLDivElement>(null);
@@ -576,19 +674,19 @@ function HowItWorks() {
           >
             <p
               className="text-[11px] uppercase tracking-[0.3em] mb-5"
-              style={{ fontFamily: "'DM Sans', sans-serif", color: "rgba(167,139,250,0.55)", fontWeight: 500 }}
+              style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: "rgba(167,139,250,0.55)", fontWeight: 500 }}
             >
               How It Works
             </p>
             <h2
               className="font-bold text-white mb-5 leading-tight"
-              style={{ fontFamily: "'Syne', sans-serif", fontSize: "clamp(2.2rem, 4vw, 3.2rem)" }}
+              style={{ fontFamily: "'Geist', sans-serif", fontSize: "clamp(2.2rem, 4vw, 3.2rem)" }}
             >
               How it works
             </h2>
             <p
               className="text-base leading-relaxed"
-              style={{ fontFamily: "'DM Sans', sans-serif", color: "rgba(148,163,184,0.6)", maxWidth: "340px" }}
+              style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: "rgba(148,163,184,0.6)", maxWidth: "340px" }}
             >
               From a single sentence to a fully hosted Discord bot — in seconds. No code, no servers, no headaches.
             </p>
@@ -637,7 +735,7 @@ function TechLogos() {
       {/* Label */}
       <p
         className="text-center text-[12px] uppercase tracking-[0.28em] mb-10"
-        style={{ fontFamily: "'DM Sans', sans-serif", color: "rgba(255,255,255,0.95)", fontWeight: 500 }}
+        style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: "rgba(255,255,255,0.95)", fontWeight: 500 }}
       >
         Powered by Trusted 3rd Party Enhancements
       </p>
@@ -682,7 +780,7 @@ function TechLogos() {
               />
               <span
                 className="text-[11px] font-medium tracking-wide"
-                style={{ fontFamily: "'DM Sans', sans-serif", color: "rgba(255,255,255,0.92)" }}
+                style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: "rgba(255,255,255,0.92)" }}
               >
                 {logo.name}
               </span>
@@ -860,7 +958,7 @@ function BentoCard({
           style={{
             color: card.accent,
             opacity: active ? 0.9 : 0.52,
-            fontFamily: "'DM Sans', sans-serif",
+            fontFamily: "'Geist', 'DM Sans', sans-serif",
           }}
         >
           {card.category}
@@ -894,7 +992,7 @@ function BentoCard({
         <p
           className="relative z-10 leading-relaxed"
           style={{
-            fontFamily: "'DM Sans', sans-serif",
+            fontFamily: "'Geist', 'DM Sans', sans-serif",
             fontSize: "0.82rem",
             color: "rgba(148,163,184,0.62)",
             lineHeight: 1.55,
@@ -950,7 +1048,7 @@ function FeaturesGrid() {
         <p
           className="text-[11px] uppercase tracking-[0.3em] mb-4"
           style={{
-            fontFamily: "'DM Sans', sans-serif",
+            fontFamily: "'Geist', 'DM Sans', sans-serif",
             color: "rgba(167,139,250,0.5)",
             fontWeight: 500,
           }}
@@ -998,7 +1096,7 @@ function FeaturesGrid() {
             exit={{ opacity: 0, y: 6 }}
             transition={{ duration: 0.2 }}
             className="text-center mt-5 text-[12px] text-slate-700 cursor-pointer hover:text-slate-500 transition-colors"
-            style={{ fontFamily: "'DM Sans', sans-serif" }}
+            style={{ fontFamily: "'Geist', 'DM Sans', sans-serif" }}
             onClick={() => setActive(null)}
           >
             Click anywhere to deselect
@@ -1081,17 +1179,12 @@ function SiteFooter() {
           {/* ── Brand column ── */}
           <div className="md:col-span-2">
             <div className="flex items-center gap-2.5 mb-5">
-              <img src={logoPng} className="h-7 w-7" alt="Buildable logo" />
-              <img
-                src={wordmarkSvg}
-                className="h-[18px]"
-                alt="Buildable"
-                style={{ filter: "brightness(0) invert(1)", opacity: 0.9 }}
-              />
+              <img src="/logo-stack-white.svg" alt="" aria-hidden style={{ height: '18px', width: 'auto', objectFit: 'contain', opacity: 0.9 }} />
+              <img src={wordmarkSvg} alt="Buildable Labs" style={{ height: '18px', width: 'auto', objectFit: 'contain', opacity: 0.9 }} />
             </div>
             <p
               style={{
-                fontFamily: "'DM Sans', sans-serif",
+                fontFamily: "'Geist', 'DM Sans', sans-serif",
                 color: "rgba(255,255,255,0.52)",
                 fontSize: "0.9rem",
                 lineHeight: 1.75,
@@ -1142,7 +1235,7 @@ function SiteFooter() {
             <div key={entry.label}>
               <h4
                 style={{
-                  fontFamily: "'Syne', sans-serif",
+                  fontFamily: "'Geist', sans-serif",
                   fontSize: "0.68rem",
                   letterSpacing: "0.16em",
                   textTransform: "uppercase",
@@ -1159,7 +1252,7 @@ function SiteFooter() {
                     <Link
                       to={item.href}
                       style={{
-                        fontFamily: "'DM Sans', sans-serif",
+                        fontFamily: "'Geist', 'DM Sans', sans-serif",
                         fontSize: "0.9rem",
                         color: "rgba(255,255,255,0.62)",
                         textDecoration: "none",
@@ -1175,6 +1268,47 @@ function SiteFooter() {
               </ul>
             </div>
           ))}
+
+          {/* Legal column */}
+          <div>
+            <h4
+              style={{
+                fontFamily: "'Geist', sans-serif",
+                fontSize: "0.68rem",
+                letterSpacing: "0.16em",
+                textTransform: "uppercase",
+                color: "rgba(255,255,255,0.35)",
+                marginBottom: "1.1rem",
+                    fontWeight: 700,
+              }}
+            >
+              Legal
+            </h4>
+            <ul style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+              {[
+                { label: "Terms of Service", href: "/terms" },
+                { label: "Privacy Policy",   href: "/privacy" },
+                { label: "Contact",          href: "/contact" },
+              ].map((item) => (
+                <li key={item.label}>
+                  <Link
+                    to={item.href}
+                    style={{
+                      fontFamily: "'Geist', 'DM Sans', sans-serif",
+                      fontSize: "0.9rem",
+                      color: "rgba(255,255,255,0.62)",
+                      textDecoration: "none",
+                      transition: "color 0.18s",
+                    }}
+                    onMouseEnter={(e) => ((e.target as HTMLElement).style.color = "#fff")}
+                    onMouseLeave={(e) => ((e.target as HTMLElement).style.color = "rgba(255,255,255,0.62)")}
+                  >
+                    {item.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       </div>
 
@@ -1183,7 +1317,7 @@ function SiteFooter() {
         <div className="max-w-6xl mx-auto px-8 py-5 flex flex-col md:flex-row items-center justify-between gap-4">
           <span
             style={{
-              fontFamily: "'DM Sans', sans-serif",
+              fontFamily: "'Geist', 'DM Sans', sans-serif",
               fontSize: "0.8rem",
               color: "rgba(255,255,255,0.3)",
             }}
@@ -1196,7 +1330,7 @@ function SiteFooter() {
                 key={l.href}
                 to={l.href}
                 style={{
-                  fontFamily: "'DM Sans', sans-serif",
+                  fontFamily: "'Geist', 'DM Sans', sans-serif",
                   fontSize: "0.8rem",
                   color: "rgba(255,255,255,0.35)",
                   textDecoration: "none",
@@ -1280,7 +1414,7 @@ export default function Index() {
                 <span
                   className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-[12px] tracking-wide"
                   style={{
-                    fontFamily: "'DM Sans', sans-serif",
+                    fontFamily: "'Geist', 'DM Sans', sans-serif",
                     background: "rgba(255,255,255,0.06)",
                     border: "1px solid rgba(255,255,255,0.1)",
                     color: "rgba(255,255,255,0.55)",
@@ -1292,7 +1426,7 @@ export default function Index() {
 
               {/* Headline */}
               <div className="mb-4 overflow-hidden">
-                <h1 className="leading-[1.2] tracking-tight font-extrabold" style={{ fontFamily: "'Syne', sans-serif" }}>
+                <h1 className="leading-[1.2] tracking-tight font-extrabold" style={{ fontFamily: "'Geist', sans-serif" }}>
                   <SplitText
                     text="Build a Bot today"
                     splitType="chars"
@@ -1312,7 +1446,7 @@ export default function Index() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.8, delay: 0.65 }}
                 className="mb-8 max-w-md leading-relaxed"
-                style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "1.05rem", fontWeight: 400, color: "rgba(226,232,240,0.65)" }}
+                style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", fontSize: "1.05rem", fontWeight: 400, color: "rgba(226,232,240,0.65)" }}
               >
                 No code. No developers. No limits. Describe your bot and Buildable Labs builds, deploys, and hosts it — instantly.
               </motion.p>
@@ -1328,7 +1462,7 @@ export default function Index() {
                   href={getSignUpUrl()}
                   className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-[14px] font-semibold transition-all duration-200"
                   style={{
-                    fontFamily: "'DM Sans', sans-serif",
+                    fontFamily: "'Geist', 'DM Sans', sans-serif",
                     background: "rgba(255,255,255,0.92)",
                     color: "#0a0a0e",
                     boxShadow: "0 2px 16px rgba(255,255,255,0.12)",
@@ -1342,7 +1476,7 @@ export default function Index() {
                   to="/pricing"
                   className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-[14px] font-medium transition-all duration-200"
                   style={{
-                    fontFamily: "'DM Sans', sans-serif",
+                    fontFamily: "'Geist', 'DM Sans', sans-serif",
                     color: "rgba(255,255,255,0.65)",
                     background: "rgba(255,255,255,0.06)",
                     border: "1px solid rgba(255,255,255,0.12)",
@@ -1359,6 +1493,9 @@ export default function Index() {
 
         {/* ══════════════ BUILDABLE AI INTRO ══════════════ */}
         <BuildableSimulation />
+
+        {/* ══════════════ BOT SHOWCASE CARDS ══════════════ */}
+        <BotShowcaseSection />
 
         {/* ══════════════ HOW IT WORKS ══════════════ */}
         <HowItWorks />

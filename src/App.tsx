@@ -11,7 +11,6 @@ import Login from "./pages/Login";
 import SignUp from "./pages/SignUp";
 import Dashboard from "./pages/Dashboard";
 import DashboardUsage from "./pages/DashboardUsage";
-import DashboardBilling from "./pages/DashboardBilling";
 import DashboardSettings from "./pages/DashboardSettings";
 import DashboardProject from "./pages/DashboardProject";
 import DashboardProjectSettings from "./pages/DashboardProjectSettings";
@@ -20,17 +19,27 @@ import DashboardComponents from "./pages/DashboardComponents";
 import DashboardBackgrounds from "./pages/DashboardBackgrounds";
 import Docs from "./pages/Docs";
 import Explore from "./pages/Explore";
-// Use the new backend-driven workspace (V2)
 import ProjectWorkspaceV2 from "./components/workspace/ProjectWorkspaceV2";
+import ProjectWorkspaceV3 from "./components/workspace/ProjectWorkspaceV3";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
 import Contact from "./pages/Contact";
 import Onboarding from "./pages/Onboarding";
+import About from "@/pages/About";
+import Blog from "@/pages/Blog";
+import Careers from "@/pages/Careers";
+import Tutorials from "@/pages/Tutorials";
+import Community from "@/pages/Community";
+import Changelog from "@/pages/Changelog";
+import BotBuilder from "@/pages/BotBuilder";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import CookieConsent from "./components/CookieConsent";
+import LogoPreview from "./pages/LogoPreview";
+import DashboardExplore from "./pages/DashboardExplore";
+import AdPreview from "./pages/AdPreview";
 
 const queryClient = new QueryClient();
 
@@ -59,7 +68,7 @@ const App = () => (
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/dashboard/usage" element={<ProtectedRoute><DashboardUsage /></ProtectedRoute>} />
-            <Route path="/dashboard/billing" element={<ProtectedRoute><DashboardBilling /></ProtectedRoute>} />
+            <Route path="/dashboard/billing" element={<Navigate to="/dashboard/settings?tab=billing" replace />} />
             <Route path="/dashboard/settings" element={<ProtectedRoute><DashboardSettings /></ProtectedRoute>} />
             <Route path="/dashboard/project/:projectId" element={<ProtectedRoute><DashboardProject /></ProtectedRoute>} />
             <Route path="/dashboard/project/:projectId/settings" element={<ProtectedRoute><DashboardProjectSettings /></ProtectedRoute>} />
@@ -70,8 +79,19 @@ const App = () => (
             <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
             <Route path="/docs" element={<Docs />} />
             <Route path="/explore" element={<Explore />} />
-            {/* Use the new backend-driven workspace */}
-            <Route path="/project/:projectId" element={<ProtectedRoute><ProjectWorkspaceV2 /></ProtectedRoute>} />
+            <Route path="/project/:projectId" element={<ProtectedRoute><ProjectWorkspaceV3 /></ProtectedRoute>} />
+            {/* V2 kept as fallback — remove once V3 is stable */}
+            <Route path="/project/:projectId/v2" element={<ProtectedRoute><ProjectWorkspaceV2 /></ProtectedRoute>} />
+            <Route path="/about" element={<About />} />
+            <Route path="/blog" element={<Blog />} />
+            <Route path="/careers" element={<Careers />} />
+            <Route path="/tutorials" element={<Tutorials />} />
+            <Route path="/community" element={<Community />} />
+            <Route path="/changelog" element={<Changelog />} />
+            <Route path="/bot-builder" element={<BotBuilder />} />
+            <Route path="/logo-preview" element={<LogoPreview />} />
+            <Route path="/ad-preview" element={<AdPreview />} />
+            <Route path="/dashboard/explore" element={<ProtectedRoute><DashboardExplore /></ProtectedRoute>} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

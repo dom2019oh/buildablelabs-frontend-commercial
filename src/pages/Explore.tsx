@@ -1,156 +1,356 @@
-import { motion } from 'framer-motion';
-import { Link } from 'react-router-dom';
-import { Search, Heart, Eye, ExternalLink } from 'lucide-react';
-import Navbar from '@/components/Navbar';
+import { useState } from "react";
+import { motion } from "framer-motion";
+import { Link } from "react-router-dom";
+import { Search, Heart, Eye } from "lucide-react";
+import FloatingNav from "@/components/FloatingNav";
 
 const showcaseProjects = [
   {
-    id: '1',
-    name: 'SaaS Dashboard',
-    author: 'Jane Doe',
-    likes: 234,
-    views: 1200,
-    image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=400&h=300&fit=crop',
+    id: "1",
+    name: "Moderation Bot",
+    author: "discord_dev",
+    likes: 312,
+    views: 1480,
+    tag: "Moderation",
   },
   {
-    id: '2',
-    name: 'E-commerce Store',
-    author: 'John Smith',
-    likes: 189,
-    views: 890,
-    image: 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=400&h=300&fit=crop',
+    id: "2",
+    name: "Music Bot",
+    author: "bot_creator",
+    likes: 278,
+    views: 1120,
+    tag: "Music",
   },
   {
-    id: '3',
-    name: 'Portfolio Site',
-    author: 'Alex Johnson',
-    likes: 156,
-    views: 756,
-    image: 'https://images.unsplash.com/photo-1467232004584-a241de8bcf5d?w=400&h=300&fit=crop',
+    id: "3",
+    name: "Welcome Bot",
+    author: "server_tools",
+    likes: 194,
+    views: 870,
+    tag: "Utility",
   },
   {
-    id: '4',
-    name: 'Blog Platform',
-    author: 'Sarah Williams',
-    likes: 142,
-    views: 678,
-    image: 'https://images.unsplash.com/photo-1499750310107-5fef28a66643?w=400&h=300&fit=crop',
+    id: "4",
+    name: "Ticket Bot",
+    author: "support_sys",
+    likes: 163,
+    views: 745,
+    tag: "Support",
   },
   {
-    id: '5',
-    name: 'Fitness App',
-    author: 'Mike Brown',
-    likes: 128,
-    views: 543,
-    image: 'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=400&h=300&fit=crop',
+    id: "5",
+    name: "Giveaway Bot",
+    author: "giveaway_king",
+    likes: 141,
+    views: 612,
+    tag: "Fun",
   },
   {
-    id: '6',
-    name: 'Recipe Website',
-    author: 'Emily Davis',
-    likes: 115,
-    views: 432,
-    image: 'https://images.unsplash.com/photo-1466637574441-749b8f19452f?w=400&h=300&fit=crop',
+    id: "6",
+    name: "AI Chat Bot",
+    author: "ai_builders",
+    likes: 129,
+    views: 508,
+    tag: "AI",
   },
 ];
 
-export default function Explore() {
-  return (
-    <div className="min-h-screen bg-background">
-      <Navbar />
+const filters = ["All", "Moderation", "Music", "Utility", "Support", "Fun", "AI"];
 
-      <div className="pt-32 pb-16 px-6">
-        <div className="max-w-6xl mx-auto">
+const glassCard: React.CSSProperties = {
+  background: "rgba(255,255,255,0.04)",
+  border: "1px solid rgba(255,255,255,0.08)",
+  borderRadius: "16px",
+};
+
+const glassInput: React.CSSProperties = {
+  background: "rgba(255,255,255,0.04)",
+  border: "1px solid rgba(255,255,255,0.08)",
+  borderRadius: "12px",
+  display: "flex",
+  alignItems: "center",
+  padding: "0 14px",
+  gap: "10px",
+};
+
+export default function Explore() {
+  const [activeFilter, setActiveFilter] = useState("All");
+  const [search, setSearch] = useState("");
+
+  const filtered = showcaseProjects.filter((p) => {
+    const matchesFilter = activeFilter === "All" || p.tag === activeFilter;
+    const matchesSearch =
+      p.name.toLowerCase().includes(search.toLowerCase()) ||
+      p.author.toLowerCase().includes(search.toLowerCase());
+    return matchesFilter && matchesSearch;
+  });
+
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        background: "#080a0c",
+        fontFamily: "'Geist', sans-serif",
+        position: "relative",
+      }}
+    >
+      {/* Top purple bloom */}
+      <div
+        style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          height: "50vh",
+          background:
+            "radial-gradient(ellipse 80% 40% at 50% 0%, rgba(90,30,200,0.10) 0%, transparent 70%)",
+          pointerEvents: "none",
+          zIndex: 0,
+        }}
+      />
+
+      <FloatingNav />
+
+      <div
+        style={{
+          paddingTop: "112px",
+          paddingBottom: "64px",
+          paddingLeft: "24px",
+          paddingRight: "24px",
+          position: "relative",
+          zIndex: 1,
+        }}
+      >
+        <div style={{ maxWidth: "1100px", margin: "0 auto" }}>
+
           {/* Header */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="text-center mb-12"
+            style={{ textAlign: "center", marginBottom: "48px" }}
           >
-            <h1 className="text-4xl md:text-5xl font-bold mb-4">
-              Explore <span className="text-gradient">Community</span> Projects
+            <h1
+              style={{
+                fontSize: "clamp(32px, 6vw, 52px)",
+                fontWeight: 700,
+                color: "rgba(255,255,255,0.88)",
+                marginBottom: "12px",
+                lineHeight: 1.1,
+                letterSpacing: "-0.02em",
+                fontFamily: "'Geist', sans-serif",
+              }}
+            >
+              Community{" "}
+              <span
+                style={{
+                  fontFamily: "'Geist', sans-serif",
+                  fontWeight: 800,
+                  color: "rgba(140,100,255,0.9)",
+                }}
+              >
+                Bot Gallery
+              </span>
             </h1>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Get inspired by what others are building with Buildable.
+            <p
+              style={{
+                fontSize: "17px",
+                color: "rgba(255,255,255,0.5)",
+                maxWidth: "480px",
+                margin: "0 auto",
+                fontFamily: "'Geist', sans-serif",
+              }}
+            >
+              See what others have built with Buildable.
             </p>
           </motion.div>
 
           {/* Search & Filters */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.1 }}
-            className="flex flex-col md:flex-row gap-4 mb-12"
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "12px",
+              marginBottom: "48px",
+            }}
           >
-            <div className="flex-1 glass-card p-2 input-glow">
-              <div className="flex items-center gap-3 px-3">
-                <Search className="w-5 h-5 text-muted-foreground" />
-                <input
-                  type="text"
-                  placeholder="Search projects..."
-                  className="flex-1 py-2 bg-transparent focus:outline-none"
-                />
-              </div>
+            {/* Search */}
+            <div style={glassInput}>
+              <Search style={{ width: "16px", height: "16px", color: "rgba(255,255,255,0.28)", flexShrink: 0 }} />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search bots..."
+                style={{
+                  flex: 1,
+                  padding: "12px 0",
+                  background: "transparent",
+                  border: "none",
+                  outline: "none",
+                  fontFamily: "'Geist', sans-serif",
+                  fontSize: "14px",
+                  color: "rgba(255,255,255,0.88)",
+                }}
+              />
             </div>
-            <div className="flex gap-2">
-              {['All', 'SaaS', 'E-commerce', 'Portfolio', 'Landing'].map((filter) => (
+
+            {/* Filter chips */}
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+              {filters.map((f) => (
                 <button
-                  key={filter}
-                  className="glass-button px-4 py-2 text-sm"
+                  key={f}
+                  onClick={() => setActiveFilter(f)}
+                  style={{
+                    padding: "6px 14px",
+                    borderRadius: "999px",
+                    fontSize: "13px",
+                    fontFamily: "'Geist', sans-serif",
+                    cursor: "pointer",
+                    border:
+                      activeFilter === f
+                        ? "1px solid rgba(140,100,255,0.5)"
+                        : "1px solid rgba(255,255,255,0.08)",
+                    background:
+                      activeFilter === f
+                        ? "rgba(140,100,255,0.12)"
+                        : "rgba(255,255,255,0.04)",
+                    color:
+                      activeFilter === f
+                        ? "rgba(140,100,255,0.9)"
+                        : "rgba(255,255,255,0.45)",
+                    transition: "all 0.2s ease",
+                  }}
                 >
-                  {filter}
+                  {f}
                 </button>
               ))}
             </div>
           </motion.div>
 
-          {/* Projects Grid */}
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {showcaseProjects.map((project, index) => (
+          {/* Bot Cards Grid */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
+              gap: "20px",
+            }}
+          >
+            {filtered.map((project, index) => (
               <motion.div
                 key={project.id}
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.1 + index * 0.05 }}
-                className="glass-card overflow-hidden group"
+                style={glassCard}
               >
-                {/* Preview Image */}
-                <div className="relative aspect-video overflow-hidden">
-                  <img
-                    src={project.image}
-                    alt={project.name}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-center pb-4">
-                    <Link
-                      to={`/project-${project.id}`}
-                      className="glass-button flex items-center gap-2 text-sm"
-                    >
-                      <ExternalLink className="w-4 h-4" />
-                      View Project
-                    </Link>
-                  </div>
+                {/* Bot icon placeholder */}
+                <div
+                  style={{
+                    height: "120px",
+                    borderRadius: "16px 16px 0 0",
+                    background: "rgba(140,100,255,0.06)",
+                    borderBottom: "1px solid rgba(255,255,255,0.06)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: "40px",
+                      opacity: 0.4,
+                      fontFamily: "'Geist', sans-serif",
+                      color: "rgba(255,255,255,0.6)",
+                      letterSpacing: "-0.02em",
+                    }}
+                  >
+                    {project.name.charAt(0)}
+                  </span>
                 </div>
 
                 {/* Info */}
-                <div className="p-4">
-                  <h3 className="font-semibold mb-1">{project.name}</h3>
-                  <p className="text-sm text-muted-foreground mb-3">by {project.author}</p>
-                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                    <span className="flex items-center gap-1">
-                      <Heart className="w-4 h-4" />
+                <div style={{ padding: "16px 20px 20px" }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "6px" }}>
+                    <h3
+                      style={{
+                        fontSize: "15px",
+                        fontWeight: 600,
+                        color: "rgba(255,255,255,0.88)",
+                        fontFamily: "'Geist', sans-serif",
+                      }}
+                    >
+                      {project.name}
+                    </h3>
+                    <span
+                      style={{
+                        fontSize: "11px",
+                        padding: "2px 8px",
+                        borderRadius: "999px",
+                        background: "rgba(140,100,255,0.1)",
+                        border: "1px solid rgba(140,100,255,0.2)",
+                        color: "rgba(140,100,255,0.8)",
+                        fontFamily: "'Geist', sans-serif",
+                      }}
+                    >
+                      {project.tag}
+                    </span>
+                  </div>
+                  <p
+                    style={{
+                      fontSize: "13px",
+                      color: "rgba(255,255,255,0.28)",
+                      marginBottom: "14px",
+                      fontFamily: "'Geist', sans-serif",
+                    }}
+                  >
+                    by {project.author}
+                  </p>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "16px",
+                      fontSize: "13px",
+                      color: "rgba(255,255,255,0.28)",
+                    }}
+                  >
+                    <span style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+                      <Heart style={{ width: "13px", height: "13px" }} />
                       {project.likes}
                     </span>
-                    <span className="flex items-center gap-1">
-                      <Eye className="w-4 h-4" />
+                    <span style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+                      <Eye style={{ width: "13px", height: "13px" }} />
                       {project.views}
                     </span>
+                    <Link
+                      to={`/bot-${project.id}`}
+                      style={{
+                        marginLeft: "auto",
+                        fontSize: "12px",
+                        color: "rgba(140,100,255,0.7)",
+                        textDecoration: "none",
+                        fontFamily: "'Geist', sans-serif",
+                        transition: "color 0.2s ease",
+                      }}
+                      onMouseEnter={(e) => {
+                        (e.currentTarget as HTMLElement).style.color = "rgba(140,100,255,1)";
+                      }}
+                      onMouseLeave={(e) => {
+                        (e.currentTarget as HTMLElement).style.color = "rgba(140,100,255,0.7)";
+                      }}
+                    >
+                      View Bot →
+                    </Link>
                   </div>
                 </div>
               </motion.div>
             ))}
           </div>
+
         </div>
       </div>
     </div>

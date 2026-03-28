@@ -2,14 +2,19 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Loader2, Eye, EyeOff } from 'lucide-react';
-import logoPng from '@/assets/buildable-logo.png';
-import wordmarkSvg from '@/assets/buildable-wordmark.svg';
 import Grainient from '@/components/Grainient';
+import wordmarkSvg from '@/assets/buildable-wordmark.svg';
 import {
   signInWithEmailAndPassword,
   signInWithPopup,
   GoogleAuthProvider,
+  setPersistence,
+  browserLocalPersistence,
+  browserSessionPersistence,
 } from 'firebase/auth';
+
+const REMEMBER_KEY = 'buildable_remember_expires';
+const THIRTY_DAYS  = 30 * 24 * 60 * 60 * 1000;
 import { auth } from '@/lib/firebase';
 import { toast } from 'sonner';
 import { redirectToDashboard } from '@/lib/urls';
@@ -18,6 +23,7 @@ export default function Login() {
   const [email, setEmail]             = useState('');
   const [password, setPassword]       = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe]   = useState(false);
   const [loading, setLoading]         = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const navigate  = useNavigate();
@@ -38,7 +44,10 @@ export default function Login() {
     if (!email || !password) { toast.error('Please fill in all fields'); return; }
     setLoading(true);
     try {
+      await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
       await signInWithEmailAndPassword(auth, email, password);
+      if (rememberMe) localStorage.setItem(REMEMBER_KEY, String(Date.now() + THIRTY_DAYS));
+      else localStorage.removeItem(REMEMBER_KEY);
       toast.success('Welcome back!');
       afterLogin();
     } catch (err: any) {
@@ -51,7 +60,10 @@ export default function Login() {
   const handleGoogleSignIn = async () => {
     setGoogleLoading(true);
     try {
+      await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
       await signInWithPopup(auth, new GoogleAuthProvider());
+      if (rememberMe) localStorage.setItem(REMEMBER_KEY, String(Date.now() + THIRTY_DAYS));
+      else localStorage.removeItem(REMEMBER_KEY);
       toast.success('Welcome back!');
       afterLogin();
     } catch (err: any) {
@@ -87,10 +99,8 @@ export default function Login() {
         {/* Top bar */}
         <div className="flex items-center justify-between px-10 h-16 flex-shrink-0" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
           <Link to="/" className="flex items-center gap-[10px]">
-            <img src={logoPng} alt="" aria-hidden draggable={false} className="select-none block"
-              style={{ height: '26px', width: '26px', objectFit: 'contain', filter: 'invert(1)', flexShrink: 0 }} />
-            <img src={wordmarkSvg} alt="Buildable Labs" draggable={false} className="select-none block"
-              style={{ height: '22px', width: 'auto', objectFit: 'contain' }} />
+            <img src="/logo-stack-white.svg" alt="" aria-hidden draggable={false} className="select-none block" style={{ height: '20px', width: 'auto', objectFit: 'contain', flexShrink: 0 }} />
+            <img src={wordmarkSvg} alt="Buildable Labs" draggable={false} className="select-none block" style={{ height: '22px', width: 'auto', objectFit: 'contain' }} />
           </Link>
           <Link to="/"
             className="text-[11px] uppercase tracking-widest transition-colors"
@@ -112,10 +122,10 @@ export default function Login() {
           >
             <div className="mb-10">
               <p className="text-[11px] uppercase tracking-[0.2em] mb-3"
-                style={{ color: 'rgba(255,255,255,0.35)', fontFamily: "'DM Sans', sans-serif" }}>
+                style={{ color: 'rgba(255,255,255,0.35)', fontFamily: "'Geist', 'DM Sans', sans-serif" }}>
                 Sign in
               </p>
-              <h1 style={{ fontFamily: "'Instrument Serif', serif", fontSize: '2.4rem', fontWeight: 400, fontStyle: 'italic', color: '#ffffff', lineHeight: 1.15, letterSpacing: '-0.01em' }}>
+              <h1 style={{ fontFamily: "'Geist', sans-serif", fontSize: '2.4rem', fontWeight: 800, fontStyle: 'normal', color: '#ffffff', lineHeight: 1.15, letterSpacing: '-0.01em' }}>
                 Welcome back.
               </h1>
             </div>
@@ -123,13 +133,13 @@ export default function Login() {
             <form onSubmit={handleSubmit} className="space-y-7">
               {/* Email */}
               <div>
-                <label className="block mb-2" style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '10px', letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.38)' }}>
+                <label className="block mb-2" style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", fontSize: '10px', letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.38)' }}>
                   Email address
                 </label>
                 <input type="email" value={email} onChange={e => setEmail(e.target.value)}
                   placeholder="you@example.com" disabled={loading}
                   className="w-full py-2.5 text-sm text-white placeholder-white/20 disabled:opacity-40 outline-none transition-colors duration-200"
-                  style={{ background: 'transparent', border: 'none', borderBottom: '1px solid rgba(255,255,255,0.15)', borderRadius: 0, fontFamily: "'DM Sans', sans-serif" }}
+                  style={{ background: 'transparent', border: 'none', borderBottom: '1px solid rgba(255,255,255,0.15)', borderRadius: 0, fontFamily: "'Geist', 'DM Sans', sans-serif" }}
                   onFocus={e => (e.currentTarget.style.borderBottom = '1px solid rgba(255,255,255,0.55)')}
                   onBlur={e => (e.currentTarget.style.borderBottom = '1px solid rgba(255,255,255,0.15)')}
                 />
@@ -138,11 +148,11 @@ export default function Login() {
               {/* Password */}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <label style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '10px', letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.38)' }}>
+                  <label style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", fontSize: '10px', letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.38)' }}>
                     Password
                   </label>
                   <Link to="/forgot-password"
-                    style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '10px', letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)', transition: 'color 0.2s' }}
+                    style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", fontSize: '10px', letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)', transition: 'color 0.2s' }}
                     onMouseEnter={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.65)')}
                     onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.3)')}
                   >
@@ -153,7 +163,7 @@ export default function Login() {
                   <input type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)}
                     placeholder="••••••••" disabled={loading}
                     className="w-full py-2.5 pr-8 text-sm text-white placeholder-white/20 disabled:opacity-40 outline-none transition-colors duration-200"
-                    style={{ background: 'transparent', border: 'none', borderBottom: '1px solid rgba(255,255,255,0.15)', borderRadius: 0, fontFamily: "'DM Sans', sans-serif" }}
+                    style={{ background: 'transparent', border: 'none', borderBottom: '1px solid rgba(255,255,255,0.15)', borderRadius: 0, fontFamily: "'Geist', 'DM Sans', sans-serif" }}
                     onFocus={e => (e.currentTarget.style.borderBottom = '1px solid rgba(255,255,255,0.55)')}
                     onBlur={e => (e.currentTarget.style.borderBottom = '1px solid rgba(255,255,255,0.15)')}
                   />
@@ -167,25 +177,53 @@ export default function Login() {
                 </div>
               </div>
 
+              {/* Remember me */}
+              <div className="flex items-center gap-2.5 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setRememberMe(v => !v)}
+                  style={{
+                    width: '16px', height: '16px', flexShrink: 0,
+                    borderRadius: '4px',
+                    border: rememberMe ? '1px solid rgba(255,255,255,0.6)' : '1px solid rgba(255,255,255,0.22)',
+                    background: rememberMe ? 'rgba(255,255,255,0.9)' : 'transparent',
+                    transition: 'all 0.15s',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}
+                >
+                  {rememberMe && (
+                    <svg width="9" height="7" viewBox="0 0 9 7" fill="none">
+                      <path d="M1 3.5L3.5 6L8 1" stroke="#0a0612" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  )}
+                </button>
+                <span
+                  style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", fontSize: '11px', color: 'rgba(255,255,255,0.38)', cursor: 'pointer', userSelect: 'none' }}
+                  onClick={() => setRememberMe(v => !v)}
+                >
+                  Remember me for 30 days
+                </span>
+              </div>
+
               <div className="pt-2 space-y-3">
                 <motion.button type="submit" disabled={loading}
                   whileHover={{ opacity: 0.9 }} whileTap={{ scale: 0.99 }}
                   className="w-full flex items-center justify-center gap-2 py-3.5 disabled:opacity-40 transition-opacity"
-                  style={{ background: 'rgba(255,255,255,0.96)', color: '#0a0612', borderRadius: '3px', fontFamily: "'DM Sans', sans-serif", fontSize: '12px', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase' }}
+                  style={{ background: 'rgba(255,255,255,0.96)', color: '#0a0612', borderRadius: '3px', fontFamily: "'Geist', 'DM Sans', sans-serif", fontSize: '12px', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase' }}
                 >
                   {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Continue'}
                 </motion.button>
 
                 <div className="flex items-center gap-4 py-1">
                   <div className="flex-1" style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }} />
-                  <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '9px', letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.22)' }}>or</span>
+                  <span style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", fontSize: '9px', letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.22)' }}>or</span>
                   <div className="flex-1" style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }} />
                 </div>
 
                 <motion.button type="button" onClick={handleGoogleSignIn} disabled={googleLoading}
                   whileHover={{ background: 'rgba(255,255,255,0.07)' }} whileTap={{ scale: 0.99 }}
                   className="w-full flex items-center justify-center gap-3 py-3.5 transition-colors disabled:opacity-40"
-                  style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '3px', fontFamily: "'DM Sans', sans-serif", fontSize: '12px', fontWeight: 500, letterSpacing: '0.06em', color: 'rgba(255,255,255,0.65)' }}
+                  style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '3px', fontFamily: "'Geist', 'DM Sans', sans-serif", fontSize: '12px', fontWeight: 500, letterSpacing: '0.06em', color: 'rgba(255,255,255,0.65)' }}
                 >
                   {googleLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : (
                     <>
@@ -202,7 +240,7 @@ export default function Login() {
               </div>
             </form>
 
-            <p className="mt-10 text-center" style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '11px', color: 'rgba(255,255,255,0.25)', letterSpacing: '0.04em' }}>
+            <p className="mt-10 text-center" style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", fontSize: '11px', color: 'rgba(255,255,255,0.25)', letterSpacing: '0.04em' }}>
               No account?{' '}
               <Link to="/sign-up"
                 style={{ color: 'rgba(255,255,255,0.55)', transition: 'color 0.2s' }}
@@ -230,7 +268,7 @@ export default function Login() {
             <br />to a live Discord bot —
             <br />in seconds."
           </blockquote>
-          <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '11px', letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.45)' }}>
+          <p style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", fontSize: '11px', letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.45)' }}>
             No code &nbsp;·&nbsp; No servers &nbsp;·&nbsp; No limits
           </p>
         </motion.div>

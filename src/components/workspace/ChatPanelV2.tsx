@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils';
 import type { ProjectMessage } from '@/hooks/useProjectMessages';
 import MarkdownRenderer from './MarkdownRenderer';
 import ThinkingIndicatorV2 from './ThinkingIndicatorV2';
-import ChatInputV2 from './ChatInputV2';
+import ChatInputV2, { type WorkspaceMode } from './ChatInputV2';
 
 interface ChatPanelV2Props {
   messages: ProjectMessage[];
@@ -13,13 +13,15 @@ interface ChatPanelV2Props {
   isSending: boolean;
   isStreaming?: boolean;
   streamingMetadata?: { modelUsed?: string; taskType?: string };
-  onSendMessage: (content: string) => Promise<void>;
+  onSendMessage: (content: string, mode: WorkspaceMode) => Promise<void>;
   projectName: string;
   projectId: string;
   lastError?: string | null;
   onRetry?: () => void;
   isRetrying?: boolean;
   currentActions?: string[];
+  onOpenHistory?: () => void;
+  onOpenGitHub?: () => void;
 }
 
 export default function ChatPanelV2({
@@ -33,9 +35,11 @@ export default function ChatPanelV2({
   projectId,
   lastError = null,
   currentActions = [],
+  onOpenHistory,
+  onOpenGitHub,
 }: ChatPanelV2Props) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [isPlanMode, setIsPlanMode] = useState(false);
+  const [mode, setMode] = useState<WorkspaceMode>('build');
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -43,21 +47,16 @@ export default function ChatPanelV2({
   }, [messages]);
 
   const handleSend = async (content: string) => {
-    if (isPlanMode) {
-      // In plan mode, prefix message to indicate planning
-      await onSendMessage(`[PLAN MODE] ${content}`);
-    } else {
-      await onSendMessage(content);
-    }
+    await onSendMessage(content, mode);
   };
 
   return (
-    <div className="h-full flex flex-col bg-zinc-900">
+    <div className="h-full w-full flex flex-col overflow-hidden" style={{ background: '#0e0d12' }}>
       {/* Messages Area - No glass, pure grey */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
         {isLoading ? (
           <div className="flex items-center justify-center h-full">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <Loader2 className="h-6 w-6 animate-spin" style={{ color: 'rgba(255,255,255,0.3)' }} />
           </div>
         ) : messages.length === 0 ? (
           /* Empty state - just shows nothing, user focuses on input */
@@ -79,12 +78,13 @@ export default function ChatPanelV2({
                 )}
               >
                 <div
-                  className={cn(
-                    'rounded-2xl px-4 py-3',
-                    message.role === 'user'
-                      ? 'bg-zinc-700 text-foreground'
-                      : 'bg-zinc-800 text-foreground'
-                  )}
+                  className="rounded-2xl px-4 py-3"
+                  style={{
+                    background: message.role === 'user'
+                      ? 'rgba(255,255,255,0.09)'
+                      : 'rgba(255,255,255,0.04)',
+                    color: 'rgba(255,255,255,0.85)',
+                  }}
                 >
                   {message.role === 'assistant' ? (
                     <MarkdownRenderer 
@@ -99,10 +99,10 @@ export default function ChatPanelV2({
                 </div>
                 
                 {/* Timestamp */}
-                <div className={cn(
-                  "text-[10px] text-muted-foreground mt-1 px-1",
-                  message.role === 'user' ? 'text-right' : 'text-left'
-                )}>
+                <div
+                  className={cn('text-[10px] mt-1 px-1', message.role === 'user' ? 'text-right' : 'text-left')}
+                  style={{ color: 'rgba(255,255,255,0.25)', fontFamily: "'Geist', 'DM Sans', sans-serif" }}
+                >
                   {new Date(message.created_at).toLocaleTimeString([], { 
                     hour: '2-digit', 
                     minute: '2-digit' 
@@ -147,9 +147,11 @@ export default function ChatPanelV2({
       <ChatInputV2
         onSend={handleSend}
         isSending={isSending}
-        isPlanMode={isPlanMode}
-        onPlanModeChange={setIsPlanMode}
+        mode={mode}
+        onModeChange={setMode}
         projectId={projectId}
+        onOpenHistory={onOpenHistory}
+        onOpenGitHub={onOpenGitHub}
       />
     </div>
   );

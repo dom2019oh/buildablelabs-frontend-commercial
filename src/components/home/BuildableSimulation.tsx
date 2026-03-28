@@ -278,16 +278,16 @@ export default function BuildableSimulation() {
           transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
         >
           <span className="inline-block text-[11px] tracking-[0.22em] uppercase mb-5 px-3.5 py-1.5 rounded-full"
-            style={{ fontFamily: "'DM Sans', sans-serif", color: 'rgba(255,255,255,0.28)',
+            style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.28)',
               background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
             Live simulation
           </span>
           <h2 className="text-5xl md:text-6xl font-extrabold leading-[1.1] tracking-tight mb-5"
-            style={{ fontFamily: "'Syne', sans-serif", color: 'rgba(255,255,255,0.92)' }}>
+            style={{ fontFamily: "'Geist', sans-serif", color: 'rgba(255,255,255,0.92)' }}>
             From idea to live bot
           </h2>
           <p className="max-w-md mx-auto text-base leading-relaxed"
-            style={{ fontFamily: "'DM Sans', sans-serif", color: 'rgba(226,232,240,0.45)', fontSize: '1rem' }}>
+            style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(226,232,240,0.45)', fontSize: '1rem' }}>
             Watch Buildable AI take a plain-English description and turn it into a
             deployed, working Discord bot — in real time.
           </p>
@@ -322,7 +322,7 @@ export default function BuildableSimulation() {
           <div className="flex" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: '#0e0e13' }}>
             {PHASE_LABELS.map((label, i) => (
               <div key={label} className="flex items-center gap-2 px-4 py-2.5 text-xs relative"
-                style={{ fontFamily: "'DM Sans', sans-serif",
+                style={{ fontFamily: "'Geist', 'DM Sans', sans-serif",
                   color: i === phaseIdx ? 'rgba(255,255,255,0.75)' : 'rgba(255,255,255,0.2)',
                   transition: 'color 0.3s' }}>
                 {i < phaseIdx && <div className="w-1.5 h-1.5 rounded-full" style={{ background: '#28c840' }} />}
@@ -354,10 +354,10 @@ export default function BuildableSimulation() {
                   </div>
                   <div className="rounded-xl p-5"
                     style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
-                    <div className="text-xs mb-2" style={{ fontFamily: "'DM Sans', sans-serif", color: 'rgba(255,255,255,0.25)' }}>
+                    <div className="text-xs mb-2" style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.25)' }}>
                       What do you want to build?
                     </div>
-                    <div className="text-base" style={{ fontFamily: "'DM Sans', sans-serif", color: 'rgba(255,255,255,0.82)' }}>
+                    <div className="text-base" style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.82)' }}>
                       {PROMPT.slice(0, promptChars)}
                       <span className="inline-block w-[2px] h-4 ml-px align-middle"
                         style={{ background: 'rgba(255,255,255,0.6)', animation: 'blink 0.9s step-end infinite' }} />
@@ -375,7 +375,7 @@ export default function BuildableSimulation() {
                     <Avatar letter="J" color="#5865F2" />
                     <div className="rounded-xl px-4 py-3 text-sm"
                       style={{ background: 'rgba(88,101,242,0.12)', border: '1px solid rgba(88,101,242,0.2)',
-                        fontFamily: "'DM Sans', sans-serif", color: 'rgba(255,255,255,0.75)' }}>
+                        fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.75)' }}>
                       {PROMPT}
                     </div>
                   </div>
@@ -391,7 +391,7 @@ export default function BuildableSimulation() {
                           transition={{ duration: 0.4 }}
                           className="rounded-xl px-4 py-3 text-sm"
                           style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
-                            fontFamily: "'DM Sans', sans-serif", color: 'rgba(255,255,255,0.72)',
+                            fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.72)',
                             whiteSpace: 'pre-wrap', lineHeight: 1.7 }}>
                           {msg}
                           {i === aiStep && i < AI_STEPS.length - 1 && (
@@ -429,7 +429,7 @@ export default function BuildableSimulation() {
                       <motion.div key={i} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
                         transition={{ duration: 0.4, delay: i * 1.1 }}
                         className="flex items-center gap-2.5 text-xs"
-                        style={{ fontFamily: "'DM Sans', sans-serif", color: 'rgba(255,255,255,0.45)' }}>
+                        style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.45)' }}>
                         <motion.div className="w-1.5 h-1.5 rounded-full flex-shrink-0"
                           style={{ background: '#28c840' }}
                           initial={{ scale: 0 }} animate={{ scale: 1 }}
@@ -464,7 +464,7 @@ export default function BuildableSimulation() {
                   {/* Mini orb as deploy spinner */}
                   <MiniOrb size={64} />
                   <div className="text-sm"
-                    style={{ fontFamily: "'DM Sans', sans-serif", color: 'rgba(255,255,255,0.3)', letterSpacing: '0.08em' }}>
+                    style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.3)', letterSpacing: '0.08em' }}>
                     DEPLOYING TO CLOUD
                   </div>
                   <div className="w-full max-w-sm flex flex-col gap-3">
@@ -478,7 +478,7 @@ export default function BuildableSimulation() {
                           {deployIdx > i ? '✓' : step.icon}
                         </div>
                         <span className="text-sm"
-                          style={{ fontFamily: "'DM Sans', sans-serif",
+                          style={{ fontFamily: "'Geist', 'DM Sans', sans-serif",
                             color: deployIdx > i ? 'rgba(40,200,64,0.7)' : deployIdx === i ? 'rgba(255,255,255,0.75)' : 'rgba(255,255,255,0.2)' }}>
                           {step.label}
                         </span>
@@ -506,12 +506,12 @@ export default function BuildableSimulation() {
                   <div className="hidden md:flex flex-col gap-2 px-3 py-4 flex-shrink-0"
                     style={{ width: '200px', background: '#1e1f22', borderRight: '1px solid rgba(255,255,255,0.05)' }}>
                     <div className="text-[10px] tracking-widest uppercase px-2 mb-1"
-                      style={{ fontFamily: "'DM Sans', sans-serif", color: 'rgba(255,255,255,0.22)' }}>
+                      style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.22)' }}>
                       Text Channels
                     </div>
                     {['general', 'music-bot-test', 'off-topic'].map(ch => (
                       <div key={ch} className="flex items-center gap-1.5 px-2 py-1 rounded text-xs cursor-pointer"
-                        style={{ fontFamily: "'DM Sans', sans-serif",
+                        style={{ fontFamily: "'Geist', 'DM Sans', sans-serif",
                           color: ch === 'music-bot-test' ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.32)',
                           background: ch === 'music-bot-test' ? 'rgba(255,255,255,0.08)' : 'transparent' }}>
                         # {ch}
@@ -522,12 +522,12 @@ export default function BuildableSimulation() {
                   <div className="flex-1 flex flex-col" style={{ background: '#313338' }}>
                     <div className="px-4 py-2.5 flex items-center gap-2"
                       style={{ borderBottom: '1px solid rgba(0,0,0,0.2)', background: '#2b2d31' }}>
-                      <span className="text-sm" style={{ fontFamily: "'DM Sans', sans-serif", color: 'rgba(255,255,255,0.55)' }}>
+                      <span className="text-sm" style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.55)' }}>
                         # music-bot-test
                       </span>
                       <div className="ml-auto flex items-center gap-1.5">
                         <div className="w-2 h-2 rounded-full" style={{ background: '#57F287' }} />
-                        <span className="text-xs" style={{ fontFamily: "'DM Sans', sans-serif", color: 'rgba(255,255,255,0.3)' }}>
+                        <span className="text-xs" style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.3)' }}>
                           MusicBot online
                         </span>
                       </div>
@@ -540,18 +540,18 @@ export default function BuildableSimulation() {
                           <div>
                             <div className="flex items-center gap-2 mb-1">
                               <span className="text-sm font-semibold"
-                                style={{ fontFamily: "'DM Sans', sans-serif", color: msg.bot ? '#57F287' : msg.hue }}>
+                                style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: msg.bot ? '#57F287' : msg.hue }}>
                                 {msg.user}
                               </span>
                               {msg.bot && (
                                 <span className="text-[9px] px-1 py-px rounded"
-                                  style={{ background: '#5865F2', color: '#fff', fontFamily: "'DM Sans', sans-serif", letterSpacing: '0.04em' }}>
+                                  style={{ background: '#5865F2', color: '#fff', fontFamily: "'Geist', 'DM Sans', sans-serif", letterSpacing: '0.04em' }}>
                                   BOT
                                 </span>
                               )}
                             </div>
                             {'text' in msg && msg.text && (
-                              <div className="text-sm" style={{ fontFamily: "'DM Sans', sans-serif", color: 'rgba(255,255,255,0.78)' }}>
+                              <div className="text-sm" style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.78)' }}>
                                 {msg.text}
                               </div>
                             )}
@@ -559,14 +559,14 @@ export default function BuildableSimulation() {
                               <div className="rounded-lg p-3 mt-1"
                                 style={{ background: '#2b2d31', borderLeft: `3px solid ${msg.hue}`, maxWidth: '320px' }}>
                                 <div className="text-xs font-semibold mb-1"
-                                  style={{ fontFamily: "'DM Sans', sans-serif", color: 'rgba(255,255,255,0.85)' }}>
+                                  style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.85)' }}>
                                   {msg.embed.title}
                                 </div>
-                                <div className="text-xs" style={{ fontFamily: "'DM Sans', sans-serif", color: 'rgba(255,255,255,0.6)', whiteSpace: 'pre-line' }}>
+                                <div className="text-xs" style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.6)', whiteSpace: 'pre-line' }}>
                                   {msg.embed.body}
                                 </div>
                                 {msg.embed.meta && (
-                                  <div className="text-[11px] mt-1.5" style={{ fontFamily: "'DM Sans', sans-serif", color: 'rgba(255,255,255,0.3)' }}>
+                                  <div className="text-[11px] mt-1.5" style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.3)' }}>
                                     {msg.embed.meta}
                                   </div>
                                 )}
@@ -580,7 +580,7 @@ export default function BuildableSimulation() {
                         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2">
                           <div className="w-8 h-8" />
                           <div className="flex items-center gap-1 text-xs"
-                            style={{ fontFamily: "'DM Sans', sans-serif", color: 'rgba(255,255,255,0.3)' }}>
+                            style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.3)' }}>
                             <div className="flex gap-0.5">
                               {[0,1,2].map(j => (
                                 <motion.div key={j} className="w-1 h-1 rounded-full"

@@ -1,11 +1,9 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { ArrowLeft, Send, Bug, HelpCircle } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { useToast } from '@/hooks/use-toast';
-import { z } from 'zod';
+import { useState } from "react";
+import { Link } from "react-router-dom";
+import { ArrowLeft, Send, Bug, HelpCircle, Mail, MessageSquare } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { z } from "zod";
+import FloatingNav from "@/components/FloatingNav";
 
 const contactSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(100, "Name must be less than 100 characters"),
@@ -17,31 +15,62 @@ const contactSchema = z.object({
 
 type ContactForm = z.infer<typeof contactSchema>;
 
+const fieldStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "12px 0",
+  background: "transparent",
+  border: "none",
+  borderBottom: "1px solid rgba(255,255,255,0.12)",
+  outline: "none",
+  fontFamily: "'Geist', sans-serif",
+  fontSize: "14px",
+  color: "rgba(255,255,255,0.88)",
+  borderRadius: 0,
+  boxSizing: "border-box",
+};
+
+const labelStyle: React.CSSProperties = {
+  display: "block",
+  fontSize: "12px",
+  fontWeight: 500,
+  color: "rgba(255,255,255,0.28)",
+  marginBottom: "6px",
+  fontFamily: "'Geist', sans-serif",
+  letterSpacing: "0.06em",
+  textTransform: "uppercase",
+};
+
+const errorStyle: React.CSSProperties = {
+  marginTop: "6px",
+  fontSize: "12px",
+  color: "#f87171",
+  fontFamily: "'Geist', sans-serif",
+};
+
 export default function Contact() {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState<ContactForm>({
-    name: '',
-    email: '',
-    type: 'support',
-    subject: '',
-    message: '',
+    name: "",
+    email: "",
+    type: "support",
+    subject: "",
+    message: "",
   });
   const [errors, setErrors] = useState<Partial<Record<keyof ContactForm, string>>>({});
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-    // Clear error when user starts typing
+    setFormData((prev) => ({ ...prev, [name]: value }));
     if (errors[name as keyof ContactForm]) {
-      setErrors(prev => ({ ...prev, [name]: undefined }));
+      setErrors((prev) => ({ ...prev, [name]: undefined }));
     }
   };
 
-  const handleTypeChange = (type: 'support' | 'bug') => {
-    setFormData(prev => ({ ...prev, type }));
+  const handleTypeChange = (type: "support" | "bug") => {
+    setFormData((prev) => ({ ...prev, type }));
     if (errors.type) {
-      setErrors(prev => ({ ...prev, type: undefined }));
+      setErrors((prev) => ({ ...prev, type: undefined }));
     }
   };
 
@@ -49,11 +78,10 @@ export default function Contact() {
     e.preventDefault();
     setErrors({});
 
-    // Validate form
     const result = contactSchema.safeParse(formData);
     if (!result.success) {
       const fieldErrors: Partial<Record<keyof ContactForm, string>> = {};
-      result.error.errors.forEach(err => {
+      result.error.errors.forEach((err) => {
         if (err.path[0]) {
           fieldErrors[err.path[0] as keyof ContactForm] = err.message;
         }
@@ -64,12 +92,15 @@ export default function Contact() {
 
     setIsSubmitting(true);
 
-    // Create mailto link with form data
-    const mailtoSubject = encodeURIComponent(`[${formData.type === 'bug' ? 'Bug Report' : 'Support'}] ${formData.subject}`);
-    const mailtoBody = encodeURIComponent(
-      `Name: ${formData.name}\nEmail: ${formData.email}\nType: ${formData.type === 'bug' ? 'Bug Report' : 'Support Request'}\n\nMessage:\n${formData.message}`
+    const mailtoSubject = encodeURIComponent(
+      `[${formData.type === "bug" ? "Bug Report" : "Support"}] ${formData.subject}`
     );
-    
+    const mailtoBody = encodeURIComponent(
+      `Name: ${formData.name}\nEmail: ${formData.email}\nType: ${
+        formData.type === "bug" ? "Bug Report" : "Support Request"
+      }\n\nMessage:\n${formData.message}`
+    );
+
     window.location.href = `mailto:buildablelabs@gmail.com?subject=${mailtoSubject}&body=${mailtoBody}`;
 
     toast({
@@ -81,156 +112,395 @@ export default function Contact() {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-800">
-      <div className="max-w-2xl mx-auto px-4 py-12 sm:px-6 lg:px-8">
-        <Link 
-          to="/" 
-          className="inline-flex items-center text-zinc-400 hover:text-white mb-8 transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to Home
-        </Link>
+    <div
+      style={{
+        minHeight: "100vh",
+        background: "#080a0c",
+        fontFamily: "'Geist', sans-serif",
+        position: "relative",
+      }}
+    >
+      {/* Top purple bloom */}
+      <div
+        style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          height: "50vh",
+          background:
+            "radial-gradient(ellipse 80% 40% at 50% 0%, rgba(90,30,200,0.10) 0%, transparent 70%)",
+          pointerEvents: "none",
+          zIndex: 0,
+        }}
+      />
 
-        <h1 className="text-4xl font-bold text-white mb-4">Contact Us</h1>
-        <p className="text-zinc-400 mb-8">
-          Have a question, need support, or found a bug? We'd love to hear from you.
-        </p>
+      <FloatingNav />
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Topic Selection */}
-          <div>
-            <label className="block text-sm font-medium text-white mb-3">
-              What can we help you with?
-            </label>
-            <div className="grid grid-cols-2 gap-4">
-              <button
-                type="button"
-                onClick={() => handleTypeChange('support')}
-                className={`flex items-center justify-center gap-3 p-4 rounded-lg border transition-all ${
-                  formData.type === 'support'
-                    ? 'border-purple-500 bg-purple-500/10 text-white'
-                    : 'border-zinc-600 bg-zinc-700/50 text-zinc-300 hover:border-zinc-500'
-                }`}
-              >
-                <HelpCircle className="h-5 w-5" />
-                <span className="font-medium">Support</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleTypeChange('bug')}
-                className={`flex items-center justify-center gap-3 p-4 rounded-lg border transition-all ${
-                  formData.type === 'bug'
-                    ? 'border-purple-500 bg-purple-500/10 text-white'
-                    : 'border-zinc-600 bg-zinc-700/50 text-zinc-300 hover:border-zinc-500'
-                }`}
-              >
-                <Bug className="h-5 w-5" />
-                <span className="font-medium">Bug Report</span>
-              </button>
-            </div>
-            {errors.type && <p className="mt-2 text-sm text-red-400">{errors.type}</p>}
-          </div>
+      <div
+        style={{
+          paddingTop: "112px",
+          paddingBottom: "80px",
+          paddingLeft: "24px",
+          paddingRight: "24px",
+          position: "relative",
+          zIndex: 1,
+        }}
+      >
+        <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
 
-          {/* Name */}
-          <div>
-            <label htmlFor="name" className="block text-sm font-medium text-white mb-2">
-              Your Name
-            </label>
-            <Input
-              id="name"
-              name="name"
-              type="text"
-              value={formData.name}
-              onChange={handleChange}
-              placeholder="John Doe"
-              className="bg-zinc-700 border-zinc-600 text-white placeholder:text-zinc-500 focus:border-purple-500"
-            />
-            {errors.name && <p className="mt-2 text-sm text-red-400">{errors.name}</p>}
-          </div>
-
-          {/* Email */}
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-white mb-2">
-              Email Address
-            </label>
-            <Input
-              id="email"
-              name="email"
-              type="email"
-              value={formData.email}
-              onChange={handleChange}
-              placeholder="john@example.com"
-              className="bg-zinc-700 border-zinc-600 text-white placeholder:text-zinc-500 focus:border-purple-500"
-            />
-            {errors.email && <p className="mt-2 text-sm text-red-400">{errors.email}</p>}
-          </div>
-
-          {/* Subject */}
-          <div>
-            <label htmlFor="subject" className="block text-sm font-medium text-white mb-2">
-              Subject
-            </label>
-            <Input
-              id="subject"
-              name="subject"
-              type="text"
-              value={formData.subject}
-              onChange={handleChange}
-              placeholder={formData.type === 'bug' ? "Brief description of the bug" : "What do you need help with?"}
-              className="bg-zinc-700 border-zinc-600 text-white placeholder:text-zinc-500 focus:border-purple-500"
-            />
-            {errors.subject && <p className="mt-2 text-sm text-red-400">{errors.subject}</p>}
-          </div>
-
-          {/* Message */}
-          <div>
-            <label htmlFor="message" className="block text-sm font-medium text-white mb-2">
-              Message
-            </label>
-            <Textarea
-              id="message"
-              name="message"
-              value={formData.message}
-              onChange={handleChange}
-              placeholder={
-                formData.type === 'bug'
-                  ? "Please describe the bug in detail. Include steps to reproduce, expected behavior, and what actually happened."
-                  : "Please describe your question or issue in detail."
-              }
-              rows={6}
-              className="bg-zinc-700 border-zinc-600 text-white placeholder:text-zinc-500 focus:border-purple-500 resize-none"
-            />
-            {errors.message && <p className="mt-2 text-sm text-red-400">{errors.message}</p>}
-          </div>
-
-          {/* Submit Button */}
-          <Button
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full bg-purple-600 hover:bg-purple-700 text-white py-3"
+          {/* Back link */}
+          <Link
+            to="/"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+              fontSize: "13px",
+              color: "rgba(255,255,255,0.45)",
+              textDecoration: "none",
+              marginBottom: "48px",
+              fontFamily: "'Geist', sans-serif",
+              transition: "color 0.2s ease",
+            }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.85)";
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.45)";
+            }}
           >
-            {isSubmitting ? (
-              "Opening email client..."
-            ) : (
-              <>
-                <Send className="h-4 w-4 mr-2" />
-                Send Message
-              </>
-            )}
-          </Button>
-        </form>
+            <ArrowLeft style={{ width: "14px", height: "14px" }} />
+            Back to Home
+          </Link>
 
-        {/* Direct Email */}
-        <div className="mt-8 pt-8 border-t border-zinc-700">
-          <p className="text-zinc-400 text-center">
-            Or email us directly at{' '}
-            <a 
-              href="mailto:buildablelabs@gmail.com" 
-              className="text-purple-400 hover:text-purple-300"
+          {/* Two-column layout */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1.4fr",
+              gap: "64px",
+              alignItems: "flex-start",
+            }}
+          >
+            {/* LEFT: Heading + contact info */}
+            <div>
+              <h1
+                style={{
+                  fontSize: "clamp(32px, 5vw, 48px)",
+                  fontWeight: 700,
+                  color: "rgba(255,255,255,0.88)",
+                  marginBottom: "8px",
+                  lineHeight: 1.1,
+                  letterSpacing: "-0.02em",
+                  fontFamily: "'Geist', sans-serif",
+                }}
+              >
+                Get in{" "}
+                <span
+                  style={{
+                    fontFamily: "'Geist', sans-serif",
+                    fontWeight: 800,
+                  }}
+                >
+                  Touch
+                </span>
+              </h1>
+              <p
+                style={{
+                  fontSize: "15px",
+                  color: "rgba(255,255,255,0.5)",
+                  marginBottom: "40px",
+                  lineHeight: 1.6,
+                  fontFamily: "'Geist', sans-serif",
+                }}
+              >
+                Have a question, need support, or found a bug? We&apos;d love to hear from you.
+              </p>
+
+              {/* Contact info cards */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                <div
+                  style={{
+                    background: "rgba(255,255,255,0.04)",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    borderRadius: "14px",
+                    padding: "18px 20px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "14px",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: "36px",
+                      height: "36px",
+                      borderRadius: "9px",
+                      background: "rgba(140,100,255,0.12)",
+                      border: "1px solid rgba(140,100,255,0.2)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <Mail style={{ width: "16px", height: "16px", color: "rgba(140,100,255,0.8)" }} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.28)", fontFamily: "'Geist', sans-serif", marginBottom: "2px" }}>
+                      Email
+                    </div>
+                    <a
+                      href="mailto:buildablelabs@gmail.com"
+                      style={{
+                        fontSize: "14px",
+                        color: "rgba(140,100,255,0.8)",
+                        textDecoration: "none",
+                        fontFamily: "'Geist', sans-serif",
+                        transition: "color 0.2s ease",
+                      }}
+                      onMouseEnter={(e) => {
+                        (e.currentTarget as HTMLElement).style.color = "rgba(140,100,255,1)";
+                      }}
+                      onMouseLeave={(e) => {
+                        (e.currentTarget as HTMLElement).style.color = "rgba(140,100,255,0.8)";
+                      }}
+                    >
+                      buildablelabs@gmail.com
+                    </a>
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    background: "rgba(255,255,255,0.04)",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    borderRadius: "14px",
+                    padding: "18px 20px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "14px",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: "36px",
+                      height: "36px",
+                      borderRadius: "9px",
+                      background: "rgba(140,100,255,0.12)",
+                      border: "1px solid rgba(140,100,255,0.2)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <MessageSquare style={{ width: "16px", height: "16px", color: "rgba(140,100,255,0.8)" }} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.28)", fontFamily: "'Geist', sans-serif", marginBottom: "2px" }}>
+                      Response time
+                    </div>
+                    <div style={{ fontSize: "14px", color: "rgba(255,255,255,0.6)", fontFamily: "'Geist', sans-serif" }}>
+                      Usually within 24 hours
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* RIGHT: Form */}
+            <div
+              style={{
+                background: "rgba(255,255,255,0.03)",
+                border: "1px solid rgba(255,255,255,0.07)",
+                borderRadius: "20px",
+                padding: "36px",
+              }}
             >
-              buildablelabs@gmail.com
-            </a>
-          </p>
+              <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "28px" }}>
+
+                {/* Topic selection */}
+                <div>
+                  <label style={{ ...labelStyle, marginBottom: "12px" }}>What can we help you with?</label>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                    <button
+                      type="button"
+                      onClick={() => handleTypeChange("support")}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "10px",
+                        padding: "14px",
+                        borderRadius: "12px",
+                        border:
+                          formData.type === "support"
+                            ? "1px solid rgba(140,100,255,0.5)"
+                            : "1px solid rgba(255,255,255,0.08)",
+                        background:
+                          formData.type === "support"
+                            ? "rgba(140,100,255,0.10)"
+                            : "rgba(255,255,255,0.03)",
+                        color:
+                          formData.type === "support"
+                            ? "rgba(255,255,255,0.88)"
+                            : "rgba(255,255,255,0.45)",
+                        fontFamily: "'Geist', sans-serif",
+                        fontSize: "14px",
+                        fontWeight: 500,
+                        cursor: "pointer",
+                        transition: "all 0.2s ease",
+                      }}
+                    >
+                      <HelpCircle style={{ width: "16px", height: "16px" }} />
+                      Support
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleTypeChange("bug")}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "10px",
+                        padding: "14px",
+                        borderRadius: "12px",
+                        border:
+                          formData.type === "bug"
+                            ? "1px solid rgba(140,100,255,0.5)"
+                            : "1px solid rgba(255,255,255,0.08)",
+                        background:
+                          formData.type === "bug"
+                            ? "rgba(140,100,255,0.10)"
+                            : "rgba(255,255,255,0.03)",
+                        color:
+                          formData.type === "bug"
+                            ? "rgba(255,255,255,0.88)"
+                            : "rgba(255,255,255,0.45)",
+                        fontFamily: "'Geist', sans-serif",
+                        fontSize: "14px",
+                        fontWeight: 500,
+                        cursor: "pointer",
+                        transition: "all 0.2s ease",
+                      }}
+                    >
+                      <Bug style={{ width: "16px", height: "16px" }} />
+                      Bug Report
+                    </button>
+                  </div>
+                  {errors.type && <p style={errorStyle}>{errors.type}</p>}
+                </div>
+
+                {/* Name */}
+                <div>
+                  <label htmlFor="name" style={labelStyle}>Your Name</label>
+                  <input
+                    id="name"
+                    name="name"
+                    type="text"
+                    value={formData.name}
+                    onChange={handleChange}
+                    placeholder="John Doe"
+                    style={fieldStyle}
+                  />
+                  {errors.name && <p style={errorStyle}>{errors.name}</p>}
+                </div>
+
+                {/* Email */}
+                <div>
+                  <label htmlFor="email" style={labelStyle}>Email Address</label>
+                  <input
+                    id="email"
+                    name="email"
+                    type="email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    placeholder="john@example.com"
+                    style={fieldStyle}
+                  />
+                  {errors.email && <p style={errorStyle}>{errors.email}</p>}
+                </div>
+
+                {/* Subject */}
+                <div>
+                  <label htmlFor="subject" style={labelStyle}>Subject</label>
+                  <input
+                    id="subject"
+                    name="subject"
+                    type="text"
+                    value={formData.subject}
+                    onChange={handleChange}
+                    placeholder={
+                      formData.type === "bug"
+                        ? "Brief description of the bug"
+                        : "What do you need help with?"
+                    }
+                    style={fieldStyle}
+                  />
+                  {errors.subject && <p style={errorStyle}>{errors.subject}</p>}
+                </div>
+
+                {/* Message */}
+                <div>
+                  <label htmlFor="message" style={labelStyle}>Message</label>
+                  <textarea
+                    id="message"
+                    name="message"
+                    value={formData.message}
+                    onChange={handleChange}
+                    placeholder={
+                      formData.type === "bug"
+                        ? "Please describe the bug in detail. Include steps to reproduce, expected behavior, and what actually happened."
+                        : "Please describe your question or issue in detail."
+                    }
+                    rows={5}
+                    style={{
+                      ...fieldStyle,
+                      resize: "none",
+                      lineHeight: 1.6,
+                    }}
+                  />
+                  {errors.message && <p style={errorStyle}>{errors.message}</p>}
+                </div>
+
+                {/* Submit */}
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  style={{
+                    width: "100%",
+                    padding: "13px",
+                    borderRadius: "999px",
+                    background: isSubmitting ? "rgba(255,255,255,0.6)" : "#ffffff",
+                    border: "none",
+                    color: "#080a0c",
+                    fontFamily: "'Geist', sans-serif",
+                    fontSize: "14px",
+                    fontWeight: 600,
+                    cursor: isSubmitting ? "not-allowed" : "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "8px",
+                    transition: "opacity 0.2s ease",
+                    letterSpacing: "-0.01em",
+                  }}
+                >
+                  {isSubmitting ? (
+                    "Opening email client..."
+                  ) : (
+                    <>
+                      <Send style={{ width: "14px", height: "14px" }} />
+                      Send Message
+                    </>
+                  )}
+                </button>
+
+              </form>
+            </div>
+          </div>
+
         </div>
       </div>
     </div>

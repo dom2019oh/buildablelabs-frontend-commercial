@@ -206,7 +206,7 @@ export default function AIThinkingOrb() {
         <div
           style={{
             marginTop: '12px',
-            fontFamily: "'DM Sans', sans-serif",
+            fontFamily: "'Geist', 'DM Sans', sans-serif",
             fontSize: '0.8rem',
             letterSpacing: '0.06em',
             height: '1.4em',

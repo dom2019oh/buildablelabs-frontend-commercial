@@ -6,6 +6,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { gsap } from "gsap";
 import { ArrowUpRight, LogOut, User } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
+import wordmarkSvg from "@/assets/buildable-wordmark.svg";
 import { useAuth } from "@/hooks/useAuth";
 import {
   DropdownMenu,
@@ -15,7 +16,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import wordmarkSvg from "@/assets/buildable-wordmark.svg";
 import { getSignUpUrl, getDashboardUrl } from "@/lib/urls";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -208,13 +208,8 @@ export default function CardNav({
             to="/"
             className="flex items-center gap-2.5 absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 md:static md:translate-x-0 md:translate-y-0 order-1 md:order-none"
           >
-            <img
-              src={wordmarkSvg}
-              alt="Buildable Labs"
-              className="object-contain select-none"
-              style={{ height: "30px", width: "auto" }}
-              draggable={false}
-            />
+            <img src="/logo-stack-white.svg" alt="" aria-hidden draggable={false} className="select-none" style={{ height: "18px", width: "auto", objectFit: "contain" }} />
+            <img src={wordmarkSvg} alt="Buildable Labs" draggable={false} className="select-none" style={{ height: "22px", width: "auto", objectFit: "contain" }} />
           </Link>
 
           {/* Right: auth-aware CTA */}
@@ -224,7 +219,7 @@ export default function CardNav({
                 <DropdownMenuTrigger asChild>
                   <button className="focus:outline-none">
                     <Avatar className="h-8 w-8 border border-white/10 hover:border-white/25 transition-colors">
-                      <AvatarImage src={avatarUrl || undefined} alt={displayName} />
+                      <AvatarImage src={avatarUrl || undefined} alt={displayName} style={{ objectFit: 'cover', width: '100%', height: '100%' }} />
                       <AvatarFallback className="bg-purple-900/40 text-purple-200 text-xs font-medium">
                         {initials}
                       </AvatarFallback>
@@ -261,7 +256,7 @@ export default function CardNav({
                 href={getSignUpUrl()}
                 className="hidden md:inline-flex items-center h-[36px] rounded-[calc(0.75rem-0.2rem)] px-4 text-sm font-medium text-white transition-colors duration-200"
                 style={{
-                  fontFamily: "'DM Sans', sans-serif",
+                  fontFamily: "'Geist', 'DM Sans', sans-serif",
                   background: "rgba(109,40,217,0.35)",
                   border: "1px solid rgba(167,139,250,0.25)",
                 }}
@@ -289,7 +284,7 @@ export default function CardNav({
               {/* Category label */}
               <p
                 className="font-normal tracking-[-0.3px] text-[17px] md:text-[20px]"
-                style={{ fontFamily: "'Syne', sans-serif" }}
+                style={{ fontFamily: "'Geist', sans-serif" }}
               >
                 {item.label}
               </p>
@@ -302,7 +297,7 @@ export default function CardNav({
                     to={lnk.href}
                     aria-label={lnk.ariaLabel}
                     className="inline-flex items-center gap-[5px] no-underline transition-opacity duration-200 hover:opacity-60 text-[13px] md:text-[14px]"
-                    style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 400 }}
+                    style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", fontWeight: 400 }}
                     onClick={() => toggle()}
                   >
                     <ArrowUpRight className="w-3.5 h-3.5 shrink-0" aria-hidden />

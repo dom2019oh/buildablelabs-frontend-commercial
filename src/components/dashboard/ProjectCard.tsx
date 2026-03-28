@@ -124,12 +124,12 @@ export default function ProjectCard({
             </div>
 
             <div className="flex-1 min-w-0">
-              <p className="text-[14px] font-semibold leading-tight truncate" style={{ fontFamily: "'DM Sans', sans-serif", color: 'rgba(255,255,255,0.88)' }}>
+              <p className="text-[14px] font-semibold leading-tight truncate" style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.88)' }}>
                 {name}
               </p>
               <div className="flex items-center gap-1.5 mt-1">
                 {/* Status */}
-                <span className="flex items-center gap-1 text-[11px]" style={{ color: statusConfig.color, fontFamily: "'DM Sans', sans-serif" }}>
+                <span className="flex items-center gap-1 text-[11px]" style={{ color: statusConfig.color, fontFamily: "'Geist', 'DM Sans', sans-serif" }}>
                   {statusConfig.pulse
                     ? <span className="relative flex w-1.5 h-1.5">
                         <span className="animate-ping absolute w-full h-full rounded-full opacity-60" style={{ background: statusConfig.color }} />
@@ -144,7 +144,7 @@ export default function ProjectCard({
                 {lang && (
                   <>
                     <span style={{ color: 'rgba(255,255,255,0.18)' }}>·</span>
-                    <span className="flex items-center gap-1 text-[11px]" style={{ color: 'rgba(255,255,255,0.4)', fontFamily: "'DM Sans', sans-serif" }}>
+                    <span className="flex items-center gap-1 text-[11px]" style={{ color: 'rgba(255,255,255,0.4)', fontFamily: "'Geist', 'DM Sans', sans-serif" }}>
                       <span className="w-1.5 h-1.5 rounded-full" style={{ background: lang.dot }} />
                       {lang.label}
                     </span>
@@ -203,7 +203,7 @@ export default function ProjectCard({
             borderTop: '1px solid rgba(255,255,255,0.05)',
             color: hovered ? 'rgba(255,255,255,0.65)' : 'rgba(255,255,255,0.25)',
             fontSize: '12px',
-            fontFamily: "'DM Sans', sans-serif",
+            fontFamily: "'Geist', 'DM Sans', sans-serif",
             background: hovered ? 'rgba(255,255,255,0.03)' : 'transparent',
           }}
         >
@@ -233,8 +233,8 @@ export default function ProjectCard({
 function Metric({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-[10px] mb-0.5" style={{ fontFamily: "'DM Sans', sans-serif", color: 'rgba(255,255,255,0.22)' }}>{label}</p>
-      <p className="text-[12px] font-medium" style={{ fontFamily: "'DM Sans', sans-serif", color: 'rgba(255,255,255,0.55)' }}>{value}</p>
+      <p className="text-[10px] mb-0.5" style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.22)' }}>{label}</p>
+      <p className="text-[12px] font-medium" style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.55)' }}>{value}</p>
     </div>
   );
 }

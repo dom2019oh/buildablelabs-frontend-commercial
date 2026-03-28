@@ -160,12 +160,12 @@ export default function NewBotGuide({ onClose }: Props) {
             <div className="flex items-center gap-2 mb-1">
               <Sparkles className="w-4 h-4" style={{ color: 'rgba(160,140,255,0.7)' }} />
               <span className="text-xs tracking-widest uppercase"
-                style={{ fontFamily: "'DM Sans', sans-serif", color: 'rgba(255,255,255,0.28)' }}>
+                style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.28)' }}>
                 New Bot — Step {step + 1} of {totalSteps}
               </span>
             </div>
             <h2 className="text-lg font-bold"
-              style={{ fontFamily: "'Syne', sans-serif", color: 'rgba(255,255,255,0.9)' }}>
+              style={{ fontFamily: "'Geist', sans-serif", color: 'rgba(255,255,255,0.9)' }}>
               {step === 0 && 'What kind of bot are you building?'}
               {step === 1 && 'Configure your bot'}
               {step === 2 && 'Review & start building'}
@@ -236,11 +236,11 @@ export default function NewBotGuide({ onClose }: Props) {
                     )}
                     <span className="text-2xl">{t.emoji}</span>
                     <div className="text-sm font-semibold"
-                      style={{ fontFamily: "'DM Sans', sans-serif", color: 'rgba(255,255,255,0.85)' }}>
+                      style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.85)' }}>
                       {t.name}
                     </div>
                     <div className="text-xs leading-relaxed"
-                      style={{ fontFamily: "'DM Sans', sans-serif", color: 'rgba(255,255,255,0.38)' }}>
+                      style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.38)' }}>
                       {t.desc}
                     </div>
                     {/* Tags */}
@@ -248,7 +248,7 @@ export default function NewBotGuide({ onClose }: Props) {
                       {t.tags.slice(0, 2).map(tag => (
                         <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded"
                           style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.3)',
-                            fontFamily: "'DM Sans', sans-serif" }}>
+                            fontFamily: "'Geist', 'DM Sans', sans-serif" }}>
                           {tag}
                         </span>
                       ))}
@@ -268,7 +268,7 @@ export default function NewBotGuide({ onClose }: Props) {
                 {/* Selected template pill */}
                 {template && (
                   <div className="flex items-center gap-2 text-sm"
-                    style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                    style={{ fontFamily: "'Geist', 'DM Sans', sans-serif" }}>
                     <span>{template.emoji}</span>
                     <span style={{ color: 'rgba(255,255,255,0.5)' }}>{template.name}</span>
                     <button onClick={() => go(0)}
@@ -280,7 +280,7 @@ export default function NewBotGuide({ onClose }: Props) {
                 {/* Bot name */}
                 <div className="flex flex-col gap-2">
                   <label className="text-xs tracking-wide uppercase"
-                    style={{ fontFamily: "'DM Sans', sans-serif", color: 'rgba(255,255,255,0.3)' }}>
+                    style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.3)' }}>
                     Bot name
                   </label>
                   <input
@@ -293,7 +293,7 @@ export default function NewBotGuide({ onClose }: Props) {
                       background: 'rgba(255,255,255,0.04)',
                       border: '1px solid rgba(255,255,255,0.09)',
                       color: 'rgba(255,255,255,0.85)',
-                      fontFamily: "'DM Sans', sans-serif",
+                      fontFamily: "'Geist', 'DM Sans', sans-serif",
                     }}
                     onFocus={e => (e.target.style.borderColor = 'rgba(160,140,255,0.4)')}
                     onBlur={e => (e.target.style.borderColor = 'rgba(255,255,255,0.09)')}
@@ -303,7 +303,7 @@ export default function NewBotGuide({ onClose }: Props) {
                 {/* Description — always shown for custom, optional for templates */}
                 <div className="flex flex-col gap-2">
                   <label className="text-xs tracking-wide uppercase"
-                    style={{ fontFamily: "'DM Sans', sans-serif", color: 'rgba(255,255,255,0.3)' }}>
+                    style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.3)' }}>
                     {template?.custom ? 'Describe your bot *' : 'Anything specific to add? (optional)'}
                   </label>
                   <textarea
@@ -318,7 +318,7 @@ export default function NewBotGuide({ onClose }: Props) {
                       background: 'rgba(255,255,255,0.04)',
                       border: '1px solid rgba(255,255,255,0.09)',
                       color: 'rgba(255,255,255,0.85)',
-                      fontFamily: "'DM Sans', sans-serif",
+                      fontFamily: "'Geist', 'DM Sans', sans-serif",
                     }}
                     onFocus={e => (e.target.style.borderColor = 'rgba(160,140,255,0.4)')}
                     onBlur={e => (e.target.style.borderColor = 'rgba(255,255,255,0.09)')}
@@ -328,7 +328,7 @@ export default function NewBotGuide({ onClose }: Props) {
                 {/* Language */}
                 <div className="flex flex-col gap-2">
                   <label className="text-xs tracking-wide uppercase"
-                    style={{ fontFamily: "'DM Sans', sans-serif", color: 'rgba(255,255,255,0.3)' }}>
+                    style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.3)' }}>
                     Language
                   </label>
                   <div className="grid grid-cols-3 gap-2">
@@ -343,7 +343,7 @@ export default function NewBotGuide({ onClose }: Props) {
                           <span className="w-2 h-2 rounded-full flex-shrink-0"
                             style={{ background: l.badge }} />
                           <span className="text-sm font-semibold"
-                            style={{ fontFamily: "'DM Sans', sans-serif", color: 'rgba(255,255,255,0.85)' }}>
+                            style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.85)' }}>
                             {l.label}
                           </span>
                         </div>
@@ -359,7 +359,7 @@ export default function NewBotGuide({ onClose }: Props) {
                 {/* Command style */}
                 <div className="flex flex-col gap-2">
                   <label className="text-xs tracking-wide uppercase"
-                    style={{ fontFamily: "'DM Sans', sans-serif", color: 'rgba(255,255,255,0.3)' }}>
+                    style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.3)' }}>
                     Command style
                   </label>
                   <div className="grid grid-cols-3 gap-2">
@@ -371,7 +371,7 @@ export default function NewBotGuide({ onClose }: Props) {
                           border: `1px solid ${cmdStyle === c.id ? 'rgba(160,140,255,0.35)' : 'rgba(255,255,255,0.07)'}`,
                         }}>
                         <div className="text-sm font-medium mb-0.5"
-                          style={{ fontFamily: "'DM Sans', sans-serif", color: 'rgba(255,255,255,0.82)' }}>
+                          style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.82)' }}>
                           {c.label}
                         </div>
                         <div className="text-[11px]"
@@ -392,7 +392,7 @@ export default function NewBotGuide({ onClose }: Props) {
                 transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
                 className="p-7 flex flex-col gap-5">
 
-                <p className="text-sm" style={{ fontFamily: "'DM Sans', sans-serif", color: 'rgba(255,255,255,0.45)' }}>
+                <p className="text-sm" style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.45)' }}>
                   Buildable AI will generate your bot based on the spec below. You can refine anything afterwards in the workspace.
                 </p>
 
@@ -412,11 +412,11 @@ export default function NewBotGuide({ onClose }: Props) {
                         borderBottom: i < arr.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none',
                       }}>
                       <span className="text-xs w-36 flex-shrink-0 pt-0.5"
-                        style={{ fontFamily: "'DM Sans', sans-serif", color: 'rgba(255,255,255,0.28)' }}>
+                        style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.28)' }}>
                         {row.label}
                       </span>
                       <span className="text-sm"
-                        style={{ fontFamily: "'DM Sans', sans-serif", color: 'rgba(255,255,255,0.75)' }}>
+                        style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.75)' }}>
                         {row.value}
                       </span>
                     </div>
@@ -426,7 +426,7 @@ export default function NewBotGuide({ onClose }: Props) {
                 {/* What happens next */}
                 <div className="rounded-xl px-5 py-4"
                   style={{ background: 'rgba(160,140,255,0.06)', border: '1px solid rgba(160,140,255,0.12)' }}>
-                  <p className="text-xs mb-2" style={{ fontFamily: "'DM Sans', sans-serif", color: 'rgba(160,140,255,0.7)' }}>
+                  <p className="text-xs mb-2" style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(160,140,255,0.7)' }}>
                     What happens next
                   </p>
                   {[
@@ -436,7 +436,7 @@ export default function NewBotGuide({ onClose }: Props) {
                     'Connect your Bot Token when ready to go live',
                   ].map((item, i) => (
                     <div key={i} className="flex items-start gap-2.5 text-xs mb-1.5"
-                      style={{ fontFamily: "'DM Sans', sans-serif", color: 'rgba(255,255,255,0.45)' }}>
+                      style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.45)' }}>
                       <span className="mt-px w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 text-[10px] font-bold"
                         style={{ background: 'rgba(160,140,255,0.2)', color: 'rgba(160,140,255,0.8)' }}>
                         {i + 1}
@@ -458,7 +458,7 @@ export default function NewBotGuide({ onClose }: Props) {
             onClick={() => go(step - 1)}
             className="flex items-center gap-2 text-sm transition-opacity"
             style={{
-              fontFamily: "'DM Sans', sans-serif",
+              fontFamily: "'Geist', 'DM Sans', sans-serif",
               color: 'rgba(255,255,255,0.35)',
               opacity: step === 0 ? 0 : 1,
               pointerEvents: step === 0 ? 'none' : 'auto',
@@ -472,7 +472,7 @@ export default function NewBotGuide({ onClose }: Props) {
               disabled={step === 0 ? !canProceedStep1 : !canProceedStep2}
               className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-all"
               style={{
-                fontFamily: "'DM Sans', sans-serif",
+                fontFamily: "'Geist', 'DM Sans', sans-serif",
                 background: (step === 0 ? canProceedStep1 : canProceedStep2)
                   ? 'rgba(160,140,255,0.85)' : 'rgba(255,255,255,0.07)',
                 color: (step === 0 ? canProceedStep1 : canProceedStep2)
@@ -487,7 +487,7 @@ export default function NewBotGuide({ onClose }: Props) {
               disabled={creating}
               className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold transition-all"
               style={{
-                fontFamily: "'DM Sans', sans-serif",
+                fontFamily: "'Geist', 'DM Sans', sans-serif",
                 background: creating ? 'rgba(160,140,255,0.4)' : 'rgba(160,140,255,0.85)',
                 color: '#fff',
                 cursor: creating ? 'wait' : 'pointer',
