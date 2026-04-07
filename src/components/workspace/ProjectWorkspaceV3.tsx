@@ -1,13 +1,14 @@
 import { useState, useRef, useCallback, useEffect, useMemo, type ReactNode } from 'react';
-import { useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { PanelLeft, Loader2, Cloud, BarChart2, Shield, Server } from 'lucide-react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { Loader2, Cloud, BarChart2, Shield, Server, Music, UserPlus, Zap, Bot, Ticket, Gift, LayoutGrid, Code2, MessageSquare, History, Github, ChevronDown, ChevronRight, Globe, FileText, MoreHorizontal, Monitor, ExternalLink, RefreshCw, PanelLeft, KeyRound, Square, Terminal, RotateCw, Copy, LayoutDashboard, Settings, Trash2, Check, Lock, ScrollText } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useProject, useUpdateProject } from '@/hooks/useProjects';
 import { useProjectMessages } from '@/hooks/useProjectMessages';
 import { useAuth } from '@/hooks/useAuth';
+import { useCredits } from '@/hooks/useCredits';
 import { useBuildableAI } from '@/hooks/useBuildableAI';
-import { useWorkspace } from '@/hooks/useWorkspace';
+import { useWorkspace, type WorkspaceFile, type GenerationSession } from '@/hooks/useWorkspace';
 import { useFileVersions } from '@/hooks/useFileVersions';
 import {
   useProjectFilesStore,
@@ -25,16 +26,15 @@ import FileExplorer from './FileExplorer';
 import CodeViewer from './CodeViewer';
 import VersionHistoryPanel from './VersionHistoryPanel';
 import VersionHistoryView from './VersionHistoryView';
-import ThinkingIndicatorV2 from './ThinkingIndicatorV2';
-import PipelineProgressBar from './PipelineProgressBar';
 import GitHubExportDialog from './GitHubExportDialog';
 import BorderGlow from './BorderGlow';
-import CardSwap, { Card } from './CardSwap';
+import CodeEditorTab from './CodeEditorTab';
 
 import { Skeleton } from '@/components/ui/skeleton';
-import { db } from '@/lib/firebase';
+import { db, auth } from '@/lib/firebase';
+import { API_BASE } from '@/lib/urls';
 import {
-  collection, query, where, orderBy, limit, getDocs, doc, updateDoc, addDoc, serverTimestamp,
+  collection, query, where, orderBy, limit, getDocs, getDoc, doc, setDoc, updateDoc, addDoc, serverTimestamp,
 } from 'firebase/firestore';
 
 const BG = '#0e0d12';
@@ -42,8 +42,12 @@ const BORDER = 'rgba(255,255,255,0.07)';
 
 export default function ProjectWorkspaceV3() {
   const { projectId } = useParams<{ projectId: string }>();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
   const { user } = useAuth();
+  const { currentPlanType } = useCredits();
+  const isFree = currentPlanType === 'free';
 
   // Project data
   const { data: project, isLoading: isProjectLoading } = useProject(projectId);
@@ -108,9 +112,38 @@ export default function ProjectWorkspaceV3() {
     clearFiles,
   } = useProjectFilesStore();
 
+  // Tab ID ↔ URL view name mapping
+  const TAB_VIEW_MAP: Record<string, string> = {
+    preview: 'simulator', code: 'codeEditor', files: 'files',
+    cloud: 'cloud', analytics: 'analytics', hosting: 'hosting', security: 'security',
+  };
+  const VIEW_TAB_MAP: Record<string, InterfaceMode | 'files'> = Object.fromEntries(
+    Object.entries(TAB_VIEW_MAP).map(([k, v]) => [v, k as InterfaceMode | 'files'])
+  );
+
   // UI State
-  const [isChatCollapsed, setIsChatCollapsed] = useState(false);
-  const [activeMode, setActiveMode] = useState<InterfaceMode>('preview');
+  const [prefillPrompt, setPrefillPrompt] = useState<string | undefined>();
+  const initialView = searchParams.get('view');
+  const initialMode = (initialView && VIEW_TAB_MAP[initialView]) ?? 'preview';
+  const TAB_IDS = ['preview', 'code', 'files', 'cloud', 'analytics', 'hosting', 'security'];
+  const [activeMode, setActiveModeState] = useState<InterfaceMode | 'files'>(initialMode as InterfaceMode | 'files');
+  const slideDirRef = useRef<1 | -1>(1); // 1 = slide left→right (new tab is to the right), -1 = right→left
+
+  const setActiveMode = useCallback((mode: InterfaceMode | 'files') => {
+    setActiveModeState(prev => {
+      const prevIdx = TAB_IDS.indexOf(prev);
+      const nextIdx = TAB_IDS.indexOf(mode);
+      slideDirRef.current = nextIdx >= prevIdx ? 1 : -1;
+      return mode;
+    });
+    const viewName = TAB_VIEW_MAP[mode] ?? mode;
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('view', viewName); return next; }, { replace: true });
+  }, [setSearchParams]);
+  // Resizable chat sidebar
+  const [chatWidth, setChatWidth] = useState(380);
+  const isDraggingRef = useRef(false);
+  const dragStartXRef = useRef(0);
+  const dragStartWidthRef = useRef(380);
   const [previewMode, setPreviewMode] = useState<'static' | 'sandbox'>('static');
   const [webContainerSupported, setWebContainerSupported] = useState(true);
   const [currentRoute, setCurrentRoute] = useState('/');
@@ -123,16 +156,20 @@ export default function ProjectWorkspaceV3() {
   const [currentActions, setCurrentActions] = useState<string[]>([]);
   const [showHistoryInPreview, setShowHistoryInPreview] = useState(false);
   const [isGitHubExportOpen2, setIsGitHubExportOpen2] = useState(false);
+  const [isChatting, setIsChatting] = useState(false);
+  const [deployStatus, setDeployStatus] = useState<'idle' | 'deploying' | 'running' | 'stopped' | 'error'>('idle');
+  const deployPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // Track the placeholder message ID so we can update it on completion
   const [pendingAssistantMsgId, setPendingAssistantMsgId] = useState<string | null>(null);
+  // Project name dropdown
+  const [showProjectDropdown, setShowProjectDropdown] = useState(false);
+  const projectDropdownRef = useRef<HTMLDivElement>(null);
+  // Cloud enable modal
+  const [showCloudModal, setShowCloudModal] = useState(false);
+  const [cloudEnabledOverride, setCloudEnabledOverride] = useState(false);
 
-  // Prevent double-triggering the initial prompt
-  const autoStartTriggeredRef = useRef(false);
   // Prevent double-sending the welcome message
   const welcomeSentRef = useRef(false);
-  // Stable ref so the auto-start effect can call the handler without it being
-  // in the dependency array (handleSendMessage is defined further down).
-  const handleSendMessageRef = useRef<((content: string, mode?: 'plan' | 'architect' | 'build') => Promise<void>) | null>(null);
 
   // =========================================================================
   // CRITICAL: Clear files when switching projects to prevent state leakage
@@ -145,30 +182,33 @@ export default function ProjectWorkspaceV3() {
     setCurrentVersionNumber(0);
     setActiveMode('preview');
     setPendingAssistantMsgId(null);
-    autoStartTriggeredRef.current = false;
     welcomeSentRef.current = false;
   }, [projectId, clearFiles, setPreviewHtml]);
 
-  // =========================================================================
-  // AUTO-START: When a new project is opened with an initialPrompt and no
-  // AI response yet, automatically trigger generation.
-  // Uses a ref so handleSendMessage doesn't need to be in the dep array
-  // (it's declared further down in the component).
-  // =========================================================================
+  // Global drag listeners for resizable chat sidebar
   useEffect(() => {
-    if (autoStartTriggeredRef.current) return;
-    if (isProjectLoading || isLoadingWorkspace || isMessagesLoading) return;
-    if (!workspaceId) return;
-    // Need either an initialPrompt on the project OR an existing user message with no reply
-    const prompt = project?.initialPrompt
-      || messages.find(m => m.role === 'user')?.content;
-    if (!prompt) return;
-    const hasAssistantMessage = messages.some(m => m.role === 'assistant' && !m.metadata?.isWelcome);
-    if (hasAssistantMessage) return;
+    const onMouseMove = (e: MouseEvent) => {
+      if (!isDraggingRef.current) return;
+      const delta = e.clientX - dragStartXRef.current;
+      const next = Math.min(Math.max(dragStartWidthRef.current + delta, 260), 680);
+      setChatWidth(next);
+    };
+    const onMouseUp = () => {
+      if (!isDraggingRef.current) return;
+      isDraggingRef.current = false;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+    return () => {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+    };
+  }, []);
 
-    autoStartTriggeredRef.current = true;
-    handleSendMessageRef.current?.(prompt);
-  }, [isProjectLoading, isLoadingWorkspace, isMessagesLoading, workspaceId, project, messages]);
+  // AUTO-START REMOVED — nothing fires without explicit user input.
+  // initialPrompt is pre-filled into the prompt bar instead (see prefillPrompt below).
 
   // =========================================================================
   // WELCOME MESSAGE: Send a personalized greeting when a fresh workspace
@@ -181,6 +221,8 @@ export default function ProjectWorkspaceV3() {
     if (isProjectLoading || isLoadingWorkspace || isMessagesLoading) return;
     if (!workspaceId || !projectId) return;
     if (messages.length > 0) return;
+    // If there's an initialPrompt, auto-start will fire and Buildable greets through the chat layer
+    if (project?.initialPrompt) return;
 
     welcomeSentRef.current = true;
     const name = user?.displayName?.split(' ')[0] || 'there';
@@ -190,7 +232,7 @@ export default function ProjectWorkspaceV3() {
       metadata: { isWelcome: true },
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isProjectLoading, isLoadingWorkspace, isMessagesLoading, workspaceId, projectId, messages.length]);
+  }, [isProjectLoading, isLoadingWorkspace, isMessagesLoading, workspaceId, projectId, project?.initialPrompt, messages.length]);
 
   // =========================================================================
   // SESSION RECOVERY: On mount, check for recent completed sessions whose
@@ -216,15 +258,10 @@ export default function ProjectWorkspaceV3() {
           const meta = msgDoc.data().metadata as Record<string, unknown> | null;
           if (meta?.status === 'generating' && meta?.sessionId) {
             // Check if this session actually completed in Firestore
-            const sessionsQ = query(
-              collection(db, 'generationSessions'),
-              where('__name__', '==', meta.sessionId as string),
-              limit(1)
-            );
-            const sessionsSnap = await getDocs(sessionsQ);
+            const sessionSnap = await getDoc(doc(db, 'generationSessions', meta.sessionId as string));
 
-            if (!sessionsSnap.empty) {
-              const session = sessionsSnap.docs[0].data();
+            if (sessionSnap.exists()) {
+              const session = sessionSnap.data();
               if (session.status === 'completed' || session.status === 'failed') {
                 const content = session.status === 'completed'
                   ? `✅ Generated ${session.files_generated || 0} file(s) successfully.`
@@ -380,20 +417,13 @@ export default function ProjectWorkspaceV3() {
     setPreviewKey((prev) => prev + 1);
   }, []);
 
-  // Main send message handler - uses buildable-generate
+  // Main send message handler
   const handleSendMessage = useCallback(async (content: string, mode: 'plan' | 'architect' | 'build' = 'build') => {
     if (!workspaceId) {
       if (isLoadingWorkspace) {
-        toast({
-          title: 'Loading workspace...',
-          description: 'Please wait a moment and try again.',
-        });
+        toast({ title: 'Loading workspace...', description: 'Please wait a moment and try again.' });
       } else {
-        toast({
-          title: 'Workspace not ready',
-          description: 'Could not initialize workspace. Try refreshing the page.',
-          variant: 'destructive',
-        });
+        toast({ title: 'Workspace not ready', description: 'Could not initialize workspace. Try refreshing the page.', variant: 'destructive' });
       }
       return;
     }
@@ -401,100 +431,284 @@ export default function ProjectWorkspaceV3() {
     // 1) Save user message immediately
     await sendMessage.mutateAsync({ content, role: 'user' });
 
-    // Get conversation history
-    const history = messages.map(m => ({
-      role: m.role,
-      content: m.content,
-    }));
+    const history = messages.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }));
+    const existingFiles = workspaceFiles?.map(f => ({ path: f.file_path, content: f.content })) || [];
 
-    // Get existing files from workspace
-    const existingFiles = workspaceFiles?.map(f => ({
-      path: f.file_path,
-      content: f.content,
-    })) || [];
+    // Helper: run the code generation pipeline
+    const runGenerate = async (buildPrompt: string) => {
+      // Switch to Code tab immediately so files appear live as they stream in
+      setActiveMode('code');
 
-    // Generate with streaming
-    await generate(
-      content,
-      workspaceId,
-      history,
-      existingFiles,
-      // On chunk
-      (chunk, fullContent) => {},
-      // On complete
-      async (files, metadata) => {
-        // Refetch workspace files to get the saved versions
-        await refetchFiles();
-
-        // Create version snapshot
-        if (files.length > 0) {
-          try {
-            await createVersion.mutateAsync({
-              files,
-              previewHtml: previewHtml || undefined,
-              label: `AI: ${content.slice(0, 50)}${content.length > 50 ? '...' : ''}`,
-            });
-          } catch (e) {
-            console.error('Version creation failed:', e);
+      const tGenStart = Date.now();
+      await generate(
+        buildPrompt,
+        workspaceId,
+        history,
+        existingFiles,
+        (_chunk, _full) => {},
+        async (files, metadata) => {
+          const durationMs = Date.now() - tGenStart;
+          await refetchFiles();
+          if (files.length > 0) {
+            try {
+              await createVersion.mutateAsync({
+                files,
+                previewHtml: previewHtml || undefined,
+                label: `AI: ${content.slice(0, 50)}${content.length > 50 ? '...' : ''}`,
+              });
+            } catch (e) {
+              console.error('Version creation failed:', e);
+            }
+            if (projectId && previewHtml) {
+              updateProject.mutate({ id: projectId, preview_html: previewHtml });
+            }
           }
-
-          if (projectId && previewHtml) {
-            updateProject.mutate({
-              id: projectId,
-              preview_html: previewHtml,
+          const fileNames = files.map(f => f.path);
+          if (metadata?.aiMessage) {
+            await sendMessage.mutateAsync({
+              content: metadata.aiMessage as string,
+              role: 'assistant',
+              metadata: { type: 'ai_response', sessionId: metadata?.sessionId },
             });
           }
-        }
-
-        // ChatGPT-style: First save the AI's human text response, then the file summary
-        const fileNames = files.map(f => f.path);
-
-        // 1) Save AI personalized message FIRST (the human response)
-        if (metadata?.aiMessage) {
           await sendMessage.mutateAsync({
-            content: metadata.aiMessage as string,
+            content: `${files.length} files generated`,
             role: 'assistant',
-            metadata: { type: 'ai_response', sessionId: metadata?.sessionId },
+            metadata: { type: 'file_summary', filesCreated: fileNames, sessionId: metadata?.sessionId, status: 'success', durationMs, creditsUsed: 2 },
           });
+          // Open the main entry point (main.py / bot.py / index.js) in the editor
+          if (files.length > 0) {
+            const entryFile = files.find(f =>
+              f.path === 'main.py' || f.path === 'bot.py' ||
+              f.path === 'src/index.js' || f.path === 'src/index.ts'
+            ) ?? files[0];
+            setActiveMode('code');
+            setSelectedFile(entryFile.path);
+          }
+        },
+        async (error) => {
+          await sendMessage.mutateAsync({
+            content: error.message,
+            role: 'assistant',
+            metadata: { status: 'error', error: error.message },
+          });
+        },
+        mode,
+      );
+    };
+
+    // For plan/architect modes, skip the chat layer — go straight to generation
+    if (mode === 'plan' || mode === 'architect') {
+      await runGenerate(content);
+      return;
+    }
+
+    // 2) Call Buildable's chat layer — it decides intent before anything is built
+    try {
+      setIsChatting(true);
+      const tChatStart = Date.now();
+      const token = await auth.currentUser?.getIdToken();
+      const chatRes = await fetch(`${API_BASE}/api/chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          workspaceId,
+          message: content,
+          conversationHistory: history,
+        }),
+      });
+
+      if (!chatRes.ok) throw new Error(`Chat API error: ${chatRes.status}`);
+      const chatData = await chatRes.json() as { message: string; intent: string; buildPrompt?: string };
+      const chatDurationMs = Date.now() - tChatStart;
+
+      setIsChatting(false);
+      // 3) Save Buildable's conversational response
+      await sendMessage.mutateAsync({
+        content: chatData.message,
+        role: 'assistant',
+        metadata: { type: 'chat_response', intent: chatData.intent, durationMs: chatDurationMs, creditsUsed: 0 },
+      });
+
+      // 4) If Buildable decided it has enough info — check credentials, then build
+      if (chatData.intent === 'ready_to_build' && chatData.buildPrompt) {
+        if (projectId && !cloudEnabledOverride) {
+          try {
+            const envSnap = await getDoc(doc(db, 'projectEnvVars', projectId));
+            const hasToken = envSnap.exists() && !!(envSnap.data() as Record<string, string>).DISCORD_TOKEN;
+            if (!hasToken) {
+              await sendMessage.mutateAsync({
+                content: `I'm ready to build! Before I start, I'll need your Discord Application credentials so I can deploy the bot when the code is done.\n\nHead to the **Cloud** tab and click **Enable Cloud** to add your Bot Token and Guild ID — it only takes a moment. Come back here once you're done.`,
+                role: 'assistant',
+                metadata: { type: 'system', source: 'cloud_gate' },
+              });
+              setActiveMode('cloud');
+              return;
+            }
+          } catch { /* Firestore unreachable — let through */ }
         }
+        await runGenerate(chatData.buildPrompt);
+      }
+    } catch (error) {
+      setIsChatting(false);
+      console.error('Chat error:', error);
+      // Fallback: go straight to generation if chat layer fails
+      await runGenerate(content);
+    }
+  }, [workspaceId, isLoadingWorkspace, messages, workspaceFiles, generate, sendMessage, refetchFiles, createVersion, previewHtml, projectId, updateProject, setSelectedFile, toast]);
 
-        // 2) Then save the file summary below it
-        const displayContent = `✅ Created ${files.length} file(s):\n${fileNames.map(f => `• ${f}`).join('\n')}`;
-        await sendMessage.mutateAsync({
-          content: displayContent,
-          role: 'assistant',
-          metadata: {
-            type: 'file_summary',
-            filesCreated: fileNames,
-            sessionId: metadata?.sessionId,
-            status: 'success',
-          },
-        });
 
-        // Switch to preview mode
-        if (files.length > 0) {
-          setActiveMode('preview');
-          setSelectedFile(files[0].path);
-        }
-      },
-      // On error
-      async (error) => {
-        const errorContent = `❌ Error: ${error.message}`;
-        await sendMessage.mutateAsync({
-          content: errorContent,
-          role: 'assistant',
-          metadata: { status: 'error', error: error.message },
-        });
-      },
-      mode,
-    );
-  }, [workspaceId, messages, workspaceFiles, generate, sendMessage, refetchFiles, createVersion, previewHtml, projectId, updateProject, setSelectedFile, toast]);
-
-  // Keep the ref in sync so the auto-start effect (declared above) can call this
-  // without a temporal-dead-zone / stale-closure problem.
+  // =========================================================================
+  // AUTO-START: When a project arrives from the Dashboard with an initialPrompt
+  // and no messages yet, fire it as if the user pressed Send.
+  // =========================================================================
+  const autoStartFiredRef = useRef(false);
   useEffect(() => {
-    handleSendMessageRef.current = handleSendMessage;
-  }, [handleSendMessage]);
+    if (autoStartFiredRef.current) return;
+    if (isProjectLoading || isLoadingWorkspace || isMessagesLoading) return;
+    if (!workspaceId || !projectId) return;
+    if (!project?.initialPrompt) return;
+    if (messages.length > 0) return;
+
+    autoStartFiredRef.current = true;
+    handleSendMessage(project.initialPrompt, project.initialMode ?? 'build');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isProjectLoading, isLoadingWorkspace, isMessagesLoading, workspaceId, projectId, project?.initialPrompt, messages.length]);
+
+  // =========================================================================
+  // LIVE CODE VIEWER: As files arrive from Firestore during generation,
+  // auto-select the entry point so the user sees code appear in real time.
+  // =========================================================================
+  const liveFileShownRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!isGenerating || !workspaceFiles || workspaceFiles.length === 0) return;
+    const entryFile = workspaceFiles.find(f =>
+      f.file_path === 'main.py' || f.file_path === 'bot.py' ||
+      f.file_path === 'src/index.js' || f.file_path === 'src/index.ts'
+    ) ?? workspaceFiles[0];
+    if (liveFileShownRef.current === entryFile.file_path) return;
+    liveFileShownRef.current = entryFile.file_path;
+    setSelectedFile(entryFile.file_path);
+  }, [isGenerating, workspaceFiles, setSelectedFile]);
+
+  const handleDeploy = useCallback(async () => {
+    if (!workspaceId) return;
+    if (deployStatus === 'deploying') return;
+
+    // Token gate — only enforced at deploy time, not during chat/generation
+    if (projectId && !cloudEnabledOverride) {
+      try {
+        const envSnap = await getDoc(doc(db, 'projectEnvVars', projectId));
+        const hasToken = envSnap.exists() && !!(envSnap.data() as Record<string, string>).DISCORD_TOKEN;
+        if (!hasToken) {
+          toast({ title: 'Cloud not enabled', description: 'Add your Bot Token in the Cloud tab before deploying.', variant: 'destructive' });
+          setActiveMode('cloud');
+          return;
+        }
+      } catch { /* unreachable — let deploy attempt fail naturally */ }
+    }
+
+    setDeployStatus('deploying');
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      await fetch(`${API_BASE}/api/deploy/${workspaceId}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      // Poll status until running or error
+      if (deployPollRef.current) clearInterval(deployPollRef.current);
+      deployPollRef.current = setInterval(async () => {
+        try {
+          const token2 = await auth.currentUser?.getIdToken();
+          const res = await fetch(`${API_BASE}/api/deploy/${workspaceId}/status`, {
+            headers: { Authorization: `Bearer ${token2}` },
+          });
+          const data = await res.json() as { status: string };
+          if (data.status === 'running' || data.status === 'error' || data.status === 'stopped') {
+            setDeployStatus(data.status as typeof deployStatus);
+            if (deployPollRef.current) clearInterval(deployPollRef.current);
+            if (data.status === 'running') {
+              toast({ title: 'Bot is live', description: 'Your Discord bot is now running.' });
+              setActiveMode('hosting');
+            } else if (data.status === 'error') {
+              toast({ title: 'Deploy failed', description: 'Check the Hosting tab for details.', variant: 'destructive' });
+              setActiveMode('hosting');
+            }
+          }
+        } catch { /* ignore poll errors */ }
+      }, 3000);
+    } catch (err) {
+      setDeployStatus('error');
+      toast({ title: 'Deploy failed', description: 'Could not reach deploy service.', variant: 'destructive' });
+    }
+  }, [workspaceId, deployStatus, toast, setActiveMode]);
+
+  // Close project dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (projectDropdownRef.current && !projectDropdownRef.current.contains(e.target as Node)) {
+        setShowProjectDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const handleStop = useCallback(async () => {
+    if (!workspaceId) return;
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      await fetch(`${API_BASE}/api/deploy/${workspaceId}/stop`, {
+        method: 'POST', headers: { Authorization: `Bearer ${token}` },
+      });
+      setDeployStatus('stopped');
+    } catch {
+      toast({ title: 'Stop failed', variant: 'destructive' });
+    }
+  }, [workspaceId, toast]);
+
+  const handleRestart = useCallback(async () => {
+    if (!workspaceId) return;
+    setDeployStatus('deploying');
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      await fetch(`${API_BASE}/api/deploy/${workspaceId}/restart`, {
+        method: 'POST', headers: { Authorization: `Bearer ${token}` },
+      });
+      if (deployPollRef.current) clearInterval(deployPollRef.current);
+      deployPollRef.current = setInterval(async () => {
+        try {
+          const t2 = await auth.currentUser?.getIdToken();
+          const res = await fetch(`${API_BASE}/api/deploy/${workspaceId}/status`, { headers: { Authorization: `Bearer ${t2}` } });
+          const data = await res.json() as { status: string };
+          if (data.status === 'running' || data.status === 'error' || data.status === 'stopped') {
+            setDeployStatus(data.status as typeof deployStatus);
+            if (deployPollRef.current) clearInterval(deployPollRef.current);
+          }
+        } catch { /* ignore */ }
+      }, 3000);
+    } catch {
+      setDeployStatus('error');
+      toast({ title: 'Restart failed', variant: 'destructive' });
+    }
+  }, [workspaceId, deployStatus, toast]);
+
+  const handleCloudEnabled = useCallback(async () => {
+    setShowCloudModal(false);
+    setCloudEnabledOverride(true);
+    if (!projectId || !user?.uid) return;
+    await addDoc(collection(db, 'projectMessages'), {
+      project_id: projectId,
+      user_id: user.uid,
+      role: 'assistant',
+      content: `Buildable Cloud is now enabled! Your bot is ready to deploy.\n\nYou now have access to:\n\n**Bot Hosting** — Runs 24/7 on dedicated Oracle Cloud infrastructure. Zero downtime.\n**Auto-restart & crash recovery** — Crashes are detected and fixed automatically. Your bot stays online.\n**Secure credential storage** — Your bot token is encrypted at rest and never exposed to the public.\n\nHead to the **Hosting** tab to go live.`,
+      metadata: { type: 'system', source: 'cloud_enabled' },
+      created_at: serverTimestamp(),
+    });
+  }, [projectId, user]);
 
   const handleFileSelect = useCallback((file: { path: string }) => {
     setSelectedFile(file.path);
@@ -647,19 +861,16 @@ export default function ProjectWorkspaceV3() {
 
   if (isProjectLoading) {
     return (
-      <div className="h-screen flex flex-col">
-        <div className="h-11 border-b px-4 flex items-center gap-4" style={{ borderColor: BORDER }}>
-          <Skeleton className="h-8 w-32" />
-          <Skeleton className="h-8 flex-1 max-w-md" />
-          <Skeleton className="h-8 w-24" />
+      <div style={{ display: 'flex', height: '100vh', background: BG, overflow: 'hidden' }}>
+        <div style={{ width: 256, flexShrink: 0, height: '100vh', padding: '24px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <Skeleton className="h-6 w-16 mb-4" />
+          <Skeleton className="h-4 w-12 mb-1" />
+          <Skeleton className="h-8 w-full" />
+          <Skeleton className="h-8 w-full" />
+          <Skeleton className="h-8 w-full" />
         </div>
-        <div className="flex-1 flex">
-          <div className="w-[400px] border-r p-4" style={{ borderColor: BORDER }}>
-            <Skeleton className="h-full" />
-          </div>
-          <div className="flex-1 p-4">
-            <Skeleton className="h-full" />
-          </div>
+        <div style={{ flex: 1, padding: 16 }}>
+          <Skeleton className="h-full w-full rounded-[14px]" />
         </div>
       </div>
     );
@@ -676,280 +887,409 @@ export default function ProjectWorkspaceV3() {
     );
   }
 
+  const F = "'Geist', 'DM Sans', sans-serif";
+  const userInitial = (user?.displayName || user?.email || 'U')[0].toUpperCase();
+
+  const DiscordTabIcon = ({ style }: { style?: React.CSSProperties }) => (
+    <svg viewBox="0 0 24 24" fill="currentColor" style={style}>
+      <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057c.002.022.015.045.03.06a19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z"/>
+    </svg>
+  );
+
+  const TABS: { id: InterfaceMode | 'files'; label: string; Icon: React.ElementType }[] = [
+    { id: 'preview',   label: 'Simulator', Icon: DiscordTabIcon },
+    { id: 'code',      label: 'Code',      Icon: Code2 },
+    { id: 'files',     label: 'Files',     Icon: FileText },
+    { id: 'cloud',     label: 'Cloud',     Icon: Cloud },
+    { id: 'analytics', label: 'Analytics', Icon: BarChart2 },
+    { id: 'hosting',   label: 'Hosting',   Icon: Server },
+    { id: 'security',  label: 'Security',  Icon: Shield },
+  ];
+
+  const IBtn = ({ icon: Icon, title, onClick }: { icon: React.ElementType; title?: string; onClick?: () => void }) => (
+    <button onClick={onClick} title={title} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 6, background: 'transparent', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.45)', flexShrink: 0 }}
+      onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.07)'; e.currentTarget.style.color = 'rgba(255,255,255,0.8)'; }}
+      onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.45)'; }}
+    >
+      <Icon style={{ width: 15, height: 15 }} />
+    </button>
+  );
+
   return (
-    <div className="h-screen flex flex-col overflow-hidden" style={{ background: BG }}>
-      {/* Top Bar */}
-      <WorkspaceTopBarV2
-        projectName={project.name}
-        projectId={projectId!}
-        activeMode={activeMode}
-        onModeChange={setActiveMode}
-        onRefreshPreview={handleRefreshPreview}
-        onOpenInNewTab={() => {
-          if (project.deployed_url) {
-            window.open(project.deployed_url, '_blank');
-          } else if (previewHtml) {
-            const blob = new Blob([previewHtml], { type: 'text/html' });
-            const url = URL.createObjectURL(blob);
-            window.open(url, '_blank');
-          } else {
-            toast({
-              title: 'No preview available',
-              description: 'Generate some content first to preview.',
-            });
-          }
-        }}
-        onToggleHistory={() => setShowHistoryInPreview(!showHistoryInPreview)}
-        onCollapseChat={() => setIsChatCollapsed(!isChatCollapsed)}
-        isChatCollapsed={isChatCollapsed}
-        previewHtml={previewHtml || ''}
-        workspaceFiles={exportableFiles}
-      />
+    <div style={{ width: '100vw', height: '100vh', background: '#0c0c0c', display: 'flex', flexDirection: 'column' }}>
 
-      {/* Version History Panel */}
-      <VersionHistoryPanel
-        isOpen={isHistoryOpen}
-        onClose={() => setIsHistoryOpen(false)}
-        versions={versions.map(v => ({
-          id: v.id,
-          version_number: v.version_number,
-          label: v.label,
-          files: v.files as Array<{ path: string; content: string }>,
-          preview_html: v.preview_html,
-          created_at: v.created_at,
-        }))}
-        currentVersion={currentVersionNumber}
-        onPreviewVersion={(version) => {
-          if (version.preview_html) {
-            setPreviewHtml(version.preview_html);
-            setActiveMode('preview');
-            handleRefreshPreview();
-          }
-        }}
-        onRestoreVersion={handleRestoreVersion}
-        isRestoring={isRestoring}
-      />
+      {/* ── Top Bar ── */}
+      <div style={{ height: 44, display: 'flex', alignItems: 'center', padding: '0 10px', gap: 4, flexShrink: 0, position: 'relative' }}>
 
-      {/* Main Content */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Chat Panel */}
-        <AnimatePresence initial={false}>
-          {!isChatCollapsed && (
-            <motion.div
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 400, opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
-              transition={{ duration: 0.2, ease: 'easeInOut' }}
-              className="h-full overflow-hidden flex-shrink-0"
-              style={{ borderRight: `1px solid ${BORDER}` }}
-            >
-              <ChatPanelV2
-                messages={displayMessages}
-                isLoading={isMessagesLoading}
-                isSending={isGenerating}
-                isStreaming={isGenerating}
-                streamingMetadata={aiMetadata ? {
-                  modelUsed: aiMetadata.model,
-                  taskType: 'generation'
-                } : undefined}
-                onSendMessage={handleSendMessage}
-                projectName={project.name}
-                projectId={projectId!}
-                lastError={aiError}
-                currentActions={currentActions}
-                onOpenHistory={() => setIsHistoryOpen(true)}
-                onOpenGitHub={() => setIsGitHubExportOpen2(true)}
-              />
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Floating Open Chat Button */}
-        <AnimatePresence>
-          {isChatCollapsed && (
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="absolute left-4 top-20 z-40"
-            >
-              <button
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-medium transition-all"
-                style={{
-                  background: 'rgba(255,255,255,0.08)',
-                  border: '1px solid rgba(255,255,255,0.12)',
-                  color: 'rgba(255,255,255,0.72)',
-                  fontFamily: "'Geist', 'DM Sans', sans-serif",
-                  boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
-                }}
-                onClick={() => setIsChatCollapsed(false)}
-                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.13)'; }}
-                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; }}
+        {/* Left: Logo + Project name dropdown */}
+        <div ref={projectDropdownRef} style={{ display: 'flex', alignItems: 'center', gap: 8, marginRight: 8, minWidth: 0, position: 'relative' }}>
+          <img src="/logo-stack-white.svg" style={{ width: 26, height: 26, flexShrink: 0 }} alt="Buildable" />
+          <button
+            onClick={() => setShowProjectDropdown(v => !v)}
+            style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', background: 'transparent', border: 'none', cursor: 'pointer', padding: '2px 4px', borderRadius: 5, minWidth: 0 }}
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 13, fontWeight: 500, color: 'rgba(255,255,255,0.85)', fontFamily: F, whiteSpace: 'nowrap' }}>
+              {project.name}
+              <ChevronDown style={{ width: 12, height: 12, color: 'rgba(255,255,255,0.35)', flexShrink: 0, transform: showProjectDropdown ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
+            </div>
+            <div style={{ fontSize: 10.5, color: 'rgba(255,255,255,0.28)', fontFamily: F }}>Previewing last saved version</div>
+          </button>
+          {/* Dropdown menu */}
+          {showProjectDropdown && (
+            <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 4, background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, minWidth: 180, zIndex: 999, boxShadow: '0 8px 24px rgba(0,0,0,0.5)', overflow: 'hidden' }}>
+              {[
+                { icon: LayoutDashboard, label: 'Go to Dashboard', action: () => { navigate('/dashboard'); setShowProjectDropdown(false); } },
+                { icon: Settings, label: 'Bot Settings', action: () => { navigate(`/dashboard/project/${projectId}/settings`); setShowProjectDropdown(false); } },
+              ].map(({ icon: Icon, label, action }) => (
+                <button key={label} onClick={action} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.7)', fontSize: 12, fontFamily: F, cursor: 'pointer', textAlign: 'left' }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                >
+                  <Icon style={{ width: 13, height: 13, flexShrink: 0 }} />
+                  {label}
+                </button>
+              ))}
+              <div style={{ height: 1, background: 'rgba(255,255,255,0.07)', margin: '2px 0' }} />
+              <button onClick={() => { setShowProjectDropdown(false); }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'transparent', border: 'none', color: '#f87171', fontSize: 12, fontFamily: F, cursor: 'pointer', textAlign: 'left' }}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(248,113,113,0.08)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
               >
-                <PanelLeft className="h-4 w-4" />
-                Open Chat
+                <Trash2 style={{ width: 13, height: 13, flexShrink: 0 }} />
+                Delete Bot
               </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Main Panel */}
-        <div className="flex-1 h-full flex" style={{ background: BG }}>
-          {activeMode === 'code' ? (
-            <>
-              {/* File Explorer */}
-              <div className="w-60" style={{ borderRight: `1px solid ${BORDER}`, background: BG }}>
-                <div className="h-10 flex items-center px-3" style={{ borderBottom: `1px solid ${BORDER}` }}>
-                  <span className="text-xs font-medium uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.28)', fontFamily: "'Geist', 'DM Sans', sans-serif" }}>
-                    Explorer
-                  </span>
-                </div>
-                <FileExplorer
-                  files={fileTree}
-                  selectedFile={selectedFile || undefined}
-                  onFileSelect={handleFileSelect}
-                  className="h-[calc(100%-40px)]"
-                />
-              </div>
-
-              {/* Code Viewer */}
-              <div className="flex-1 h-full">
-                {selectedFileData ? (
-                  <CodeViewer
-                    code={selectedFileData.content}
-                    language={selectedFileData.language}
-                    filename={selectedFileData.path}
-                    className="h-full"
-                    onSave={handleFileSave}
-                  />
-                ) : (
-                  <div className="h-full flex items-center justify-center">
-                    <p className="text-sm" style={{ color: 'rgba(255,255,255,0.25)', fontFamily: "'Geist', 'DM Sans', sans-serif" }}>Select a file to view its contents</p>
-                  </div>
-                )}
-              </div>
-            </>
-          ) : activeMode === 'cloud' ? (
-            <BotCloudPanel workspaceId={workspaceId} projectId={projectId} workspaceFiles={workspaceFiles} projectName={project.name} />
-          ) : activeMode === 'analytics' ? (
-            <BotAnalyticsPanel sessions={sessions} files={workspaceFiles} />
-          ) : activeMode === 'security' ? (
-            <BotSecurityPanel workspaceFiles={workspaceFiles} />
-          ) : activeMode === 'hosting' ? (
-            <BotHostingPanel workspaceId={workspaceId} workspaceStatus={workspace?.status} />
-          ) : showHistoryInPreview ? (
-            <VersionHistoryView
-              versions={versions.map(v => ({
-                id: v.id,
-                version_number: v.version_number,
-                label: v.label,
-                files: v.files as Array<{ path: string; content: string }>,
-                preview_html: v.preview_html,
-                created_at: v.created_at,
-              }))}
-              currentVersion={currentVersionNumber}
-              onPreviewVersion={(version) => {
-                if (version.preview_html) {
-                  setPreviewHtml(version.preview_html);
-                  handleRefreshPreview();
-                }
-              }}
-              onRestoreVersion={handleRestoreVersion}
-              isRestoring={isRestoring}
-              onClose={() => setShowHistoryInPreview(false)}
-            />
-          ) : (
-            /* Preview Panel */
-            <div className="flex-1 h-full flex flex-col" style={{ background: BG }}>
-              <div className="h-10 flex items-center justify-between px-3" style={{ borderBottom: `1px solid ${BORDER}` }}>
-                <div className="flex items-center gap-2">
-                  <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: 14, height: 14, color: 'rgba(255,255,255,0.4)', flexShrink: 0 }}>
-                    <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057c.002.022.015.045.03.06a19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z" />
-                  </svg>
-                  <span className="text-sm font-medium">Live Discord Simulator</span>
-                </div>
-              </div>
-
-              {/* Pipeline Progress Bar */}
-              {isGenerating && (
-                <div className="px-3 py-2" style={{ borderBottom: `1px solid ${BORDER}`, background: 'rgba(26,26,26,0.95)' }}>
-                  <PipelineProgressBar
-                    phase={phase}
-                    isVisible={true}
-                    filesDelivered={filesDelivered}
-                  />
-                </div>
-              )}
-
-              {/* Preview Content */}
-              <div className="flex-1 overflow-hidden relative">
-                {/* Error banner — sits above content, doesn't replace it */}
-                {workspaceError && !isLoadingWorkspace && (
-                  <div className="absolute top-2 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 px-3 py-1.5 rounded-lg"
-                    style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.25)', backdropFilter: 'blur(8px)' }}>
-                    <span style={{ fontSize: '11px', color: 'rgba(255,100,100,0.9)', fontFamily: "'Geist','DM Sans',sans-serif" }}>
-                      Backend unavailable — server may be starting up
-                    </span>
-                    <button
-                      onClick={() => refreshWorkspace()}
-                      style={{ fontSize: '11px', color: 'rgba(255,150,150,0.8)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', fontFamily: "'Geist','DM Sans',sans-serif" }}
-                    >
-                      Retry
-                    </button>
-                  </div>
-                )}
-                {isLoadingWorkspace ? (
-                  <div className="w-full h-full flex items-center justify-center" style={{ background: BG }}>
-                    <div className="text-center">
-                      <Loader2 className="w-6 h-6 animate-spin mx-auto mb-3" style={{ color: 'rgba(255,255,255,0.3)' }} />
-                      <p className="text-[13px]" style={{ fontFamily: "'Geist','DM Sans',sans-serif", color: 'rgba(255,255,255,0.3)' }}>
-                        Initialising workspace…
-                      </p>
-                    </div>
-                  </div>
-                ) : previewHtml ? (
-                  <iframe
-                    key={previewKey}
-                    srcDoc={previewHtml}
-                    title="Project Preview"
-                    className="w-full h-full border-0 bg-white"
-                    sandbox="allow-scripts"
-                    style={{
-                      maxWidth: deviceSize === 'mobile' ? '390px' : deviceSize === 'tablet' ? '768px' : '100%',
-                      margin: deviceSize !== 'desktop' ? '0 auto' : undefined,
-                    }}
-                  />
-                ) : isGenerating ? (
-                  <div className="w-full h-full flex items-center justify-center" style={{ background: BG }}>
-                    <div className="text-center">
-                      <Loader2 className="w-8 h-8 animate-spin mx-auto mb-3 text-primary" />
-                      <p className="text-[14px] font-medium mb-1" style={{ color: 'rgba(255,255,255,0.75)' }}>Generating your bot…</p>
-                      <p className="text-[12px] mb-5" style={{ color: 'rgba(255,255,255,0.3)' }}>{phase?.message ?? 'This will only take a moment'}</p>
-                      <button
-                        onClick={() => cancel()}
-                        style={{ padding: '6px 18px', borderRadius: '6px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.45)', fontSize: '12px', cursor: 'pointer', fontFamily: "'Geist','DM Sans',sans-serif" }}
-                        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.09)'; e.currentTarget.style.color = 'rgba(255,255,255,0.7)'; }}
-                        onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = 'rgba(255,255,255,0.45)'; }}
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <DiscordBotEmptyState workspaceReady={!!workspaceId} />
-                )}
-              </div>
             </div>
           )}
         </div>
+
+        {/* Centre: tabs — absolutely centred */}
+        <div style={{ position: 'absolute', left: '46%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 1 }}>
+          {TABS.map((tab) => {
+            const isActive = activeMode === tab.id;
+            const Icon = tab.Icon;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveMode(tab.id)}
+                style={{
+                  position: 'relative',
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '5px 11px',
+                  borderRadius: 6,
+                  background: 'transparent',
+                  color: isActive ? '#fff' : 'rgba(255,255,255,0.38)',
+                  fontSize: 13, fontWeight: isActive ? 500 : 400,
+                  border: '1px solid transparent',
+                  cursor: 'pointer', fontFamily: F, flexShrink: 0,
+                  transition: 'color 0.15s',
+                  zIndex: 0,
+                }}
+                onMouseEnter={e => { if (!isActive) e.currentTarget.style.color = 'rgba(255,255,255,0.7)'; }}
+                onMouseLeave={e => { if (!isActive) e.currentTarget.style.color = 'rgba(255,255,255,0.38)'; }}
+              >
+                {/* Sliding active background pill */}
+                {isActive && (
+                  <motion.div
+                    layoutId="activeTabPill"
+                    transition={{ type: 'spring', stiffness: 380, damping: 22, mass: 0.8 }}
+                    style={{
+                      position: 'absolute', inset: 0,
+                      borderRadius: 6,
+                      background: '#2563eb',
+                      border: '1px solid rgba(255,255,255,0.22)',
+                      zIndex: -1,
+                    }}
+                  />
+                )}
+                <Icon style={{ width: 14, height: 14, flexShrink: 0 }} />
+                <motion.span
+                  animate={{ opacity: isActive ? 1 : 0, width: isActive ? 'auto' : 0 }}
+                  transition={{ duration: 0.15 }}
+                  style={{ overflow: 'hidden', whiteSpace: 'nowrap', display: 'inline-block' }}
+                >
+                  {tab.label}
+                </motion.span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Spacer */}
+        <div style={{ flex: 1 }} />
+
+        {/* Right: Actions */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+          {/* Share */}
+          <button style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', borderRadius: 6, background: 'rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.75)', fontSize: 13, fontWeight: 500, border: 'none', cursor: 'pointer', fontFamily: F }}
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.11)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.07)'}
+          >
+            <div style={{ width: 20, height: 20, borderRadius: '50%', background: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#fff', flexShrink: 0 }}>{userInitial}</div>
+            Share
+          </button>
+
+          {/* Upgrade */}
+          <button style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 11px', borderRadius: 6, background: '#7c3aed', color: '#fff', fontSize: 13, fontWeight: 500, border: '1px solid rgba(255,255,255,0.18)', cursor: 'pointer', fontFamily: F }}
+            onMouseEnter={e => e.currentTarget.style.background = '#6d28d9'}
+            onMouseLeave={e => e.currentTarget.style.background = '#7c3aed'}
+          >
+            <Zap style={{ width: 13, height: 13 }} />
+            Upgrade
+          </button>
+
+          {/* Launch / status */}
+          <button
+            onClick={handleDeploy}
+            disabled={deployStatus === 'deploying'}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '5px 13px', borderRadius: 6, fontSize: 13, fontWeight: 500,
+              border: '1px solid rgba(255,255,255,0.18)', cursor: deployStatus === 'deploying' ? 'default' : 'pointer', fontFamily: F,
+              background: deployStatus === 'running' ? '#16a34a' : deployStatus === 'error' ? '#dc2626' : deployStatus === 'deploying' ? '#1d4ed8' : '#2563eb',
+              color: '#fff', opacity: deployStatus === 'deploying' ? 0.75 : 1,
+              transition: 'background 0.2s',
+            }}
+            onMouseEnter={e => { if (deployStatus !== 'deploying') e.currentTarget.style.background = deployStatus === 'running' ? '#15803d' : deployStatus === 'error' ? '#b91c1c' : '#1d4ed8'; }}
+            onMouseLeave={e => { if (deployStatus !== 'deploying') e.currentTarget.style.background = deployStatus === 'running' ? '#16a34a' : deployStatus === 'error' ? '#dc2626' : '#2563eb'; }}
+          >
+            {deployStatus === 'deploying' && <Loader2 style={{ width: 12, height: 12, animation: 'spin 1s linear infinite' }} />}
+            {deployStatus === 'running' ? 'Live' : deployStatus === 'error' ? 'Failed' : deployStatus === 'deploying' ? 'Deploying…' : 'Launch'}
+          </button>
+        </div>
       </div>
-      <GitHubExportDialog
-        isOpen={isGitHubExportOpen2}
-        onClose={() => setIsGitHubExportOpen2(false)}
-        projectId={projectId!}
-        projectName={project.name}
-        files={exportableFiles}
-      />
+
+      {/* Canvas */}
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+        {/* Left — chat panel */}
+        <div style={{ width: 460, flexShrink: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <ChatPanelV2
+            messages={messages}
+            isLoading={isMessagesLoading}
+            isSending={isGenerating}
+            isChatting={isChatting}
+            isStreaming={isGenerating}
+            onSendMessage={handleSendMessage}
+            projectName={project?.name ?? ''}
+            projectId={projectId ?? ''}
+            lastError={aiError}
+            currentActions={currentActions}
+            onOpenHistory={() => setIsHistoryOpen(true)}
+            onOpenGitHub={() => setIsGitHubExportOpen2(true)}
+            prefillPrompt={messages.length === 0 ? (project?.initialPrompt ?? prefillPrompt) : prefillPrompt}
+            phase={phase}
+            filesDelivered={filesDelivered}
+            filePaths={generatedFiles.map(f => f.path)}
+            onCancel={cancel}
+          />
+        </div>
+        {/* Right — floating card */}
+        <div style={{ flex: 1, padding: '0 12px 12px 0', overflow: 'hidden' }}>
+          <div style={{
+            width: '100%', height: '100%',
+            background: '#1a1a1a',
+            border: '1px solid rgba(255,255,255,0.1)',
+            borderRadius: 12,
+            overflow: 'hidden',
+            position: 'relative',
+          }}>
+            <AnimatePresence mode="wait" custom={slideDirRef.current}>
+              <motion.div
+                key={activeMode}
+                custom={slideDirRef.current}
+                initial={{ x: slideDirRef.current * 24, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                exit={{ x: slideDirRef.current * -24, opacity: 0 }}
+                transition={{ duration: 0.18, ease: [0.25, 0.1, 0.25, 1] }}
+                style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+              >
+                {activeMode === 'code' && (
+                  <CodeEditorTab
+                    workspaceFiles={workspaceFiles?.map(f => ({ file_path: f.file_path, content: f.content })) ?? []}
+                    isFree={isFree}
+                  />
+                )}
+                {activeMode === 'cloud' && (
+                  <BotCloudPanel
+                    workspaceId={workspaceId}
+                    projectId={projectId}
+                    workspaceFiles={workspaceFiles}
+                    projectName={project?.name}
+                    onRequestEnableCloud={() => setShowCloudModal(true)}
+                    cloudEnabledOverride={cloudEnabledOverride}
+                  />
+                )}
+                {activeMode === 'analytics' && (
+                  <BotAnalyticsPanel sessions={sessions} files={workspaceFiles} />
+                )}
+                {activeMode === 'security' && (
+                  <BotSecurityPanel workspaceFiles={workspaceFiles} />
+                )}
+                {activeMode === 'hosting' && (
+                  <BotHostingPanel
+                    workspaceId={workspaceId}
+                    deployStatus={deployStatus}
+                    onDeploy={handleDeploy}
+                    onStop={handleStop}
+                    onRestart={handleRestart}
+                  />
+                )}
+                {activeMode === 'files' && (
+                  <PlaceholderPanel icon={FileText} label="Files" description="File manager coming soon." />
+                )}
+                {activeMode === 'preview' && (
+                  <PlaceholderPanel icon={DiscordTabIcon} label="Discord Simulator" description="Live Discord simulator coming soon." />
+                )}
+              </motion.div>
+            </AnimatePresence>
+          </div>
+        </div>
+      </div>
+      {showCloudModal && (
+        <CloudEnableModal
+          projectId={projectId}
+          onClose={() => setShowCloudModal(false)}
+          onEnabled={handleCloudEnabled}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── PlaceholderPanel ────────────────────────────────────────────────────────
+function PlaceholderPanel({ icon: Icon, label, description }: { icon: React.ElementType; label: string; description: string }) {
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, padding: 32 }}>
+      <Icon style={{ width: 28, height: 28, color: 'rgba(255,255,255,0.18)' }} />
+      <span style={{ fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.55)', fontFamily: "'Geist','DM Sans',sans-serif" }}>{label}</span>
+      <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.25)', fontFamily: "'Geist','DM Sans',sans-serif", textAlign: 'center', maxWidth: 260 }}>{description}</span>
+    </div>
+  );
+}
+
+// ─── CloudEnableModal ─────────────────────────────────────────────────────────
+function CloudEnableModal({ projectId, onClose, onEnabled }: {
+  projectId?: string;
+  onClose: () => void;
+  onEnabled: () => void;
+}) {
+  const { user } = useAuth();
+  const [botToken, setBotToken] = useState('');
+  const [clientId, setClientId] = useState('');
+  const [guildId, setGuildId] = useState('');
+  const [tokenVisible, setTokenVisible] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const handleAllow = async () => {
+    if (!projectId || !botToken.trim()) return;
+    setSaving(true);
+    try {
+      const ref = doc(db, 'projectEnvVars', projectId);
+      const payload: Record<string, string> = { DISCORD_TOKEN: botToken, CLIENT_ID: clientId, updated_at: new Date().toISOString() };
+      if (guildId.trim()) payload.GUILD_ID = guildId.trim();
+      await setDoc(ref, payload, { merge: true });
+    } catch (e) {
+      console.error('Failed to save credentials:', e);
+    }
+    setSaving(false);
+    onEnabled();
+  };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }}
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={{ width: '100%', maxWidth: '460px', margin: '0 16px', background: '#1c1c1e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '14px', boxShadow: '0 24px 64px rgba(0,0,0,0.6)', overflow: 'hidden', fontFamily: "'Geist','DM Sans',sans-serif" }}>
+        {/* Title bar */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 20px 0' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <img src="/logo-stack-white.svg" style={{ width: 20, height: 20, opacity: 0.9 }} />
+            <span style={{ fontSize: '15px', fontWeight: 600, color: 'rgba(255,255,255,0.9)' }}>Enable Cloud</span>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.35)', cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: '2px 4px' }}>×</button>
+        </div>
+
+        {/* Body */}
+        <div style={{ padding: '14px 20px 20px' }}>
+          <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.45)', marginBottom: '18px', lineHeight: 1.6 }}>
+            Connect your Discord Application. Buildable handles hosting, restarts, and deployment automatically.
+          </p>
+
+          {/* Features */}
+          {[
+            { icon: '▣', title: 'Always-on bot hosting', desc: '24/7 uptime on dedicated Oracle Cloud infrastructure. No cold starts.' },
+            { icon: '↻', title: 'Auto-restart & crash recovery', desc: 'Crashes detected and fixed automatically. Your bot stays online.' },
+            { icon: '⚡', title: 'One-click deploy', desc: 'Push changes live from the Hosting tab. Zero DevOps.' },
+          ].map(f => (
+            <div key={f.title} style={{ display: 'flex', gap: '12px', marginBottom: '14px', alignItems: 'flex-start' }}>
+              <div style={{ width: '30px', height: '30px', borderRadius: '7px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: 'rgba(255,255,255,0.5)', fontSize: 14 }}>
+                {f.icon}
+              </div>
+              <div>
+                <p style={{ fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.8)', margin: '0 0 2px' }}>{f.title}</p>
+                <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.38)', margin: 0, lineHeight: 1.5 }}>{f.desc}</p>
+              </div>
+            </div>
+          ))}
+
+          {/* Credentials */}
+          <div style={{ borderTop: '1px solid rgba(255,255,255,0.07)', paddingTop: '16px', marginTop: '4px' }}>
+            <p style={{ fontSize: '11px', letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)', marginBottom: '12px' }}>Discord Application Credentials</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '12px' }}>
+              <div>
+                <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)', marginBottom: '5px' }}>Bot Token <span style={{ color: '#ef4444' }}>*</span></p>
+                <div style={{ display: 'flex', gap: 5 }}>
+                  <input
+                    type={tokenVisible ? 'text' : 'password'}
+                    value={botToken}
+                    onChange={e => setBotToken(e.target.value)}
+                    placeholder="Paste your bot token"
+                    style={{ flex: 1, padding: '8px 10px', borderRadius: '7px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.8)', fontSize: '12px', fontFamily: 'monospace', outline: 'none' }}
+                  />
+                  <button onClick={() => setTokenVisible(v => !v)} style={{ padding: '6px 10px', borderRadius: 7, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.4)', fontSize: 11, cursor: 'pointer', fontFamily: "'Geist','DM Sans',sans-serif" }}>
+                    {tokenVisible ? 'Hide' : 'Show'}
+                  </button>
+                </div>
+              </div>
+              <div>
+                <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)', marginBottom: '5px' }}>Application (Client) ID</p>
+                <input
+                  value={clientId}
+                  onChange={e => setClientId(e.target.value)}
+                  placeholder="e.g. 1234567890123456789"
+                  style={{ width: '100%', padding: '8px 10px', borderRadius: '7px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.8)', fontSize: '12px', fontFamily: 'monospace', outline: 'none', boxSizing: 'border-box' }}
+                />
+              </div>
+              <div>
+                <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)', marginBottom: '5px' }}>
+                  Guild (Server) ID <span style={{ color: 'rgba(255,255,255,0.25)', fontStyle: 'italic' }}>— recommended for instant slash command sync</span>
+                </p>
+                <input
+                  value={guildId}
+                  onChange={e => setGuildId(e.target.value)}
+                  placeholder="e.g. 1234567890123456789"
+                  style={{ width: '100%', padding: '8px 10px', borderRadius: '7px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.8)', fontSize: '12px', fontFamily: 'monospace', outline: 'none', boxSizing: 'border-box' }}
+                />
+              </div>
+            </div>
+            <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.22)', marginBottom: '16px' }}>
+              Find Token + Client ID in the <a href="https://discord.com/developers/applications" target="_blank" rel="noopener noreferrer" style={{ color: 'rgba(255,255,255,0.4)', textDecoration: 'underline' }}>Discord Developer Portal</a>. Get your Guild ID by right-clicking your server in Discord → Copy Server ID.
+            </p>
+          </div>
+
+          {/* Actions */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '10px' }}>
+            <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: 7, background: 'none', border: 'none', color: 'rgba(255,255,255,0.45)', fontSize: 13, cursor: 'pointer', fontFamily: "'Geist','DM Sans',sans-serif" }}>
+              Skip
+            </button>
+            <button
+              onClick={handleAllow}
+              disabled={saving || !botToken.trim()}
+              style={{ padding: '8px 22px', borderRadius: 7, background: !botToken.trim() ? 'rgba(37,99,235,0.45)' : '#2563eb', border: 'none', color: '#fff', fontSize: 13, fontWeight: 600, cursor: !botToken.trim() ? 'not-allowed' : 'pointer', fontFamily: "'Geist','DM Sans',sans-serif", display: 'flex', alignItems: 'center', gap: 6, transition: 'background 0.15s' }}>
+              {saving ? <><RotateCw style={{ width: 12, height: 12 }} className="animate-spin" /> Connecting…</> : 'Allow'}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -965,14 +1305,25 @@ const CARD_STYLE: React.CSSProperties = {
 const PANEL_FONT = "'Geist','DM Sans',sans-serif";
 
 // ─── BotCloudPanel ───────────────────────────────────────────────────────────
-function BotCloudPanel({ workspaceId, projectId, workspaceFiles, projectName }: {
+type CloudSubTab = 'overview' | 'token' | 'env' | 'commands' | 'permissions' | 'logs';
+
+function BotCloudPanel({ workspaceId, projectId, workspaceFiles, projectName, onRequestEnableCloud, cloudEnabledOverride }: {
   workspaceId?: string | null;
   projectId?: string;
   workspaceFiles?: WorkspaceFile[];
   projectName?: string;
+  onRequestEnableCloud?: () => void;
+  cloudEnabledOverride?: boolean;
 }) {
   const [envVars, setEnvVars] = useState<{ key: string; value: string }[]>([]);
   const [clientId, setClientId] = useState('');
+  const [botToken, setBotToken] = useState('');
+  const [guildId, setGuildId] = useState('');
+  const [tokenSaved, setTokenSaved] = useState(false);
+  const [tokenVisible, setTokenVisible] = useState(false);
+  const [cloudEnabled, setCloudEnabled] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [subTab, setSubTab] = useState<CloudSubTab>('overview');
   const [permissions, setPermissions] = useState<Record<number, boolean>>({
     1024: true, 2048: true, 16384: true, 32768: true, 65536: true, 64: true, 8192: false,
   });
@@ -982,150 +1333,281 @@ function BotCloudPanel({ workspaceId, projectId, workspaceFiles, projectName }: 
     32768: 'Attach Files', 65536: 'Read History', 64: 'Add Reactions', 8192: 'Manage Messages',
   };
 
-  const permBitmask = Object.entries(permissions)
-    .filter(([, v]) => v)
-    .reduce((acc, [k]) => acc | Number(k), 0);
-
+  const permBitmask = Object.entries(permissions).filter(([, v]) => v).reduce((acc, [k]) => acc | Number(k), 0);
   const inviteUrl = clientId.trim()
     ? `https://discord.com/api/oauth2/authorize?client_id=${clientId.trim()}&permissions=${permBitmask}&scope=bot%20applications.commands`
     : '';
 
-  // Extract commands from Python files
   const commands = useMemo(() => {
     const found: string[] = [];
     for (const f of workspaceFiles ?? []) {
       if (!f.file_path.endsWith('.py')) continue;
-      const matches1 = [...f.content.matchAll(/@(?:bot|client)\.command\([^)]*\)\s*\nasync def (\w+)/g)];
-      for (const m of matches1) if (m[1]) found.push('!' + m[1]);
-      const matches2 = [...f.content.matchAll(/name=["'](\w+)["']/g)];
-      for (const m of matches2) if (m[1]) found.push('/' + m[1]);
+      const m1 = [...f.content.matchAll(/@(?:bot|client)\.command\([^)]*\)\s*\nasync def (\w+)/g)];
+      for (const m of m1) if (m[1]) found.push('!' + m[1]);
+      const m2 = [...f.content.matchAll(/name=["'](\w+)["']/g)];
+      for (const m of m2) if (m[1]) found.push('/' + m[1]);
     }
     return [...new Set(found)];
   }, [workspaceFiles]);
 
-  // Load env vars from Firestore projectEnvVars/{projectId}
   useEffect(() => {
     if (!projectId) return;
     getDoc(doc(db, 'projectEnvVars', projectId)).then(snap => {
       if (snap.exists()) {
         const data = snap.data() as Record<string, string>;
+        if (data.DISCORD_TOKEN) { setBotToken(data.DISCORD_TOKEN); setCloudEnabled(true); }
+        if (data.CLIENT_ID) setClientId(data.CLIENT_ID);
+        if (data.GUILD_ID) setGuildId(data.GUILD_ID);
         setEnvVars(
           Object.entries(data)
-            .filter(([k]) => k !== 'updated_at')
+            .filter(([k]) => k !== 'updated_at' && k !== 'DISCORD_TOKEN' && k !== 'CLIENT_ID' && k !== 'GUILD_ID')
             .map(([key, value]) => ({ key, value: String(value) }))
         );
       }
     }).catch(() => {});
   }, [projectId]);
 
-  return (
-    <div className="flex-1 h-full overflow-y-auto" style={{ background: BG, fontFamily: PANEL_FONT }}>
-      <div style={{ maxWidth: '720px', margin: '0 auto', padding: '32px 24px' }}>
-        {/* Header */}
-        <div className="flex items-center gap-3 mb-6">
-          <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(37,99,235,0.15)', border: '1px solid rgba(37,99,235,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Cloud style={{ width: '16px', height: '16px', color: '#3b82f6' }} />
-          </div>
-          <div>
-            <h2 style={{ fontSize: '15px', fontWeight: 600, color: 'rgba(255,255,255,0.88)', margin: 0 }}>Cloud Configuration</h2>
-            <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', margin: 0 }}>Bot settings and environment</p>
+  const saveToken = async () => {
+    if (!projectId || !botToken.trim()) return;
+    setSaving(true);
+    try {
+      const payload: Record<string, string> = { DISCORD_TOKEN: botToken, CLIENT_ID: clientId, updated_at: new Date().toISOString() };
+      if (guildId.trim()) payload.GUILD_ID = guildId.trim();
+      await setDoc(doc(db, 'projectEnvVars', projectId), payload, { merge: true });
+      setTokenSaved(true);
+      setCloudEnabled(true);
+      setTimeout(() => setTokenSaved(false), 2000);
+    } catch (e) { console.error(e); }
+    setSaving(false);
+  };
+
+  // ── Enable Cloud gate ─────────────────────────────────────────────────────
+  if (!cloudEnabled && !cloudEnabledOverride) {
+    return (
+      <div style={{ flex: 1, height: '100%', overflowY: 'auto', background: BG, fontFamily: PANEL_FONT, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ width: '100%', maxWidth: '460px', margin: '0 20px' }}>
+          <div style={{ background: '#161618', border: '1px solid rgba(255,255,255,0.09)', borderRadius: '14px', padding: '28px 28px 24px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <img src="/logo-stack-white.svg" style={{ width: 20, height: 20, opacity: 0.9 }} />
+                <span style={{ fontSize: 15, fontWeight: 600, color: 'rgba(255,255,255,0.9)' }}>Buildable Cloud</span>
+              </div>
+              <a href="https://discord.com/developers/applications" target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', textDecoration: 'underline' }}>Get credentials</a>
+            </div>
+            <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.45)', lineHeight: 1.6, marginBottom: 20 }}>
+              Connect your Discord Application. Buildable handles hosting, restarts, and deployment automatically.
+            </p>
+            {[
+              { Icon: Monitor, title: 'Always-on hosting', desc: '24/7 uptime on dedicated Oracle Cloud. No cold starts.' },
+              { Icon: RotateCw, title: 'Auto-restart & crash recovery', desc: 'Crashes detected and fixed automatically.' },
+              { Icon: Lock, title: 'Secure credential storage', desc: 'Bot tokens encrypted at rest. Never exposed.' },
+            ].map(({ Icon, title, desc }) => (
+              <div key={title} style={{ display: 'flex', gap: 12, marginBottom: 16, alignItems: 'flex-start' }}>
+                <div style={{ width: 30, height: 30, borderRadius: 7, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: 'rgba(255,255,255,0.45)' }}>
+                  <Icon style={{ width: 14, height: 14 }} />
+                </div>
+                <div>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.8)', margin: '0 0 2px' }}>{title}</p>
+                  <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.38)', margin: 0, lineHeight: 1.5 }}>{desc}</p>
+                </div>
+              </div>
+            ))}
+            <button onClick={() => onRequestEnableCloud?.()} style={{ width: '100%', padding: 11, borderRadius: 8, background: '#2563eb', border: 'none', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: PANEL_FONT, marginTop: 8 }}>
+              Enable Cloud
+            </button>
           </div>
         </div>
+      </div>
+    );
+  }
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-          {/* Commands */}
-          <div style={CARD_STYLE}>
-            <p style={{ fontSize: '11px', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)', marginBottom: '10px' }}>Commands</p>
-            {commands.length > 0 ? (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                {commands.slice(0, 12).map(cmd => (
-                  <span key={cmd} style={{ padding: '2px 8px', borderRadius: '4px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', fontSize: '11px', color: 'rgba(255,255,255,0.55)', fontFamily: 'monospace' }}>
-                    {cmd}
-                  </span>
-                ))}
-                {commands.length > 12 && (
-                  <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)' }}>+{commands.length - 12} more</span>
-                )}
+  // ── Full cloud panel: sidebar + content ───────────────────────────────────
+  const NAV: { id: CloudSubTab; label: string; Icon: React.ElementType; stat?: string }[] = [
+    { id: 'overview',     label: 'Overview',     Icon: LayoutDashboard },
+    { id: 'token',        label: 'Bot Token',    Icon: KeyRound },
+    { id: 'env',          label: 'Env Variables', Icon: Lock,     stat: envVars.length > 0 ? `${envVars.length}` : undefined },
+    { id: 'commands',     label: 'Commands',     Icon: Terminal,  stat: commands.length > 0 ? `${commands.length}` : undefined },
+    { id: 'permissions',  label: 'Permissions',  Icon: Shield },
+    { id: 'logs',         label: 'Logs',         Icon: ScrollText },
+  ];
+
+  const OVERVIEW_ROWS: { id: CloudSubTab; label: string; desc: string; stat?: string }[] = [
+    { id: 'token',       label: 'Bot Token',       desc: 'Manage your Discord bot credentials',         stat: botToken ? 'Connected' : 'Not set' },
+    { id: 'env',         label: 'Env Variables',   desc: 'Configure runtime environment variables',     stat: envVars.length > 0 ? `${envVars.length} Variables` : '0 Variables' },
+    { id: 'commands',    label: 'Commands',        desc: 'Slash commands and prefix commands detected', stat: commands.length > 0 ? `${commands.length} Commands` : '0 Commands' },
+    { id: 'permissions', label: 'Permissions',     desc: 'Configure bot permissions and invite URL' },
+    { id: 'logs',        label: 'Logs',            desc: 'View deployment and runtime logs' },
+  ];
+
+  return (
+    <div style={{ display: 'flex', flex: 1, height: '100%', overflow: 'hidden', background: BG, fontFamily: PANEL_FONT }}>
+      {/* Left sidebar */}
+      <div style={{ width: 188, flexShrink: 0, borderRight: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', padding: '16px 0', overflowY: 'auto' }}>
+        {/* Logo + title */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 16px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', marginBottom: 8 }}>
+          <img src="/logo-stack-white.svg" style={{ width: 16, height: 16, opacity: 0.8 }} />
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.75)' }}>Buildable Cloud</span>
+        </div>
+        {NAV.map(({ id, label, Icon, stat }) => (
+          <button key={id} onClick={() => setSubTab(id)} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '7px 14px', margin: '1px 6px', borderRadius: 7, background: subTab === id ? 'rgba(255,255,255,0.07)' : 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', color: subTab === id ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.45)', transition: 'all 0.12s' }}
+            onMouseEnter={e => { if (subTab !== id) (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.7)'; }}
+            onMouseLeave={e => { if (subTab !== id) (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.45)'; }}>
+            <Icon style={{ width: 14, height: 14, flexShrink: 0 }} />
+            <span style={{ fontSize: 13, flex: 1 }}>{label}</span>
+            {stat && <span style={{ fontSize: 10, background: 'rgba(255,255,255,0.08)', borderRadius: 4, padding: '1px 5px', color: 'rgba(255,255,255,0.4)' }}>{stat}</span>}
+          </button>
+        ))}
+      </div>
+
+      {/* Right content */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '0' }}>
+        {/* ── Overview ── */}
+        {subTab === 'overview' && (
+          <div>
+            <div style={{ padding: '20px 24px 14px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <h2 style={{ fontSize: 15, fontWeight: 600, color: 'rgba(255,255,255,0.88)', margin: 0 }}>Overview</h2>
+                <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', margin: '2px 0 0' }}>Bot cloud configuration</p>
               </div>
-            ) : (
-              <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.3)', lineHeight: 1.5 }}>
-                Generate your bot to see commands here.
-              </p>
-            )}
-          </div>
-
-          {/* Bot Token */}
-          <div style={CARD_STYLE}>
-            <p style={{ fontSize: '11px', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)', marginBottom: '10px' }}>Bot Token</p>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
-              <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: workspaceId ? '#22c55e' : 'rgba(255,255,255,0.2)', flexShrink: 0 }} />
-              <span style={{ fontSize: '12px', color: workspaceId ? '#4ade80' : 'rgba(255,255,255,0.35)' }}>
-                {workspaceId ? 'Token Secured' : 'Not configured'}
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#22c55e', boxShadow: '0 0 5px rgba(34,197,94,0.5)' }} />
+                <span style={{ fontSize: 11, color: '#4ade80' }}>Connected</span>
+              </div>
             </div>
-            <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', lineHeight: 1.5 }}>
-              Your bot token is stored securely on our servers. Never share it publicly.
-            </p>
+            <div>
+              {OVERVIEW_ROWS.map((row, i) => (
+                <button key={row.id} onClick={() => setSubTab(row.id)} style={{ display: 'flex', alignItems: 'center', width: '100%', padding: '18px 24px', borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'transparent', border: 'none', borderBottomWidth: i < OVERVIEW_ROWS.length - 1 ? 1 : 0, borderBottomColor: 'rgba(255,255,255,0.05)', borderBottomStyle: 'solid', cursor: 'pointer', textAlign: 'left' }}
+                  onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.02)'}
+                  onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = 'transparent'}>
+                  <div style={{ flex: 1 }}>
+                    <p style={{ fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.85)', margin: 0 }}>{row.label}</p>
+                    <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.38)', margin: '3px 0 0' }}>{row.desc}</p>
+                  </div>
+                  {row.stat && <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', marginRight: 10 }}>{row.stat}</span>}
+                  <ChevronRight style={{ width: 15, height: 15, color: 'rgba(255,255,255,0.25)', flexShrink: 0 }} />
+                </button>
+              ))}
+            </div>
           </div>
+        )}
 
-          {/* Env Vars */}
-          <div style={{ ...CARD_STYLE, gridColumn: '1 / -1' }}>
-            <p style={{ fontSize: '11px', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)', marginBottom: '10px' }}>Environment Variables</p>
+        {/* ── Bot Token ── */}
+        {subTab === 'token' && (
+          <div style={{ padding: '20px 24px' }}>
+            <h2 style={{ fontSize: 15, fontWeight: 600, color: 'rgba(255,255,255,0.88)', margin: '0 0 4px' }}>Bot Token</h2>
+            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.38)', margin: '0 0 24px' }}>Manage your Discord application credentials. Stored encrypted — never exposed.</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14, maxWidth: 520 }}>
+              <div>
+                <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginBottom: 6 }}>Discord Bot Token <span style={{ color: '#ef4444' }}>*</span></p>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <input type={tokenVisible ? 'text' : 'password'} value={botToken} onChange={e => setBotToken(e.target.value)} placeholder="Paste your bot token" style={{ flex: 1, padding: '8px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.8)', fontSize: 12, fontFamily: 'monospace', outline: 'none' }} />
+                  <button onClick={() => setTokenVisible(v => !v)} style={{ padding: '8px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.45)', fontSize: 12, cursor: 'pointer', fontFamily: PANEL_FONT }}>{tokenVisible ? 'Hide' : 'Show'}</button>
+                </div>
+              </div>
+              <div>
+                <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginBottom: 6 }}>Application (Client) ID</p>
+                <input value={clientId} onChange={e => setClientId(e.target.value)} placeholder="e.g. 1234567890123456789" style={{ width: '100%', padding: '8px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.8)', fontSize: 12, fontFamily: 'monospace', outline: 'none', boxSizing: 'border-box' }} />
+              </div>
+              <div>
+                <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginBottom: 6 }}>
+                  Guild (Server) ID
+                  <span style={{ marginLeft: 6, fontSize: 10, color: '#22c55e', background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 4, padding: '1px 5px' }}>instant slash command sync</span>
+                </p>
+                <input value={guildId} onChange={e => setGuildId(e.target.value)} placeholder="Right-click your server → Copy Server ID" style={{ width: '100%', padding: '8px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.8)', fontSize: 12, fontFamily: 'monospace', outline: 'none', boxSizing: 'border-box' }} />
+                <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.22)', marginTop: 5 }}>Without a Guild ID, slash commands use global sync and can take up to 1 hour to appear.</p>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 4 }}>
+                <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)', margin: 0 }}>Find these at <a href="https://discord.com/developers/applications" target="_blank" rel="noopener noreferrer" style={{ color: 'rgba(255,255,255,0.4)', textDecoration: 'underline' }}>discord.com/developers</a></p>
+                <button onClick={saveToken} disabled={saving || !botToken.trim()} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 16px', borderRadius: 8, background: tokenSaved ? 'rgba(34,197,94,0.15)' : '#2563eb', border: tokenSaved ? '1px solid rgba(34,197,94,0.3)' : 'none', color: tokenSaved ? '#4ade80' : '#fff', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: PANEL_FONT, transition: 'all 0.2s' }}>
+                  {saving ? <RotateCw style={{ width: 12, height: 12 }} className="animate-spin" /> : tokenSaved ? <><Check style={{ width: 12, height: 12 }} /> Saved</> : 'Save'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Env Variables ── */}
+        {subTab === 'env' && (
+          <div style={{ padding: '20px 24px' }}>
+            <h2 style={{ fontSize: 15, fontWeight: 600, color: 'rgba(255,255,255,0.88)', margin: '0 0 4px' }}>Env Variables</h2>
+            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.38)', margin: '0 0 20px' }}>Runtime environment variables available to your bot. Set sensitive values here, not in code.</p>
             {envVars.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxWidth: 520 }}>
                 {envVars.map(v => (
-                  <code key={v.key} style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.04)', padding: '3px 8px', borderRadius: '4px', fontFamily: 'monospace' }}>
-                    {v.key}=<span style={{ color: 'rgba(255,255,255,0.2)' }}>{'•'.repeat(Math.min(v.value.length, 8))}</span>
-                  </code>
+                  <div key={v.key} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                    <code style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', fontFamily: 'monospace', flex: 1 }}>{v.key}</code>
+                    <code style={{ fontSize: 12, color: 'rgba(255,255,255,0.25)', fontFamily: 'monospace' }}>{'•'.repeat(Math.min(v.value.length, 10))}</code>
+                  </div>
                 ))}
               </div>
             ) : (
-              <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.3)' }}>No env vars configured. Add them in Bot Settings.</p>
+              <div style={{ textAlign: 'center', padding: '40px 0', color: 'rgba(255,255,255,0.25)', fontSize: 13 }}>
+                <Lock style={{ width: 28, height: 28, margin: '0 auto 10px', opacity: 0.3 }} />
+                <p style={{ margin: 0 }}>No environment variables configured.</p>
+                <p style={{ fontSize: 11, margin: '6px 0 0', opacity: 0.7 }}>Variables saved via Firestore will appear here.</p>
+              </div>
             )}
           </div>
+        )}
 
-          {/* Discord Invite */}
-          <div style={{ ...CARD_STYLE, gridColumn: '1 / -1' }}>
-            <p style={{ fontSize: '11px', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)', marginBottom: '12px' }}>Discord Invite URL</p>
-            <div style={{ marginBottom: '10px' }}>
-              <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', marginBottom: '6px' }}>Application Client ID</p>
-              <input
-                value={clientId}
-                onChange={e => setClientId(e.target.value)}
-                placeholder="Paste your Discord App Client ID"
-                style={{ width: '100%', padding: '6px 10px', borderRadius: '6px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.75)', fontSize: '12px', fontFamily: PANEL_FONT, outline: 'none' }}
-              />
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '6px', marginBottom: '12px' }}>
+        {/* ── Commands ── */}
+        {subTab === 'commands' && (
+          <div style={{ padding: '20px 24px' }}>
+            <h2 style={{ fontSize: 15, fontWeight: 600, color: 'rgba(255,255,255,0.88)', margin: '0 0 4px' }}>Commands</h2>
+            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.38)', margin: '0 0 20px' }}>Commands detected in your bot's Python files. Generate your bot first to see them here.</p>
+            {commands.length > 0 ? (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, maxWidth: 520 }}>
+                {commands.map(cmd => (
+                  <span key={cmd} style={{ padding: '4px 10px', borderRadius: 6, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', fontSize: 12, color: 'rgba(255,255,255,0.65)', fontFamily: 'monospace' }}>{cmd}</span>
+                ))}
+              </div>
+            ) : (
+              <div style={{ textAlign: 'center', padding: '40px 0', color: 'rgba(255,255,255,0.25)', fontSize: 13 }}>
+                <Terminal style={{ width: 28, height: 28, margin: '0 auto 10px', opacity: 0.3 }} />
+                <p style={{ margin: 0 }}>No commands detected yet.</p>
+                <p style={{ fontSize: 11, margin: '6px 0 0', opacity: 0.7 }}>Generate your bot to populate this list.</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Permissions ── */}
+        {subTab === 'permissions' && (
+          <div style={{ padding: '20px 24px' }}>
+            <h2 style={{ fontSize: 15, fontWeight: 600, color: 'rgba(255,255,255,0.88)', margin: '0 0 4px' }}>Permissions & Invite</h2>
+            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.38)', margin: '0 0 20px' }}>Select what your bot needs access to, then copy the invite URL to add it to your server.</p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 8, marginBottom: 20, maxWidth: 520 }}>
               {Object.entries(PERM_LABELS).map(([bit, label]) => (
-                <label key={bit} style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '11px', color: 'rgba(255,255,255,0.55)' }}>
-                  <input
-                    type="checkbox"
-                    checked={permissions[Number(bit)] ?? false}
-                    onChange={e => setPermissions(p => ({ ...p, [Number(bit)]: e.target.checked }))}
-                    style={{ accentColor: '#3b82f6', cursor: 'pointer' }}
-                  />
+                <label key={bit} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, color: 'rgba(255,255,255,0.6)', padding: '6px 10px', borderRadius: 7, background: permissions[Number(bit)] ? 'rgba(37,99,235,0.1)' : 'rgba(255,255,255,0.03)', border: `1px solid ${permissions[Number(bit)] ? 'rgba(37,99,235,0.25)' : 'rgba(255,255,255,0.07)'}`, transition: 'all 0.15s' }}>
+                  <input type="checkbox" checked={permissions[Number(bit)] ?? false} onChange={e => setPermissions(p => ({ ...p, [Number(bit)]: e.target.checked }))} style={{ accentColor: '#3b82f6', cursor: 'pointer' }} />
                   {label}
                 </label>
               ))}
             </div>
+            <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginBottom: 10 }}>Invite URL (generated from your Client ID)</p>
             {inviteUrl ? (
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                <code style={{ flex: 1, fontSize: '10px', color: 'rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.04)', padding: '6px 8px', borderRadius: '4px', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {inviteUrl}
-                </code>
-                <button
-                  onClick={() => navigator.clipboard.writeText(inviteUrl)}
-                  style={{ padding: '5px 12px', borderRadius: '6px', background: 'rgba(59,130,246,0.15)', border: '1px solid rgba(59,130,246,0.3)', color: '#60a5fa', fontSize: '11px', cursor: 'pointer', flexShrink: 0, fontFamily: PANEL_FONT }}
-                >
-                  Copy
-                </button>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', maxWidth: 520 }}>
+                <code style={{ flex: 1, fontSize: 11, color: 'rgba(255,255,255,0.45)', background: 'rgba(255,255,255,0.04)', padding: '8px 10px', borderRadius: 7, fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', border: '1px solid rgba(255,255,255,0.08)' }}>{inviteUrl}</code>
+                <button onClick={() => navigator.clipboard.writeText(inviteUrl)} style={{ padding: '7px 14px', borderRadius: 7, background: 'rgba(37,99,235,0.15)', border: '1px solid rgba(37,99,235,0.3)', color: '#60a5fa', fontSize: 12, cursor: 'pointer', flexShrink: 0, fontFamily: PANEL_FONT }}>Copy</button>
               </div>
             ) : (
-              <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.25)' }}>Enter your Client ID to generate the invite URL.</p>
+              <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.25)' }}>Add your Client ID in Bot Token to generate the URL.</p>
             )}
           </div>
-        </div>
+        )}
+
+        {/* ── Logs ── */}
+        {subTab === 'logs' && (
+          <div style={{ padding: '20px 24px' }}>
+            <h2 style={{ fontSize: 15, fontWeight: 600, color: 'rgba(255,255,255,0.88)', margin: '0 0 4px' }}>Logs</h2>
+            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.38)', margin: '0 0 20px' }}>Deployment and runtime logs for your bot. Deploy your bot from the Hosting tab to see logs.</p>
+            <div style={{ textAlign: 'center', padding: '40px 0', color: 'rgba(255,255,255,0.25)', fontSize: 13 }}>
+              <ScrollText style={{ width: 28, height: 28, margin: '0 auto 10px', opacity: 0.3 }} />
+              <p style={{ margin: 0 }}>No logs yet.</p>
+              <p style={{ fontSize: 11, margin: '6px 0 0', opacity: 0.7 }}>Logs appear once your bot is deployed.</p>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1274,54 +1756,150 @@ function BotSecurityPanel({ workspaceFiles }: { workspaceFiles?: WorkspaceFile[]
 }
 
 // ─── BotHostingPanel ─────────────────────────────────────────────────────────
-function BotHostingPanel({ workspaceId, workspaceStatus }: { workspaceId?: string | null; workspaceStatus?: string | null }) {
-  const callbackUrl = workspaceId
-    ? `https://api.buildablelabs.dev/bots/${workspaceId}/callback`
-    : 'https://api.buildablelabs.dev/bots/{id}/callback';
+function BotHostingPanel({
+  workspaceId,
+  deployStatus,
+  onDeploy,
+  onStop,
+  onRestart,
+}: {
+  workspaceId?: string | null;
+  deployStatus: 'idle' | 'deploying' | 'running' | 'stopped' | 'error';
+  onDeploy: () => void;
+  onStop: () => void;
+  onRestart: () => void;
+}) {
+  const [logs, setLogs] = useState<string>('');
+  const [logsCopied, setLogsCopied] = useState(false);
+  const logsRef = useRef<HTMLPreElement>(null);
+  const logPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const statusDot = workspaceStatus === 'generating' ? '#f59e0b'
-    : workspaceStatus === 'ready' ? '#22c55e'
-    : workspaceStatus === 'error' ? '#ef4444'
-    : 'rgba(255,255,255,0.2)';
+  // Fetch logs when running
+  useEffect(() => {
+    if (deployStatus !== 'running' || !workspaceId) {
+      if (logPollRef.current) clearInterval(logPollRef.current);
+      return;
+    }
+    const fetchLogs = async () => {
+      try {
+        const token = await auth.currentUser?.getIdToken();
+        const res = await fetch(`${API_BASE}/api/deploy/${workspaceId}/logs?lines=80`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json() as { logs: string };
+        setLogs(data.logs ?? '');
+        // Auto-scroll to bottom
+        if (logsRef.current) logsRef.current.scrollTop = logsRef.current.scrollHeight;
+      } catch { /* ignore */ }
+    };
+    fetchLogs();
+    logPollRef.current = setInterval(fetchLogs, 3000);
+    return () => { if (logPollRef.current) clearInterval(logPollRef.current); };
+  }, [deployStatus, workspaceId]);
 
-  const statusText = workspaceStatus === 'generating' ? 'Generating files…'
-    : workspaceStatus === 'ready' ? 'Ready to deploy'
-    : workspaceStatus === 'error' ? 'Error — check generation logs'
-    : 'Not yet deployed';
+  const statusDot = deployStatus === 'running' ? '#22c55e'
+    : deployStatus === 'deploying' ? '#f59e0b'
+    : deployStatus === 'error' ? '#ef4444'
+    : deployStatus === 'stopped' ? 'rgba(255,255,255,0.3)'
+    : 'rgba(255,255,255,0.15)';
+
+  const statusText = deployStatus === 'running' ? 'Running'
+    : deployStatus === 'deploying' ? 'Deploying…'
+    : deployStatus === 'error' ? 'Deploy failed'
+    : deployStatus === 'stopped' ? 'Stopped'
+    : 'Not deployed';
+
+  const copyLogs = () => {
+    navigator.clipboard.writeText(logs);
+    setLogsCopied(true);
+    setTimeout(() => setLogsCopied(false), 1500);
+  };
 
   return (
     <div className="flex-1 h-full overflow-y-auto" style={{ background: BG, fontFamily: PANEL_FONT }}>
       <div style={{ maxWidth: '720px', margin: '0 auto', padding: '32px 24px' }}>
+        {/* Header */}
         <div className="flex items-center gap-3 mb-6">
           <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(37,99,235,0.15)', border: '1px solid rgba(37,99,235,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Server style={{ width: '16px', height: '16px', color: '#3b82f6' }} />
           </div>
           <div>
-            <h2 style={{ fontSize: '15px', fontWeight: 600, color: 'rgba(255,255,255,0.88)', margin: 0 }}>Hosting & Live Info</h2>
-            <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', margin: 0 }}>Deployment status and endpoints</p>
+            <h2 style={{ fontSize: '15px', fontWeight: 600, color: 'rgba(255,255,255,0.88)', margin: 0 }}>Hosting</h2>
+            <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', margin: 0 }}>Live deployment status and logs</p>
           </div>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          <div style={CARD_STYLE}>
-            <p style={{ fontSize: '11px', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)', marginBottom: '8px' }}>Bot Status</p>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: statusDot, flexShrink: 0 }} />
-              <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.55)' }}>{statusText}</span>
+          {/* Status + Actions */}
+          <div style={{ ...CARD_STYLE, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{
+                width: '8px', height: '8px', borderRadius: '50%', background: statusDot, flexShrink: 0,
+                boxShadow: deployStatus === 'running' ? '0 0 6px #22c55e' : 'none',
+                animation: deployStatus === 'deploying' ? 'pulse 1.2s ease-in-out infinite' : 'none',
+              }} />
+              <div>
+                <p style={{ fontSize: '13px', fontWeight: 500, color: 'rgba(255,255,255,0.8)', margin: 0 }}>{statusText}</p>
+                <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', margin: 0 }}>
+                  {deployStatus === 'running' ? 'Your bot is live and responding to Discord' : deployStatus === 'idle' ? 'Deploy your bot to go live' : ''}
+                </p>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              {(deployStatus === 'idle' || deployStatus === 'stopped' || deployStatus === 'error') && (
+                <button onClick={onDeploy} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 14px', borderRadius: 6, background: '#2563eb', border: 'none', color: '#fff', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: PANEL_FONT }}>
+                  <Server style={{ width: 12, height: 12 }} />
+                  Deploy
+                </button>
+              )}
+              {deployStatus === 'deploying' && (
+                <button disabled style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 14px', borderRadius: 6, background: '#1d4ed8', border: 'none', color: '#fff', fontSize: 12, fontWeight: 500, cursor: 'default', opacity: 0.7, fontFamily: PANEL_FONT }}>
+                  <Loader2 style={{ width: 12, height: 12, animation: 'spin 1s linear infinite' }} />
+                  Deploying…
+                </button>
+              )}
+              {deployStatus === 'running' && (
+                <>
+                  <button onClick={onRestart} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 6, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)', fontSize: 12, cursor: 'pointer', fontFamily: PANEL_FONT }}>
+                    <RotateCw style={{ width: 12, height: 12 }} />
+                    Restart
+                  </button>
+                  <button onClick={onStop} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 6, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', color: '#f87171', fontSize: 12, cursor: 'pointer', fontFamily: PANEL_FONT }}>
+                    <Square style={{ width: 12, height: 12 }} />
+                    Stop
+                  </button>
+                </>
+              )}
             </div>
           </div>
 
+          {/* Live Logs */}
           <div style={CARD_STYLE}>
-            <p style={{ fontSize: '11px', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)', marginBottom: '8px' }}>Webhook / Callback URL</p>
-            <code style={{ fontSize: '11px', color: 'rgba(255,255,255,0.45)', background: 'rgba(255,255,255,0.04)', padding: '4px 8px', borderRadius: '4px', wordBreak: 'break-all', fontFamily: 'monospace' }}>
-              {callbackUrl}
-            </code>
-          </div>
-
-          <div style={CARD_STYLE}>
-            <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', lineHeight: 1.6, margin: 0 }}>
-              Once your bot is generated, deploy it to Railway or any Python hosting platform. Use the Railway CLI or connect your GitHub repo for automatic deployments.
-            </p>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Terminal style={{ width: 13, height: 13, color: 'rgba(255,255,255,0.4)' }} />
+                <p style={{ fontSize: '11px', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)', margin: 0 }}>Live Logs</p>
+                {deployStatus === 'running' && (
+                  <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: 4, background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.2)', color: '#4ade80' }}>live</span>
+                )}
+              </div>
+              {logs && (
+                <button onClick={copyLogs} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 4, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.4)', fontSize: 11, cursor: 'pointer', fontFamily: PANEL_FONT }}>
+                  {logsCopied ? <><Check style={{ width: 10, height: 10 }} /> Copied</> : <><Copy style={{ width: 10, height: 10 }} /> Copy</>}
+                </button>
+              )}
+            </div>
+            <pre
+              ref={logsRef}
+              style={{
+                background: '#0a0a0a', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '6px',
+                padding: '10px 12px', fontFamily: 'monospace', fontSize: '11px', color: 'rgba(255,255,255,0.55)',
+                lineHeight: 1.6, minHeight: '180px', maxHeight: '340px', overflowY: 'auto',
+                margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-all',
+              }}
+            >
+              {logs || (deployStatus === 'running' ? 'Fetching logs…' : 'No logs yet. Deploy your bot to see output here.')}
+            </pre>
           </div>
         </div>
       </div>
@@ -1332,62 +1910,62 @@ function BotHostingPanel({ workspaceId, workspaceStatus }: { workspaceId?: strin
 // ─── Bot template data for empty state cards ─────────────────────────────────
 const BOT_TEMPLATES = [
   {
-    emoji: '🎵', name: 'Music Bot',
+    id: 'music', icon: Music, name: 'Music Bot',
     description: 'Stream Spotify, YouTube & SoundCloud in voice channels with queue management and voting.',
-    tags: ['!play', '!skip', '!queue', '!volume'],
+    tags: ['!play', '!skip', '!queue'],
     prompt: 'Build me a music bot with Spotify and queue support',
     color: '#1db954',
   },
   {
-    emoji: '🛡️', name: 'Auto-Moderation Bot',
+    id: 'moderation', icon: Shield, name: 'Auto-Moderation Bot',
     description: 'Automatically delete spam, filter bad links, issue warnings and timed bans.',
-    tags: ['!warn', '!ban', '!mute', 'Auto-filter'],
+    tags: ['!warn', '!ban', '!mute'],
     prompt: 'Build a moderation bot that auto-bans spammers',
     color: '#ef4444',
   },
   {
-    emoji: '👋', name: 'Welcome & Roles Bot',
+    id: 'welcome', icon: UserPlus, name: 'Welcome & Roles Bot',
     description: 'Greet new members, assign self-roles via reactions and track server milestones.',
-    tags: ['Auto-DM', 'Role picker', '!roles', 'Milestones'],
+    tags: ['Auto-DM', 'Role picker', '!roles'],
     prompt: 'Build a welcome bot with self-role assignment',
     color: '#5865f2',
   },
   {
-    emoji: '⚡', name: 'Slash Commands Bot',
+    id: 'slash', icon: Zap, name: 'Slash Commands Bot',
     description: 'Modern slash commands with autocomplete, typed arguments and interactive buttons.',
-    tags: ['/play', '/ban', '/poll', '/remind'],
+    tags: ['/play', '/ban', '/poll'],
     prompt: 'Build a slash commands bot with autocomplete',
     color: '#a78bfa',
   },
   {
-    emoji: '🤖', name: 'AI Conversations Bot',
+    id: 'ai', icon: Bot, name: 'AI Conversations Bot',
     description: 'Let your server chat with GPT-4 powered AI, with per-user memory and custom personas.',
-    tags: ['@mention', '!ask', 'Memory', 'Personas'],
+    tags: ['@mention', '!ask', 'Memory'],
     prompt: 'Build an AI chatbot with GPT-4 and memory',
     color: '#10b981',
   },
   {
-    emoji: '🎫', name: 'Support Ticket Bot',
+    id: 'ticket', icon: Ticket, name: 'Support Ticket Bot',
     description: 'Create private ticket channels, ping staff automatically and log full transcripts on close.',
-    tags: ['!ticket', '!close', 'Transcripts', 'Staff ping'],
+    tags: ['!ticket', '!close', 'Transcripts'],
     prompt: 'Build a support ticket bot with transcripts',
     color: '#fbbf24',
   },
   {
-    emoji: '🎉', name: 'Giveaway Bot',
+    id: 'giveaway', icon: Gift, name: 'Giveaway Bot',
     description: 'Run timed giveaways with reaction entry, automatic winner selection and reroll support.',
-    tags: ['!gstart', '!gend', '!greroll', 'Timer'],
+    tags: ['!gstart', '!gend', '!greroll'],
     prompt: 'Build a giveaway bot with auto-reroll',
     color: '#f59e0b',
   },
   {
-    emoji: '✨', name: 'Multi-purpose Bot',
+    id: 'multipurpose', icon: LayoutGrid, name: 'Multi-purpose Bot',
     description: 'All-in-one: moderation, music, leveling, polls, reminders and fully custom commands.',
-    tags: ['!level', '!poll', '!remind', '+more'],
+    tags: ['!level', '!poll', '!remind'],
     prompt: 'Build a multi-purpose bot for my community',
     color: '#6366f1',
   },
-] as const;
+];
 
 // Per-template BorderGlow config
 const TEMPLATE_GLOW: Record<string, { hsl: string; colors: string[] }> = {
@@ -1445,8 +2023,8 @@ const _win = (channel: string, content: ReactNode) => (
 
 const _getVisual = (tpl: typeof BOT_TEMPLATES[number]): ReactNode => {
   const c = tpl.color;
-  switch (tpl.emoji) {
-    case '🎵': return _win('music-queue', <>
+  switch (tpl.id) {
+    case 'music': return _win('music-queue', <>
       {_msg('james', false, '', '!play Blinding Lights — The Weeknd', '3:41 PM')}
       {_msg('MusicBot', true, c, _emb(c, <>
         <div style={{ fontSize: 10, fontWeight: 700, color: _D.text, marginBottom: 2, fontFamily: _F }}>▶ Now Playing</div>
@@ -1458,7 +2036,7 @@ const _getVisual = (tpl: typeof BOT_TEMPLATES[number]): ReactNode => {
       </>))}
     </>);
 
-    case '🛡️': return _win('mod-log', <>
+    case 'moderation': return _win('mod-log', <>
       {_msg('AutoMod', true, c, <>
         {[
           { u: 'spammer99', r: 'Spam link detected', a: 'Timed out 1h', ac: '#ef4444' },
@@ -1476,19 +2054,19 @@ const _getVisual = (tpl: typeof BOT_TEMPLATES[number]): ReactNode => {
       </>)}
     </>);
 
-    case '👋': return _win('welcome', <>
+    case 'welcome': return _win('welcome', <>
       {_msg('WelcomeBot', true, c, _emb(c, <>
-        <div style={{ fontSize: 11, fontWeight: 700, color: _D.text, marginBottom: 2, fontFamily: _F }}>👋 Welcome, alex_new!</div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: _D.text, marginBottom: 2, fontFamily: _F }}>Welcome, alex_new!</div>
         <div style={{ fontSize: 9, color: _D.muted, marginBottom: 6, fontFamily: _F }}>You're member #847 · pick your roles</div>
         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' as const }}>
-          {['🎮 Gaming', '🎵 Music', '💻 Dev'].map(r => (
+          {['Gaming', 'Music', 'Dev'].map(r => (
             <span key={r} style={{ padding: '2px 7px', background: `${c}20`, border: `1px solid ${c}35`, borderRadius: 4, fontSize: 9, color: _D.text, fontFamily: _F }}>{r}</span>
           ))}
         </div>
       </>))}
     </>);
 
-    case '⚡': return _win('commands', <>
+    case 'slash': return _win('commands', <>
       {_msg('james', false, '', <><span style={{ color: _D.blurple, fontWeight: 600 }}>/play</span>{' song: Blinding Lights'}</>)}
       {_msg('SlashBot', true, c, _emb(c, <>
         {([['/ play', 'Play a song in voice'], ['/ skip', 'Skip current track'], ['/ queue', 'View the queue']] as [string, string][]).map(([cmd, desc], i) => (
@@ -1500,17 +2078,17 @@ const _getVisual = (tpl: typeof BOT_TEMPLATES[number]): ReactNode => {
       </>))}
     </>);
 
-    case '🤖': return _win('general', <>
+    case 'ai': return _win('general', <>
       {_msg('james', false, '', <><span style={{ color: '#949cf7' }}>@BuildableBot</span>{' what\'s Tokyo\'s population?'}</>)}
       {_msg('BuildableBot', true, c, <>
-        {'Tokyo is home to '}<strong style={{ color: c }}>37M+ people</strong>{' — world\'s largest metro 🌏'}
+        {'Tokyo is home to '}<strong style={{ color: c }}>37M+ people</strong>{' — world\'s largest metro area.'}
       </>)}
     </>);
 
-    case '🎫': return _win('support', <>
+    case 'ticket': return _win('support', <>
       {_msg('sarah_m', false, '', 'I need help accessing my account')}
       {_msg('TicketBot', true, c, _emb(c, <>
-        <div style={{ fontSize: 10, fontWeight: 700, color: _D.text, marginBottom: 3, fontFamily: _F }}>🎫 Ticket #0042 opened</div>
+        <div style={{ fontSize: 10, fontWeight: 700, color: _D.text, marginBottom: 3, fontFamily: _F }}>Ticket #0042 opened</div>
         {[['Category', 'Account Access'], ['Channel', '#ticket-0042'], ['ETA', '~2 min']].map(([l, v]) => (
           <div key={l} style={{ display: 'flex', gap: 7, marginBottom: 2 }}>
             <span style={{ fontSize: 9, color: _D.muted, minWidth: 48, fontFamily: _F }}>{l}</span>
@@ -1520,12 +2098,12 @@ const _getVisual = (tpl: typeof BOT_TEMPLATES[number]): ReactNode => {
       </>))}
     </>);
 
-    case '🎉': return _win('giveaways', <>
+    case 'giveaway': return _win('giveaways', <>
       {_msg('GiveBot', true, c, _emb(c, <>
-        <div style={{ fontSize: 11, color: c, fontWeight: 800, textAlign: 'center' as const, marginBottom: 2, fontFamily: _F }}>🎉 GIVEAWAY 🎉</div>
+        <div style={{ fontSize: 11, color: c, fontWeight: 800, textAlign: 'center' as const, marginBottom: 2, fontFamily: _F }}>GIVEAWAY</div>
         <div style={{ fontSize: 10, color: _D.text, fontWeight: 600, textAlign: 'center' as const, marginBottom: 6, fontFamily: _F }}>Discord Nitro · 1 Year</div>
         <div style={{ display: 'flex', justifyContent: 'space-around' }}>
-          {[['23h 59m', 'Ends in'], ['142 🎉', 'Entries'], ['1', 'Winners']].map(([v, l]) => (
+          {[['23h 59m', 'Ends in'], ['142', 'Entries'], ['1', 'Winners']].map(([v, l]) => (
             <div key={l} style={{ textAlign: 'center' as const }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: _D.text, fontFamily: _F }}>{v}</div>
               <div style={{ fontSize: 8, color: _D.muted, fontFamily: _F }}>{l}</div>
@@ -1538,116 +2116,134 @@ const _getVisual = (tpl: typeof BOT_TEMPLATES[number]): ReactNode => {
     default: return _win('general', <>
       {_msg('james', false, '', '!level')}
       {_msg('MultiBot', true, c, _emb(c, <>
-        <div style={{ fontSize: 11, fontWeight: 700, color: _D.text, marginBottom: 4, fontFamily: _F }}>⭐ james · Level 12</div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: _D.text, marginBottom: 4, fontFamily: _F }}>james · Level 12</div>
         <div style={{ height: 3, background: 'rgba(255,255,255,0.08)', borderRadius: 2, marginBottom: 3 }}>
           <div style={{ width: '83%', height: '100%', background: c, borderRadius: 2 }} />
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
           <span style={{ fontSize: 9, color: _D.muted, fontFamily: _F }}>1,240 / 1,500 XP</span>
-          <span style={{ fontSize: 9, color: c, fontWeight: 600, fontFamily: _F }}>Rank #3 🏆</span>
+          <span style={{ fontSize: 9, color: c, fontWeight: 600, fontFamily: _F }}>Rank #3</span>
         </div>
       </>))}
     </>);
   }
 };
 
-// Use first 7 templates for the card swap
-const CARD_TEMPLATES = BOT_TEMPLATES.slice(0, 7);
-
-// Card dimensions
-const CARD_W = 440;
-const CARD_H = 360;
-
-function DiscordBotEmptyState({ workspaceReady }: { workspaceReady: boolean }) {
+function DiscordBotEmptyState({ workspaceReady, onSelectTemplate }: { workspaceReady: boolean; onSelectTemplate: (prompt: string) => void }) {
   return (
     <div style={{
       width: '100%', height: '100%',
       display: 'flex', flexDirection: 'column',
-      alignItems: 'center', justifyContent: 'center',
-      background: BG,
-      overflow: 'hidden',
+      background: '#0c0c0c',
+      overflowY: 'auto',
     }}>
-      {/* Status pill */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 32, color: 'rgba(255,255,255,0.32)', fontSize: 12, fontFamily: _F }}>
-        <div style={{
-          width: 6, height: 6, borderRadius: '50%',
-          background: workspaceReady ? '#22c55e' : '#3b82f6',
-          boxShadow: `0 0 8px ${workspaceReady ? '#22c55e55' : '#3b82f655'}`,
-        }} />
-        {workspaceReady ? 'Describe your bot below to get started' : 'Connecting to workspace…'}
+      {/* Header */}
+      <div style={{ padding: '28px 24px 0', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+          <div style={{
+            width: 6, height: 6, borderRadius: '50%',
+            background: workspaceReady ? '#22c55e' : '#3b82f6',
+          }} />
+          <span style={{ fontSize: 12, color: 'rgb(155,152,147)', fontFamily: _F }}>
+            {workspaceReady ? 'Ready' : 'Connecting…'}
+          </span>
+        </div>
+        <p style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 600, color: 'rgb(255,255,255)', fontFamily: _F }}>
+          Start from a template
+        </p>
+        <p style={{ margin: 0, fontSize: 12, color: 'rgb(155,152,147)', fontFamily: _F }}>
+          Click any template to pre-fill your prompt, or describe your own below.
+        </p>
       </div>
 
-      {/* CardSwap — centered via flex, position:relative on the wrapper */}
-      <div style={{ position: 'relative', width: CARD_W, height: CARD_H, flexShrink: 0 }}>
-        <CardSwap
-          width={CARD_W}
-          height={CARD_H}
-          cardDistance={38}
-          verticalDistance={22}
-          delay={4200}
-          pauseOnHover
-          skewAmount={3}
-          easing="elastic"
-        >
-          {CARD_TEMPLATES.map(tpl => {
-            const c = tpl.color;
-            return (
-              <Card
-                key={tpl.name}
-                style={{
-                  background: '#181924',
-                  border: `1px solid rgba(255,255,255,0.10)`,
-                  boxShadow: `0 0 0 1px rgba(0,0,0,0.55), 0 20px 60px rgba(0,0,0,0.5), 0 0 40px ${c}12`,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  overflow: 'hidden',
-                  borderRadius: 16,
-                }}
-              >
-                {/* Banner */}
-                <div style={{
-                  flexShrink: 0, height: 56, padding: '0 14px',
-                  display: 'flex', alignItems: 'center', gap: 11,
-                  background: `radial-gradient(ellipse at 20% 50%, ${c}28 0%, transparent 55%), linear-gradient(135deg, ${c}0e 0%, rgba(255,255,255,0.02) 100%)`,
-                  borderBottom: '1px solid rgba(255,255,255,0.06)',
-                }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.92)', fontFamily: _F, whiteSpace: 'nowrap' as const, overflow: 'hidden', textOverflow: 'ellipsis' }}>{tpl.name}</div>
-                    <div style={{ fontSize: 9, color: c, fontWeight: 500, fontFamily: _F, opacity: 0.85 }}>Discord Bot</div>
-                  </div>
-                  <div style={{ display: 'flex', gap: 3 }}>
-                    {[1, 0.5, 0.25].map((o, i) => (
-                      <div key={i} style={{ width: 4, height: 4, borderRadius: '50%', background: c, opacity: o }} />
-                    ))}
-                  </div>
-                </div>
+      {/* Divider */}
+      <div style={{ margin: '16px 24px 0', borderTop: '1px solid rgb(39,39,37)' }} />
 
-                {/* Discord window */}
-                <div style={{
-                  flexShrink: 0, height: 166,
-                  margin: '8px 8px 0',
-                  borderRadius: 8,
-                  border: '1px solid rgba(255,255,255,0.07)',
-                  boxShadow: '0 0 0 1px rgba(0,0,0,0.4)',
-                  overflow: 'hidden',
-                }}>
-                  {_getVisual(tpl)}
-                </div>
-
-                {/* Info */}
-                <div style={{ flex: 1, padding: '10px 14px 12px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                  <p style={{ margin: 0, fontSize: 11, color: 'rgba(255,255,255,0.72)', fontFamily: _F, lineHeight: 1.5 }}>{tpl.description}</p>
-                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' as const, marginTop: 7 }}>
-                    {tpl.tags.map(tag => (
-                      <span key={tag} style={{ padding: '2px 7px', borderRadius: 4, background: `${c}12`, border: `1px solid ${c}25`, fontSize: 10, color: 'rgba(255,255,255,0.65)', fontFamily: _MO }}>{tag}</span>
-                    ))}
-                  </div>
-                </div>
-              </Card>
-            );
-          })}
-        </CardSwap>
+      {/* Template grid */}
+      <div style={{
+        flex: 1,
+        padding: '16px 24px 24px',
+        display: 'grid',
+        gridTemplateColumns: 'repeat(2, 1fr)',
+        gap: 8,
+        alignContent: 'start',
+      }}>
+        {BOT_TEMPLATES.map(tpl => (
+          <TemplateCard key={tpl.name} tpl={tpl} onSelect={onSelectTemplate} />
+        ))}
       </div>
     </div>
+  );
+}
+
+function TemplateCard({
+  tpl,
+  onSelect,
+}: {
+  tpl: typeof BOT_TEMPLATES[number];
+  onSelect: (prompt: string) => void;
+}) {
+  const [hovered, setHovered] = useState(false);
+  const prompt = `Build me a ${tpl.name}: ${tpl.description} Commands: ${tpl.tags.join(', ')}.`;
+
+  return (
+    <button
+      onClick={() => onSelect(prompt)}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        background: hovered ? '#1a1a1a' : '#141414',
+        border: '1px solid rgb(39,39,37)',
+        borderRadius: 8,
+        padding: '12px 14px',
+        cursor: 'pointer',
+        textAlign: 'left',
+        transition: 'background 0.12s',
+      }}
+    >
+      {/* Icon + name */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 7 }}>
+        <div style={{
+          width: 24, height: 24, borderRadius: 6, flexShrink: 0,
+          background: `${tpl.color}18`, border: `1px solid ${tpl.color}28`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <tpl.icon style={{ width: 13, height: 13, color: tpl.color }} />
+        </div>
+        <span style={{ fontSize: 13, fontWeight: 600, color: 'rgb(220,218,214)', fontFamily: _F }}>
+          {tpl.name}
+        </span>
+      </div>
+
+      {/* Description */}
+      <p style={{
+        margin: '0 0 9px',
+        fontSize: 11.5,
+        color: 'rgb(155,152,147)',
+        fontFamily: _F,
+        lineHeight: 1.5,
+      }}>
+        {tpl.description}
+      </p>
+
+      {/* Tags */}
+      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' as const }}>
+        {tpl.tags.slice(0, 3).map(tag => (
+          <span key={tag} style={{
+            padding: '2px 7px',
+            borderRadius: 4,
+            background: '#232323',
+            border: '1px solid rgb(49,49,47)',
+            fontSize: 10,
+            color: 'rgb(155,152,147)',
+            fontFamily: _MO,
+          }}>
+            {tag}
+          </span>
+        ))}
+      </div>
+    </button>
   );
 }

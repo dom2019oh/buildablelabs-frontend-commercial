@@ -9,10 +9,12 @@ interface SparklePoint {
 
 const PARTICLE_COUNT = 10;
 
+const SPARK_COLORS = ["#c4b5fd", "#a78bfa", "#818cf8", "#e879f9", "#ffffff", "#f3e8ff"];
+
 const PARTICLES = Array.from({ length: PARTICLE_COUNT }, (_, i) => {
   const angle = (i / PARTICLE_COUNT) * 2 * Math.PI;
   const dist = 24 + (i % 3) * 10;
-  return { angle, dist };
+  return { angle, dist, color: SPARK_COLORS[i % SPARK_COLORS.length] };
 });
 
 function SparkleEffect({ x, y }: { x: number; y: number }) {
@@ -27,7 +29,7 @@ function SparkleEffect({ x, y }: { x: number; y: number }) {
         transform: "translate(-50%, -50%)",
       }}
     >
-      {PARTICLES.map(({ angle, dist }, i) => (
+      {PARTICLES.map(({ angle, dist, color }, i) => (
         <motion.div
           key={i}
           initial={{ x: 0, y: 0, opacity: 1, scale: 1 }}
@@ -42,7 +44,8 @@ function SparkleEffect({ x, y }: { x: number; y: number }) {
             position: "absolute",
             width: i % 3 === 0 ? 5 : 3,
             height: i % 3 === 0 ? 5 : 3,
-            background: i % 2 === 0 ? "#ffffff" : "#222222",
+            background: color,
+            boxShadow: `0 0 5px 1px ${color}99`,
             borderRadius: "50%",
             transform: "translate(-50%, -50%)",
           }}
@@ -59,7 +62,7 @@ function SparkleEffect({ x, y }: { x: number; y: number }) {
         <svg width="18" height="18" viewBox="0 0 24 24">
           <path
             d="M12 2 L13.8 10.2 L22 12 L13.8 13.8 L12 22 L10.2 13.8 L2 12 L10.2 10.2 Z"
-            fill="white"
+            fill="#c4b5fd"
           />
         </svg>
       </motion.div>
@@ -86,24 +89,30 @@ export default function CustomCursor() {
       mouseY.set(e.clientY);
     };
 
-    const onClick = (e: MouseEvent) => {
+    const onDown = (e: MouseEvent) => {
+      setClicking(true);
       const id = Date.now() + Math.random();
       setSparkles((prev) => [...prev, { id, x: e.clientX, y: e.clientY }]);
       setTimeout(() => setSparkles((prev) => prev.filter((s) => s.id !== id)), 700);
     };
 
-    const onDown = () => setClicking(true);
     const onUp = () => setClicking(false);
 
+    // Hide native cursor on all elements
+    const style = document.createElement("style");
+    style.id = "custom-cursor-hide";
+    style.textContent = "*, *::before, *::after { cursor: none !important; }";
+    document.head.appendChild(style);
+
     window.addEventListener("mousemove", onMove);
-    window.addEventListener("click", onClick);
     window.addEventListener("mousedown", onDown);
     window.addEventListener("mouseup", onUp);
     return () => {
       window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("click", onClick);
       window.removeEventListener("mousedown", onDown);
       window.removeEventListener("mouseup", onUp);
+      const el = document.getElementById("custom-cursor-hide");
+      if (el) el.remove();
     };
   }, [mouseX, mouseY]);
 
