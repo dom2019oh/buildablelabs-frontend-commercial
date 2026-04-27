@@ -1,26 +1,35 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Zap, Check, ArrowLeft, ChevronDown, Loader2 } from 'lucide-react';
+import { Zap, Check, ChevronDown, Loader2, Infinity } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useCredits, msUntilUTCMidnight, formatCountdown } from '@/hooks/useCredits';
+import { useCredits } from '@/hooks/useCredits';
 import { useSubscriptionPlans } from '@/hooks/useSubscriptionPlans';
 import { useStripeCheckout } from '@/hooks/useStripeCheckout';
 
+const FONT = "'Geist', 'DM Sans', sans-serif";
+const FREE_LIFETIME_LIMIT = 10;
+
 export default function BillingView() {
   const navigate = useNavigate();
-  const { totalCredits, currentPlanType, subscription, canClaimDailyBonus } = useCredits();
+  const { credits, totalCredits, currentPlanType, subscription } = useCredits();
   const { getTiersForPlan } = useSubscriptionPlans();
   const { startCheckout, openBillingPortal, isLoading: checkoutLoading } = useStripeCheckout();
   const [proTierIdx, setProTierIdx] = useState(0);
   const [maxTierIdx, setMaxTierIdx] = useState(0);
+
   const proTiers = getTiersForPlan('pro');
   const maxTiers = getTiersForPlan('max');
 
-  const maxCredits = currentPlanType === 'free' ? 5 : (subscription?.selected_credits ?? 30);
-  const progressPct = Math.min(100, (totalCredits / maxCredits) * 100);
-  const resetsLabel = currentPlanType === 'free'
-    ? `resets in ${formatCountdown(msUntilUTCMidnight())}`
-    : 'resets monthly';
+  const isFree = currentPlanType === 'free';
+  const lifetimeLimit = credits?.free_lifetime_limit ?? FREE_LIFETIME_LIMIT;
+  const lifetimeUsed  = credits?.lifetime_builds_used ?? 0;
+  const lifetimeLeft  = Math.max(0, lifetimeLimit - lifetimeUsed);
+
+  // Progress: for free = builds used out of limit; for paid = credits remaining out of plan total
+  const paidMax     = subscription?.selected_credits ?? 30;
+  const progressPct = isFree
+    ? Math.min(100, (lifetimeUsed / lifetimeLimit) * 100)
+    : Math.min(100, (totalCredits / paidMax) * 100);
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -29,48 +38,82 @@ export default function BillingView() {
         <button
           onClick={() => navigate('/dashboard/settings')}
           className="flex items-center gap-2 text-sm mb-4 transition-colors"
-          style={{ color: 'rgba(255,255,255,0.35)', fontFamily: "'Geist', 'DM Sans', sans-serif" }}
+          style={{ color: 'rgba(255,255,255,0.35)', fontFamily: FONT }}
           onMouseEnter={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.65)')}
           onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.35)')}
         >
-          <ArrowLeft className="w-3.5 h-3.5" /> Settings
+          ← Settings
         </button>
         <h1 className="text-xl font-bold" style={{ fontFamily: "'Geist', sans-serif", color: 'rgba(255,255,255,0.9)' }}>
           Plans &amp; Credits
         </h1>
-        <p className="text-sm mt-1" style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.35)' }}>
-          Manage your subscription plan
+        <p className="text-sm mt-1" style={{ fontFamily: FONT, color: 'rgba(255,255,255,0.35)' }}>
+          Manage your subscription and credit usage
         </p>
       </div>
 
-      {/* Credits bar */}
+      {/* ── Credit status bar ── */}
       <motion.div
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
         className="rounded-2xl p-5 mb-6"
         style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}
       >
-        <div className="flex items-center justify-between mb-3">
-          <p className="text-sm font-medium" style={{ color: 'rgba(255,255,255,0.7)' }}>Credits remaining</p>
-          <p className="text-xs" style={{ color: 'rgba(255,255,255,0.35)' }}>
-            {totalCredits} of {maxCredits} · {resetsLabel}
-            {currentPlanType === 'free' && canClaimDailyBonus() && (
-              <span style={{ color: '#4ade80', marginLeft: 6 }}>· ready to claim</span>
+        {isFree ? (
+          <>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-sm font-medium" style={{ color: 'rgba(255,255,255,0.7)', fontFamily: FONT }}>
+                Lifetime builds
+              </p>
+              <p className="text-xs" style={{ color: 'rgba(255,255,255,0.4)', fontFamily: FONT }}>
+                {lifetimeUsed} used · {lifetimeLeft} remaining of {lifetimeLimit}
+              </p>
+            </div>
+            {/* Progress shows consumption */}
+            <div className="h-1.5 rounded-full overflow-hidden mb-2" style={{ background: 'rgba(255,255,255,0.08)' }}>
+              <div
+                className="h-full rounded-full transition-all duration-500"
+                style={{
+                  width: `${progressPct}%`,
+                  background: lifetimeLeft <= 2
+                    ? 'linear-gradient(90deg, #ef4444, #dc2626)'
+                    : lifetimeLeft <= 5
+                    ? 'linear-gradient(90deg, #f59e0b, #d97706)'
+                    : 'linear-gradient(90deg, #7c3aed, #4f46e5)',
+                }}
+              />
+            </div>
+            <p className="text-xs" style={{ color: 'rgba(255,255,255,0.25)', fontFamily: FONT }}>
+              Free plan includes {lifetimeLimit} builds total — no daily reset, no expiry. Each build = 1 full pipeline run.
+            </p>
+            {lifetimeLeft === 0 && (
+              <div className="mt-3 px-3 py-2 rounded-lg text-xs" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.18)', color: 'rgba(252,165,165,0.9)', fontFamily: FONT }}>
+                You've used all {lifetimeLimit} lifetime free builds. Upgrade to Pro to keep building.
+              </div>
             )}
-          </p>
-        </div>
-        <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.08)' }}>
-          <div
-            className="h-full rounded-full transition-all duration-500"
-            style={{ width: `${progressPct}%`, background: 'linear-gradient(90deg, #7c3aed, #4f46e5)' }}
-          />
-        </div>
-        <p className="text-xs mt-2" style={{ color: 'rgba(255,255,255,0.25)' }}>
-          1 credit = 1 full bot pipeline run. Credits reset daily (Free) or monthly (paid plans).
-        </p>
+          </>
+        ) : (
+          <>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-sm font-medium" style={{ color: 'rgba(255,255,255,0.7)', fontFamily: FONT }}>Credits remaining</p>
+              <p className="text-xs" style={{ color: 'rgba(255,255,255,0.35)', fontFamily: FONT }}>
+                {totalCredits} of {paidMax} · resets monthly
+              </p>
+            </div>
+            <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.08)' }}>
+              <div
+                className="h-full rounded-full transition-all duration-500"
+                style={{ width: `${progressPct}%`, background: 'linear-gradient(90deg, #7c3aed, #4f46e5)' }}
+              />
+            </div>
+            <p className="text-xs mt-2" style={{ color: 'rgba(255,255,255,0.25)', fontFamily: FONT }}>
+              1 credit = 1 full bot pipeline run. Credits reset monthly with your billing cycle.
+            </p>
+          </>
+        )}
       </motion.div>
 
-      {/* Plan cards */}
+      {/* ── Plan cards ── */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {([
           {
@@ -78,8 +121,14 @@ export default function BillingView() {
             name: 'Free',
             price: '$0',
             period: 'forever',
-            description: '5 credits/day · 2 bots max',
-            features: ['5 credits/day (resets midnight)', '2 bots max', 'Simplified pipeline (Haiku)', 'Buildable watermark on bots', 'Community support'],
+            description: `${lifetimeLimit} lifetime builds · 2 bots max`,
+            features: [
+              `${lifetimeLimit} lifetime builds total (no reset)`,
+              '2 bots max',
+              'Simplified pipeline (Haiku)',
+              'Buildable watermark on bots',
+              'Community support',
+            ],
           },
           {
             key: 'pro',
@@ -87,7 +136,14 @@ export default function BillingView() {
             price: proTiers[proTierIdx] ? `$${(proTiers[proTierIdx].price_cents / 100).toFixed(0)}` : 'From $18',
             period: 'per month',
             description: '30–300 credits/mo · 10 bots max',
-            features: ['30–300 credits/month', '10 bots max', 'Full 8-stage pipeline (Haiku + Sonnet)', 'No watermark · No /buildable', '1 month credit rollover', 'Email support'],
+            features: [
+              '30–300 credits/month',
+              '10 bots max',
+              'Full 8-stage pipeline (Haiku + Sonnet)',
+              'No watermark · No /buildable',
+              '1 month credit rollover',
+              'Email support',
+            ],
           },
           {
             key: 'max',
@@ -95,11 +151,17 @@ export default function BillingView() {
             price: maxTiers[maxTierIdx] ? `$${(maxTiers[maxTierIdx].price_cents / 100).toFixed(0)}` : 'From $59',
             period: 'per month',
             description: '100–1,000 credits/mo · Unlimited bots',
-            features: ['100–1,000 credits/month', 'Unlimited bots', 'Priority pipeline queue', 'REST API access (headless)', 'White-label embed domain', 'Priority support'],
+            features: [
+              '100–1,000 credits/month',
+              'Unlimited bots',
+              'Priority pipeline queue',
+              'REST API access (headless)',
+              'White-label embed domain',
+              'Priority support',
+            ],
           },
         ] as const).map((plan, i) => {
           const isCurrent = plan.key === currentPlanType;
-          const FONT = "'Geist', 'DM Sans', sans-serif";
           return (
             <motion.div
               key={plan.name}
@@ -113,13 +175,20 @@ export default function BillingView() {
               }}
             >
               <div className="mb-4">
-                <p className="text-sm font-semibold mb-0.5" style={{ color: 'rgba(255,255,255,0.88)', fontFamily: FONT }}>{plan.name}</p>
+                <div className="flex items-center gap-2 mb-0.5">
+                  <p className="text-sm font-semibold" style={{ color: 'rgba(255,255,255,0.88)', fontFamily: FONT }}>{plan.name}</p>
+                  {isCurrent && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(109,40,217,0.2)', color: '#a78bfa', fontFamily: FONT }}>
+                      Current
+                    </span>
+                  )}
+                </div>
                 <p className="text-xs" style={{ color: 'rgba(255,255,255,0.35)', fontFamily: FONT }}>{plan.description}</p>
               </div>
 
-              <div className="mb-4">
+              <div className="mb-4 flex items-baseline gap-1.5">
                 <span className="text-2xl font-bold" style={{ color: 'rgba(255,255,255,0.9)', fontFamily: "'Geist', sans-serif" }}>{plan.price}</span>
-                <span className="text-xs ml-1.5" style={{ color: 'rgba(255,255,255,0.35)' }}>{plan.period}</span>
+                <span className="text-xs" style={{ color: 'rgba(255,255,255,0.35)', fontFamily: FONT }}>{plan.period}</span>
               </div>
 
               {/* Credit tier selector for Pro/Max */}
@@ -141,8 +210,8 @@ export default function BillingView() {
 
               <ul className="space-y-2 flex-1 mb-5">
                 {plan.features.map(f => (
-                  <li key={f} className="flex items-center gap-2 text-xs" style={{ color: 'rgba(255,255,255,0.55)', fontFamily: FONT }}>
-                    <Check className="w-3 h-3 flex-shrink-0" style={{ color: 'rgba(255,255,255,0.35)' }} />
+                  <li key={f} className="flex items-start gap-2 text-xs" style={{ color: 'rgba(255,255,255,0.55)', fontFamily: FONT }}>
+                    <Check className="w-3 h-3 flex-shrink-0 mt-0.5" style={{ color: 'rgba(255,255,255,0.35)' }} />
                     {f}
                   </li>
                 ))}
@@ -172,9 +241,9 @@ export default function BillingView() {
                   onClick={() => startCheckout(plan.key === 'pro' ? (proTiers[proTierIdx]?.id ?? '') : (maxTiers[maxTierIdx]?.id ?? ''))}
                   disabled={checkoutLoading}
                   className="w-full py-2 rounded-xl text-sm font-medium transition-all"
-                  style={{ fontFamily: FONT, background: 'rgba(255,255,255,0.09)', color: 'rgba(255,255,255,0.9)', border: '1px solid rgba(255,255,255,0.12)', cursor: 'pointer' }}
-                  onMouseEnter={e => { e.currentTarget.style.filter = 'brightness(1.15)'; }}
-                  onMouseLeave={e => { e.currentTarget.style.filter = 'none'; }}
+                  style={{ fontFamily: FONT, background: 'rgba(109,40,217,0.18)', color: 'rgba(255,255,255,0.9)', border: '1px solid rgba(109,40,217,0.3)', cursor: 'pointer' }}
+                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(109,40,217,0.28)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'rgba(109,40,217,0.18)'; }}
                 >
                   {checkoutLoading
                     ? <Loader2 className="w-3.5 h-3.5 animate-spin inline" />
@@ -186,6 +255,24 @@ export default function BillingView() {
           );
         })}
       </div>
+
+      {/* ── What happens when you run out (free only) ── */}
+      {isFree && lifetimeLeft <= 5 && lifetimeLeft > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="mt-4 rounded-2xl p-4"
+          style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.15)' }}
+        >
+          <p className="text-xs font-medium mb-1" style={{ color: 'rgba(251,191,36,0.85)', fontFamily: FONT }}>
+            {lifetimeLeft} build{lifetimeLeft !== 1 ? 's' : ''} remaining
+          </p>
+          <p className="text-xs" style={{ color: 'rgba(255,255,255,0.38)', fontFamily: FONT }}>
+            When you hit 0, builds pause permanently on the free plan. Upgrade to Pro to keep building without limits.
+          </p>
+        </motion.div>
+      )}
     </div>
   );
 }

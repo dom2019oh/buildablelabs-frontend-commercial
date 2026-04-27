@@ -47,10 +47,11 @@ import { getLoginUrl, getSignUpUrl, getDashboardUrl } from "@/lib/urls";
 import logoPng from "@/assets/buildable-logo.png";
 import wordmarkSvg from "@/assets/buildable-wordmark.svg";
 import openaiLogoPng from "@/assets/openai-logo.png";
-import Grainient from "@/components/Grainient";
+import { AmbientBg } from "@/lib/glass";
 import SplitText from "@/components/SplitText";
 import AIThinkingOrb from "@/components/AIThinkingOrb";
 import BuildableSimulation from "@/components/home/BuildableSimulation";
+import { BuildableFeatures } from "@/components/home/BuildableFeatures";
 import FloatingNav, { NAV_ENTRIES } from "@/components/FloatingNav";
 
 
@@ -1020,7 +1021,6 @@ function BentoCard({
 }
 
 function FeaturesGrid() {
-  const [active, setActive] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { once: true, margin: "-60px" });
 
@@ -1031,10 +1031,9 @@ function FeaturesGrid() {
         initial={{ scaleX: 0 }}
         animate={inView ? { scaleX: 1 } : {}}
         transition={{ duration: 0.9, ease: "easeInOut" }}
-        className="w-full h-px mb-16 origin-left"
+        className="w-full h-px mb-20 origin-left"
         style={{
-          background:
-            "linear-gradient(to right, transparent, rgba(255,255,255,0.06) 30%, rgba(255,255,255,0.06) 70%, transparent)",
+          background: "linear-gradient(to right, transparent, rgba(255,255,255,0.06) 30%, rgba(255,255,255,0.06) 70%, transparent)",
         }}
       />
 
@@ -1043,66 +1042,40 @@ function FeaturesGrid() {
         initial={{ opacity: 0, y: 20 }}
         animate={inView ? { opacity: 1, y: 0 } : {}}
         transition={{ duration: 0.7 }}
-        className="text-center mb-12"
+        className="text-center mb-16"
       >
         <p
           className="text-[11px] uppercase tracking-[0.3em] mb-4"
-          style={{
-            fontFamily: "'Geist', 'DM Sans', sans-serif",
-            color: "rgba(167,139,250,0.5)",
-            fontWeight: 500,
-          }}
+          style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: "rgba(255,255,255,0.25)", fontWeight: 500 }}
         >
-          Platform
+          Powered by Buildable AI
         </p>
-        <h2 className="text-3xl md:text-4xl font-bold text-white">
-          Everything your bot needs, built in seconds.
+        <h2 className="text-3xl md:text-4xl font-bold text-white mb-4" style={{ fontFamily: "'Geist', sans-serif" }}>
+          Intelligence at the core
         </h2>
+        <p className="max-w-md mx-auto text-[15px] leading-relaxed" style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: "rgba(255,255,255,0.4)" }}>
+          Our AI thinks, plans, and writes your bot's code — then deploys it live. All from a single prompt.
+        </p>
       </motion.div>
 
-      {/* Bento grid */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(3, 1fr)",
-          gridTemplateAreas: `
-            "builder    deploy       deploy"
-            "templates  deploy       deploy"
-            "moderation moderation   analytics"
-            "moderation moderation   integrations"
-          `,
-          gap: "10px",
-        }}
+      {/* Orb — centered, large */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.92 }}
+        animate={inView ? { opacity: 1, scale: 1 } : {}}
+        transition={{ duration: 1.1, ease: [0.16, 1, 0.3, 1], delay: 0.15 }}
+        className="flex justify-center"
       >
-        {BENTO_CARDS.map((card, i) => (
-          <BentoCard
-            key={card.id}
-            card={card}
-            active={active === card.id}
-            dimmed={active !== null && active !== card.id}
-            onClick={() => setActive(active === card.id ? null : card.id)}
-            delay={0.08 + i * 0.09}
-            inView={inView}
-          />
-        ))}
-      </div>
+        <AIThinkingOrb />
+      </motion.div>
 
-      {/* Click-to-deselect hint */}
-      <AnimatePresence>
-        {active && (
-          <motion.p
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 6 }}
-            transition={{ duration: 0.2 }}
-            className="text-center mt-5 text-[12px] text-slate-700 cursor-pointer hover:text-slate-500 transition-colors"
-            style={{ fontFamily: "'Geist', 'DM Sans', sans-serif" }}
-            onClick={() => setActive(null)}
-          >
-            Click anywhere to deselect
-          </motion.p>
-        )}
-      </AnimatePresence>
+      {/* Features bento grid — below the orb */}
+      <motion.div
+        initial={{ opacity: 0, y: 24 }}
+        animate={inView ? { opacity: 1, y: 0 } : {}}
+        transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1], delay: 0.35 }}
+      >
+        <BuildableFeatures />
+      </motion.div>
     </section>
   );
 }
@@ -1354,140 +1327,96 @@ export default function Index() {
   const { user } = useAuth();
 
   return (
-    <div className="relative min-h-screen overflow-hidden" style={{ background: "#080a0c" }}>
-      {/* ── Grainient granite background ── */}
-      <div className="fixed inset-0 pointer-events-none" style={{ zIndex: 0 }}>
-        <Grainient
-          color1="#3a3c42"
-          color2="#141518"
-          color3="#252729"
-          timeSpeed={0.35}
-          colorBalance={0}
-          warpStrength={1}
-          warpFrequency={5}
-          warpSpeed={2}
-          warpAmplitude={50}
-          blendAngle={0}
-          blendSoftness={0.05}
-          rotationAmount={500}
-          noiseScale={2}
-          grainAmount={0.1}
-          grainScale={2}
-          grainAnimated={false}
-          contrast={1.5}
-          gamma={1}
-          saturation={1}
-          centerX={0}
-          centerY={0}
-          zoom={0.9}
-        />
-      </div>
+    <div className="relative min-h-screen overflow-hidden" style={{ background: "#06060b" }}>
+      <AmbientBg />
 
       {/* ── Content ── */}
       <div className="relative" style={{ zIndex: 10 }}>
         <FloatingNav />
 
         {/* ══════════════ HERO ══════════════ */}
-        <section className="relative min-h-screen flex items-center px-6 md:px-16 overflow-hidden">
-          <div className="relative z-10 w-full max-w-6xl mx-auto flex flex-col md:flex-row items-center gap-8 md:gap-12 py-24">
+        <section className="relative min-h-screen flex items-center justify-center px-6 overflow-hidden">
+          <div className="relative z-10 w-full max-w-3xl mx-auto flex flex-col items-center text-center py-32">
 
-            {/* ── Left: Orb ── */}
+            {/* Badge */}
             <motion.div
-              initial={{ opacity: 0, x: -30 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 1.1, ease: [0.16, 1, 0.3, 1], delay: 0.2 }}
-              className="flex-shrink-0 flex items-center justify-center w-full md:w-auto"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.2 }}
+              className="mb-6"
             >
-              <AIThinkingOrb />
-            </motion.div>
-
-            {/* ── Right: Text + CTAs ── */}
-            <div className="flex flex-col items-start text-left flex-1">
-
-              {/* Badge */}
-              <motion.div
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: 0.3 }}
-                className="mb-5"
+              <Link
+                to="/about"
+                style={{ textDecoration: "none" }}
               >
                 <span
                   className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-[12px] tracking-wide"
                   style={{
                     fontFamily: "'Geist', 'DM Sans', sans-serif",
-                    background: "rgba(255,255,255,0.06)",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    color: "rgba(255,255,255,0.55)",
+                    background: "#2563eb",
+                    border: "1px solid #1d4ed8",
+                    color: "#ffffff",
+                    cursor: "pointer",
+                    transition: "background 0.2s ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLElement).style.background = "#1d4ed8";
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLElement).style.background = "#2563eb";
                   }}
                 >
-                  ✦ AI-Powered Bot Builder
-                </span>
-              </motion.div>
-
-              {/* Headline */}
-              <div className="mb-4 overflow-hidden">
-                <h1 className="leading-[1.2] tracking-tight font-extrabold" style={{ fontFamily: "'Geist', sans-serif" }}>
-                  <SplitText
-                    text="Build a Bot today"
-                    splitType="chars"
-                    tag="span"
-                    className="text-white"
-                    style={{ fontSize: "clamp(2.4rem, 4.5vw, 4.2rem)", fontWeight: 800 }}
-                    delay={38}
-                    duration={0.6}
-                    ease="power3.out"
+                  <img
+                    src="/buildable-ai-icon.png"
+                    alt=""
+                    style={{ width: 16, height: 16, objectFit: "contain", flexShrink: 0 }}
                   />
-                </h1>
-              </div>
+                  Launching our Strongest Tool yet →
+                </span>
+              </Link>
+            </motion.div>
 
-              {/* Subtext */}
-              <motion.p
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.8, delay: 0.65 }}
-                className="mb-8 max-w-md leading-relaxed"
-                style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", fontSize: "1.05rem", fontWeight: 400, color: "rgba(226,232,240,0.65)" }}
-              >
-                No code. No developers. No limits. Describe your bot and Buildable Labs builds, deploys, and hosts it — instantly.
-              </motion.p>
-
-              {/* CTA Buttons */}
-              <motion.div
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.7, delay: 0.85 }}
-                className="flex items-center gap-3 flex-wrap"
-              >
-                <a
-                  href={getSignUpUrl()}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-[14px] font-semibold transition-all duration-200"
-                  style={{
-                    fontFamily: "'Geist', 'DM Sans', sans-serif",
-                    background: "rgba(255,255,255,0.92)",
-                    color: "#0a0a0e",
-                    boxShadow: "0 2px 16px rgba(255,255,255,0.12)",
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = "#ffffff")}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.92)")}
-                >
-                  Start Building <ArrowRight className="w-4 h-4" />
-                </a>
-                <Link
-                  to="/pricing"
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-[14px] font-medium transition-all duration-200"
-                  style={{
-                    fontFamily: "'Geist', 'DM Sans', sans-serif",
-                    color: "rgba(255,255,255,0.65)",
-                    background: "rgba(255,255,255,0.06)",
-                    border: "1px solid rgba(255,255,255,0.12)",
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.1)"; e.currentTarget.style.color = "#fff"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.06)"; e.currentTarget.style.color = "rgba(255,255,255,0.65)"; }}
-                >
-                  View Pricing
-                </Link>
-              </motion.div>
+            {/* Headline */}
+            <div className="mb-5 overflow-hidden">
+              <h1 className="leading-[1.15] tracking-tight font-extrabold" style={{ fontFamily: "'Geist', sans-serif" }}>
+                <SplitText
+                  text="Build a Bot today"
+                  splitType="chars"
+                  tag="span"
+                  className="text-white"
+                  style={{ fontSize: "clamp(3rem, 6vw, 5.2rem)", fontWeight: 800 }}
+                  delay={38}
+                  duration={0.6}
+                  ease="power3.out"
+                />
+              </h1>
             </div>
+
+            {/* Subtext */}
+            <motion.p
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.55 }}
+              className="mb-10 max-w-lg leading-relaxed"
+              style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", fontSize: "1.1rem", fontWeight: 400, color: "rgba(226,232,240,0.55)" }}
+            >
+              No code. No developers. No limits. Describe your bot and Buildable builds, deploys, and hosts it — instantly.
+            </motion.p>
+
+            {/* CTA Buttons */}
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.7, delay: 0.75 }}
+              className="flex items-center justify-center gap-3 flex-wrap"
+            >
+              <a href={getSignUpUrl()} className="liquid-glass-strong inline-flex items-center gap-2 px-6 py-3 rounded-full text-[14px] font-semibold transition-all duration-200" style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: "#ffffff" }}>
+                Start Building <ArrowRight className="w-4 h-4" />
+              </a>
+              <Link to="/pricing" className="liquid-glass inline-flex items-center gap-2 px-6 py-3 rounded-full text-[14px] font-medium transition-all duration-200" style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: "rgba(255,255,255,0.6)" }}>
+                View Pricing
+              </Link>
+            </motion.div>
           </div>
         </section>
 

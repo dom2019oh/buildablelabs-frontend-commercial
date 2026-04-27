@@ -209,7 +209,147 @@ Users describe a bot in plain English → Buildable AI generates code → deploy
 
 ---
 
+## Public Pages — Design Pattern
+
+All public-facing pages now use a consistent Grainient background. Pattern:
+```tsx
+// Always fixed, full-screen, behind everything (zIndex 0)
+<div style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 0 }}>
+  <Grainient color1="#0f1e3a" color2="#07080d" color3="#c4855a"
+    timeSpeed={0.35} colorBalance={0} warpStrength={1} warpFrequency={5}
+    warpSpeed={2} warpAmplitude={50} blendAngle={0} blendSoftness={0.05}
+    rotationAmount={500} noiseScale={2} grainAmount={0.1} grainScale={2}
+    grainAnimated={false} contrast={1.5} gamma={1} saturation={1}
+    centerX={0} centerY={0} zoom={0.9} />
+</div>
+// Content div always has: position: "relative", zIndex: 1, paddingTop: "96px"
+```
+Pages with Grainient: About, Blog, BotBuilder, Careers, Changelog, Community, Contact, Docs, Explore, NotFound, Pricing, Privacy, Terms, Tutorials + all auth pages (Login, SignUp, ForgotPassword, ResetPassword).
+Dashboard pages (`/dashboard/*`) do NOT use Grainient — they use the dark glass workspace design.
+
+## About Page
+
+Full solo-founder story page (`src/pages/About.tsx`) with:
+- **BorderGlow** on founder card, AI model cards (Claude Sonnet/Opus/Haiku), Buildable competitor card
+- **GradientStack** SVG icon (local component, matches LogoPreview palette) on all value/feature cards
+- **Gradient text** on colored headings (`WebkitBackgroundClip: "text"`, `WebkitTextFillColor: "transparent"`)
+- **Founder**: "Dr. Stark" in purple→pink gradient, "Dominic S." muted below, "Founder & Builder" purple below
+- **Founder photo**: `public/founder.png` (Discord profile photo)
+- **AI models used**: Claude Sonnet 4.6 (default), Claude Opus 4.6 (Pro), Claude Haiku 4.5 (background tasks) — NO OpenAI on frontend copy
+- **Competitor section**: Bot Ghost vs Buildable comparison card
+
+## BotBuilder Page
+
+Full revamp (`src/pages/BotBuilder.tsx`) with:
+- Hero: AI icon (`/buildable-ai-icon.png`), gradient headline ("Describe it." white + "We build it." purple→pink→orange), mock prompt input with "Build →" button (navigates to `/sign-up`), 4 suggestion pills
+- How It Works: 3 BorderGlow cards (step 01 purple/indigo, 02 gold/orange, 03 green/teal)
+- Features grid: 6 cards with GradientStack icons + gradient titles
+- Powered by AI: BorderGlow card with AI icon + 3 Claude model pills (GradientStack per model)
+- CTA: BorderGlow card, two buttons (solid purple + glass)
+- Local `GradientStack` component defined in file (same pattern as About.tsx)
+
+## Hero Badge (Index.tsx)
+
+- Solid `#2563eb` blue background, `#1d4ed8` border
+- Text: "Launching our Strongest Tool yet →"
+- Icon: `/buildable-ai-icon.png` (16px, Canva 4-petal flower, blue→pink gradient)
+- Links to `/about`
+- Hover darkens to `#1d4ed8`
+
+## Public Assets
+
+- `public/buildable-ai-icon.png` — Canva 4-petal AI icon (blue→pink gradient)
+- `public/founder.png` — Dr. Stark Discord profile photo
+- `public/grant-dev-logo.png` — Grant Development logo (white, `noFilter: true`)
+
+---
+
 ## Last Updated
+
+**2026-04-13** — Stripe live, soft launch unblocked (deployed):
+
+### Stripe Integration
+- `STRIPE_LIVE = true` — payment buttons now active on Pricing page
+- 40 Stripe prices created: pro-t1→t10 + max-t1→t10, monthly + annual each
+- Price IDs wired into `TierDisplay.priceId` / `annualPriceId` — checkout sends correct tier ID based on toggle
+- Backend `getPriceId`: exhaustive `VALID_TIER_IDS` allowlist prevents env-var probing, `/-/g` regex handles annual tier IDs
+- Checkout session now requires TOS acceptance with non-refundable credit notice
+- `STRIPE_REDIRECT_BASE` = `https://buildablelabs.dev`
+- Railway needs: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, all `STRIPE_PRICE_*` vars (see `stripe-env-vars.txt`)
+- Stripe webhook: register `https://api.buildablelabs.dev/api/billing/webhook` for events: `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_succeeded`
+
+### Soft Launch Unblocked
+- Login.tsx and SignUp.tsx: "Not quite open yet" overlays removed
+- Pricing page: professional plan titles/taglines/features updated
+- Pricing page: non-refundable legal notice added at bottom
+- Stripe products named: "Buildable Labs — Pro" and "Buildable Labs — Max"
+
+**2026-04-07** — Buildable Cloud, Security, Dashboard polish (deployed):
+
+### Buildable Cloud (`ProjectWorkspaceV3.tsx` — `BotCloudPanel` + `CloudEnableModal`)
+- Enable Cloud gate: shows feature card with Buildable stack logo, 3 feature bullets, "Enable Cloud" button
+- Enable Cloud modal: fixed overlay, Bot Token + Client ID inputs, saves via `setDoc(..., { merge: true })` (fixes new-doc bug), injects hardcoded chat message on enable
+- Cloud tab redesigned (Lovable-style): left sidebar nav (Overview / Bot Token / Env Variables / Commands / Permissions / Logs), right content area per sub-tab
+- Bot Token sub-tab: credentials inputs + save, uses `setDoc` with merge
+- `cloudEnabledOverride` prop: parent workspace sets this when modal enables cloud, syncs state without re-fetch
+- Token gate in `handleSendMessage`: checks Firestore before build, redirects to Cloud tab if no token
+
+### Security (`ChatInputV2.tsx`, `Login.tsx`, backend)
+- Chat sensitive data detection: 6 regex patterns (Discord tokens, sk- keys, GitHub PATs, Google API keys, JWTs, base64 blobs) — real-time warning banner, red border, disabled send
+- Login brute-force lockout: 5 failures → 15-min lockout in localStorage, live MM:SS countdown
+- Backend: global IP rate limit (300 req/min all /api/*), per-user chat limit (30/min), `ipGlobalLimit` + `chatRateLimit` added to `rateLimit.ts`
+- Bot hosting: Oracle Cloud Always Free VPS (193.122.210.130), Docker `buildablelabs/discord-bot:latest`
+- Deploy pipeline: Railway → SSH2/SFTP → Oracle VPS → Docker container per bot
+- Hosting tab: live log polling, Stop/Restart controls, status dot
+
+### Dashboard (`ProjectsView.tsx`, `DashboardLayout.tsx`)
+- Background: replaced SoftAurora with Grainient WebGL shader (same as hero page: color1="#0f1e3a", color2="#07080d", color3="#c4855a")
+- Prompt bar: solid `#1a1a1a` background, `border: 1px solid rgba(255,255,255,0.18)`, no BorderGlow
+- "AI Discord bot builder" badge: uses `buildable-ai-icon.png` (4-petal star)
+- Mode selector: solid colored buttons (green/blue/orange bg), no glow dots; dropdown uses `position: fixed` with `getBoundingClientRect()` to escape overflow:hidden; `dropdownPanelRef` added so click-outside doesn't fire before selection; `onMouseDown + e.preventDefault()` fixes selection bug
+- Project name dropdown: Go to Dashboard / Bot Settings / Delete Bot
+
+**2026-04-06** — Workspace redesign + Buildable AI Phase 1 (deployed):
+
+### Workspace UI (`ProjectWorkspaceV3.tsx`)
+- Full workspace rebuilt from scratch: `#0c0c0c` canvas, no separator lines
+- Top bar: Buildable stack logo + project name (left), 7 functional tabs centred at `46%` (right has Share/Upgrade/Launch)
+- Active tab: `#2563eb` bg + `rgba(255,255,255,0.22)` white glass border
+- 7 tabs: Simulator (Discord icon), Code, Files, Cloud, Analytics, Hosting, Security — all wired to `activeMode` state
+- Floating card: `#353535` bg + white border, `borderRadius: 12`, starts at `460px` from left
+- Left column (460px): `ChatPanelV2` — messages + prompt bar
+- Background unified to `#0c0c0c` throughout (canvas, chat, input)
+- No separator between chat messages and prompt bar
+- AI messages: plain text, no bubble. User messages: keep the pill.
+- Welcome message skipped when `project.initialPrompt` exists (auto-start handles it)
+
+### Buildable AI — Phase 1 (`/api/chat` + `Conversationalist`)
+- New `src/services/ai/conversationalist.ts`: Buildable persona as senior Discord bot engineer
+  - Intent system: `chat` | `needs_clarification` | `ready_to_build`
+  - Pipeline only fires when Buildable signals `ready_to_build`
+  - `buildPrompt` is a full technical spec enriched beyond the user's words
+  - No emojis, no filler ("Great!", "Sure!"), markdown-formatted responses
+  - Asks targeted per-bot-type questions (music bot ≠ moderation bot ≠ economy bot)
+- New `src/api/chat.ts`: `POST /api/chat` — registered at `/api/chat` in `index.ts`
+- Frontend `handleSendMessage`: calls `/api/chat` first in `build` mode; `plan`/`architect` bypass to direct generation
+- Three pulsing dots animation (`isChatting` state) during chat API call — Claude-style, no embed
+
+### UI Polish
+- `ThinkingIndicatorV2`: "**Buildable**" text pure `#ffffff` + 13.5px; "is building…" stays muted
+- File summary messages: `CheckCircle2` + `FileCode2` Lucide icons (no ✅ emoji)
+- Error messages: `XCircle` Lucide icon (no ❌ emoji)
+- Prompt bar + Mode button + Send button: `rgba(255,255,255,0.18)` white glass border
+- Conversationalist system prompt: "No emojis. Ever." enforced
+
+**2026-03-30** — Public pages UI overhaul (deployed):
+- All public pages: replaced old purple bloom divs with Grainient WebGL shader background
+- `About.tsx`: full solo-founder story rewrite — BorderGlow cards, GradientStack icons, gradient text, founder photo, Claude-only AI models, competitor comparison
+- `BotBuilder.tsx`: full revamp — Grainient bg, BorderGlow, GradientStack, AI icon, prompt hero, how-it-works, features grid, powered-by-AI, CTA
+- `Index.tsx`: hero badge updated to solid `#2563eb`, new text + AI icon, links to /about
+- `Privacy.tsx` + `Terms.tsx`: full legal content rewrites (batch script had wiped content)
+- `Docs.tsx`: restored missing wrapper divs/motion elements (batch script damage)
+- `NotFound.tsx` + `Explore.tsx`: added Grainient (replaced old purple bloom)
+- `public/buildable-ai-icon.png` + `public/founder.png`: added to public assets
 
 **2026-03-28 (session 2)** — Infrastructure fixes + debug log system:
 - Fixed CORS: `CORS_ORIGINS` Railway env var updated to include `https://` prefix

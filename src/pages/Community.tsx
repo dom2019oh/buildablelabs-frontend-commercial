@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import FloatingNav from "@/components/FloatingNav";
+import { AmbientBg } from "@/lib/glass";
 
 const fadeUp = { initial: { opacity: 0, y: 20 }, animate: { opacity: 1, y: 0 } };
 
@@ -38,19 +39,10 @@ const featuredBots = [
 
 export default function Community() {
   return (
-    <div style={{ background: "#080a0c", minHeight: "100vh" }}>
+    <div style={{ background: "#07080d", minHeight: "100vh", position: "relative" }}>
+      <AmbientBg />
       <FloatingNav />
 
-      <div
-        style={{
-          position: "fixed",
-          inset: 0,
-          background:
-            "radial-gradient(ellipse 80% 40% at 50% 0%, rgba(90,30,200,0.10) 0%, transparent 70%)",
-          pointerEvents: "none",
-          zIndex: 0,
-        }}
-      />
 
       <div style={{ position: "relative", zIndex: 1, paddingTop: "96px", paddingBottom: "96px" }}>
         <div className="max-w-5xl mx-auto px-6 md:px-10">
@@ -178,20 +170,7 @@ export default function Community() {
               <motion.button
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.97 }}
-                style={{
-                  background: "rgba(88,101,242,0.25)",
-                  border: "1px solid rgba(88,101,242,0.45)",
-                  borderRadius: "999px",
-                  color: "rgba(200,210,255,0.9)",
-                  padding: "10px 26px",
-                  fontFamily: "'Geist', sans-serif",
-                  fontSize: "14px",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  whiteSpace: "nowrap" as const,
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(88,101,242,0.4)"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(88,101,242,0.25)"; }}
+                style={{ background: "rgba(88,101,242,0.25)", border: "1px solid rgba(88,101,242,0.45)", borderRadius: "999px", color: "#fff", fontFamily: "'Geist', sans-serif", fontSize: "14px", fontWeight: 600, padding: "10px 22px", cursor: "pointer", whiteSpace: "nowrap" as const }}
               >
                 Join Now →
               </motion.button>
@@ -387,25 +366,7 @@ export default function Community() {
               <motion.button
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.97 }}
-                style={{
-                  background: "rgba(255,255,255,0.08)",
-                  border: "1px solid rgba(255,255,255,0.14)",
-                  borderRadius: "999px",
-                  color: "rgba(255,255,255,0.85)",
-                  padding: "10px 24px",
-                  fontFamily: "'Geist', sans-serif",
-                  fontSize: "14px",
-                  fontWeight: 500,
-                  cursor: "pointer",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = "rgba(255,255,255,0.14)";
-                  e.currentTarget.style.color = "#fff";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = "rgba(255,255,255,0.08)";
-                  e.currentTarget.style.color = "rgba(255,255,255,0.85)";
-                }}
+                style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.14)", borderRadius: "999px", color: "rgba(255,255,255,0.85)", fontFamily: "'Geist', sans-serif", fontSize: "14px", fontWeight: 500, padding: "10px 22px", cursor: "pointer" }}
               >
                 Submit your bot →
               </motion.button>

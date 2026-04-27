@@ -2,6 +2,7 @@ import { useLocation } from "react-router-dom";
 import { useEffect } from "react";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
+import { AmbientBg } from "@/lib/glass";
 
 const NotFound = () => {
   const location = useLocation();
@@ -14,7 +15,7 @@ const NotFound = () => {
     <div
       style={{
         minHeight: "100vh",
-        background: "#080a0c",
+        background: "#06060b",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -23,16 +24,7 @@ const NotFound = () => {
         fontFamily: "'Geist', sans-serif",
       }}
     >
-      {/* Top purple bloom */}
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          background:
-            "radial-gradient(ellipse 80% 40% at 50% 0%, rgba(90,30,200,0.10) 0%, transparent 70%)",
-          pointerEvents: "none",
-        }}
-      />
+      <AmbientBg />
 
       <motion.div
         initial={{ opacity: 0, y: 16 }}

@@ -23,6 +23,10 @@ export type CreditActionType =
 export interface UserCredits {
   id: string;
   user_id: string;
+  // Free tier lifetime model
+  lifetime_builds_used: number;
+  free_lifetime_limit: number;
+  // Paid tier fields
   monthly_credits: number;
   bonus_credits: number;
   rollover_credits: number;
@@ -79,7 +83,7 @@ const ACTION_COSTS: Record<CreditActionType, CreditActionCost> = {
   chat:            { action_type: 'chat',            credit_cost: 0, description: 'Chat message (free)' },
 };
 
-const FREE_DAILY_CREDITS = 3;
+const FREE_LIFETIME_LIMIT = 10;
 
 // ── UTC helpers ────────────────────────────────────────────────────────────────
 
@@ -143,10 +147,12 @@ export function useCredits() {
           setCredits({
             id: snap.id,
             user_id: d.user_id ?? user.uid,
-            monthly_credits: d.monthly_credits ?? 0,
-            bonus_credits: d.bonus_credits ?? 0,
+            lifetime_builds_used: d.lifetime_builds_used ?? 0,
+            free_lifetime_limit:  d.free_lifetime_limit  ?? FREE_LIFETIME_LIMIT,
+            monthly_credits:  d.monthly_credits  ?? 0,
+            bonus_credits:    d.bonus_credits    ?? 0,
             rollover_credits: d.rollover_credits ?? 0,
-            topup_credits: d.topup_credits ?? 0,
+            topup_credits:    d.topup_credits    ?? 0,
             last_daily_bonus_at: d.last_daily_bonus_at ? tsToString(d.last_daily_bonus_at) : null,
             created_at: tsToString(d.created_at),
             updated_at: tsToString(d.updated_at),
@@ -228,20 +234,18 @@ export function useCredits() {
   const actionCosts = Object.values(ACTION_COSTS);
   const currentPlanType = subscription?.plan_type ?? 'free';
 
-  // For free users, bonus_credits only count if claimed today (UTC).
-  const effectiveBonusCredits = isClaimedToday(credits?.last_daily_bonus_at ?? null)
-    ? Number(credits?.bonus_credits ?? 0)
-    : 0;
+  const effectiveBonusCredits = 0; // deprecated for free tier
 
   const totalCredits = currentPlanType === 'free'
-    ? effectiveBonusCredits + Number(credits?.topup_credits ?? 0)
-    : Number(credits?.monthly_credits ?? 0) +
-      Number(credits?.bonus_credits ?? 0) +
+    ? Math.max(0, (credits?.free_lifetime_limit ?? FREE_LIFETIME_LIMIT) - (credits?.lifetime_builds_used ?? 0))
+      + Number(credits?.topup_credits ?? 0)
+    : Number(credits?.monthly_credits  ?? 0) +
+      Number(credits?.bonus_credits    ?? 0) +
       Number(credits?.rollover_credits ?? 0) +
-      Number(credits?.topup_credits ?? 0);
+      Number(credits?.topup_credits    ?? 0);
 
-  const canClaimDailyBonus = (): boolean =>
-    !isClaimedToday(credits?.last_daily_bonus_at ?? null);
+  // Free tier has no daily claim — lifetime credits are assigned at signup
+  const canClaimDailyBonus = (): boolean => false;
 
   // Claim daily credits via backend — server enforces UTC date, cannot be bypassed
   const claimDailyBonusMutation = useMutation({
@@ -263,15 +267,8 @@ export function useCredits() {
     },
     onSuccess: (data) => {
       const result = data?.[0];
-      if (result?.success) {
-        // onSnapshot will update credits automatically; just refresh transactions
-        queryClient.invalidateQueries({ queryKey: ['credit-transactions'] });
-        toast({
-          title: `${result.credits_added ?? FREE_DAILY_CREDITS} credits claimed!`,
-          description: 'Your daily credits are ready to use.',
-        });
-      } else {
-        toast({ title: 'Daily Credits', description: result?.message || 'Not available yet.' });
+      if (!result?.success) {
+        toast({ title: 'Free Plan', description: result?.message || 'No claimable credits.' });
       }
     },
     onError: (error) => {

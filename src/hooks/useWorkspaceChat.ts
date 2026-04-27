@@ -101,12 +101,16 @@ export function useWorkspaceChat(projectId: string | undefined) {
       // Trigger backend generation — API keys stay server-side
       const result = await generate(content, mode ?? 'build');
 
-      // Save assistant response
+      // Save assistant response — if async pipeline, show in-progress message
+      const assistantContent = result.sessionId && !result.filesGenerated
+        ? `Building your bot... I'll update the files when complete.`
+        : `Generated ${result.filesGenerated} file${result.filesGenerated !== 1 ? 's' : ''} successfully.`;
+
       await addDoc(collection(db, "projectMessages"), {
         project_id: projectId,
         user_id: user.uid,
         role: "assistant",
-        content: `Generated ${result.filesGenerated} files successfully.`,
+        content: assistantContent,
         metadata: {
           filesGenerated: result.filesGenerated,
           sessionId: result.sessionId,

@@ -178,7 +178,14 @@ export function useBuildableAI(projectId: string | undefined) {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Generation failed' }));
-        throw new Error(errorData.error || 'Generation failed');
+        const msg = response.status === 402
+          ? errorData.error || 'Insufficient credits. Please claim your daily credits or upgrade.'
+          : response.status === 401 || response.status === 403
+          ? 'Authentication error. Please refresh the page and try again.'
+          : response.status === 429
+          ? 'Too many requests. Please wait a moment and try again.'
+          : errorData.error || 'Generation failed';
+        throw new Error(msg);
       }
 
       const contentType = response.headers.get('content-type') || '';
@@ -215,7 +222,7 @@ export function useBuildableAI(projectId: string | undefined) {
         // ── Fire-and-forget: backend started the pipeline, watch Firestore ──
         // If the HTTP response has no filesGenerated, generation is async.
         // Subscribe to the generationSessions document for real completion.
-        if (sessionId && (payload.filesGenerated == null || payload.filesGenerated === 0)) {
+        if (sessionId && payload.filesGenerated == null) {
           setState(prev => ({
             ...prev,
             phase: { phase: 'planning', message: 'Planning architecture...', progress: 20 },

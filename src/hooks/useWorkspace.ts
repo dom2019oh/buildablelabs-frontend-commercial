@@ -315,18 +315,32 @@ export function useWorkspace(projectId: string | undefined) {
 
       try {
         const token = await user.getIdToken();
-        const res = await fetch(`${API_BASE}/api/generate/${workspaceId}`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ prompt, mode }),
-        });
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+        let res: Response;
+        try {
+          res = await fetch(`${API_BASE}/api/generate/${workspaceId}`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ prompt, mode }),
+            signal: controller.signal,
+          });
+        } finally {
+          clearTimeout(timeoutId);
+        }
 
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
-          throw new Error(err.error || "Generation failed");
+          const msg = res.status === 402
+            ? err.error || 'Insufficient credits'
+            : res.status === 429
+            ? 'Too many requests. Please wait a moment.'
+            : err.error || "Generation failed";
+          throw new Error(msg);
         }
 
         const data = await res.json();

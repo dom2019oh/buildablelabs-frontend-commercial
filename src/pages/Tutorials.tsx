@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import FloatingNav from "@/components/FloatingNav";
+import { AmbientBg } from "@/lib/glass";
 import { Bot, Shield, Code, Users, Music, Sparkles, Search } from "lucide-react";
 
 const fadeUp = { initial: { opacity: 0, y: 20 }, animate: { opacity: 1, y: 0 } };
@@ -44,19 +45,10 @@ export default function Tutorials() {
   const [query, setQuery] = useState("");
 
   return (
-    <div style={{ background: "#080a0c", minHeight: "100vh" }}>
+    <div style={{ background: "#06060b", minHeight: "100vh", position: "relative" }}>
+      <AmbientBg />
       <FloatingNav />
 
-      <div
-        style={{
-          position: "fixed",
-          inset: 0,
-          background:
-            "radial-gradient(ellipse 80% 40% at 50% 0%, rgba(90,30,200,0.10) 0%, transparent 70%)",
-          pointerEvents: "none",
-          zIndex: 0,
-        }}
-      />
 
       <div style={{ position: "relative", zIndex: 1, paddingTop: "96px", paddingBottom: "96px" }}>
         <div className="max-w-5xl mx-auto px-6 md:px-10">

@@ -431,7 +431,18 @@ export default function ProjectWorkspaceV3() {
     // 1) Save user message immediately
     await sendMessage.mutateAsync({ content, role: 'user' });
 
-    const history = messages.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }));
+    // Only send real conversational turns — filter out system/error/UI messages
+    // so the AI doesn't treat old credit errors or cloud gate messages as context
+    const history = messages
+      .filter(m => {
+        const meta = (m.metadata ?? {}) as Record<string, unknown>;
+        if (meta.status === 'error') return false;
+        if (meta.type === 'system') return false;
+        if (meta.source === 'cloud_gate') return false;
+        if (meta.type === 'file_summary') return false;
+        return true;
+      })
+      .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }));
     const existingFiles = workspaceFiles?.map(f => ({ path: f.file_path, content: f.content })) || [];
 
     // Helper: run the code generation pipeline
@@ -471,19 +482,25 @@ export default function ProjectWorkspaceV3() {
               metadata: { type: 'ai_response', sessionId: metadata?.sessionId },
             });
           }
+          const totalFiles = (metadata?.filesGenerated as number | undefined) ?? files.length;
           await sendMessage.mutateAsync({
-            content: `${files.length} files generated`,
+            content: totalFiles > 0
+              ? `Bot generated successfully — ${totalFiles} file${totalFiles === 1 ? '' : 's'} ready.`
+              : 'Build complete. Check the Files tab to review your bot.',
             role: 'assistant',
             metadata: { type: 'file_summary', filesCreated: fileNames, sessionId: metadata?.sessionId, status: 'success', durationMs, creditsUsed: 2 },
           });
-          // Open the main entry point (main.py / bot.py / index.js) in the editor
-          if (files.length > 0) {
-            const entryFile = files.find(f =>
-              f.path === 'main.py' || f.path === 'bot.py' ||
-              f.path === 'src/index.js' || f.path === 'src/index.ts'
-            ) ?? files[0];
+          // Re-select the entry file so Monaco refreshes with new content
+          const allPaths = (metadata?.filePaths as string[] | undefined) ?? files.map(f => f.path);
+          if (allPaths.length > 0) {
+            const entryPath = allPaths.find(p =>
+              p === 'main.py' || p === 'bot.py' ||
+              p === 'src/index.js' || p === 'src/index.ts'
+            ) ?? allPaths[0];
             setActiveMode('code');
-            setSelectedFile(entryFile.path);
+            // Briefly deselect then reselect to force Monaco key change + fresh render
+            setSelectedFile(null);
+            setTimeout(() => setSelectedFile(entryPath), 50);
           }
         },
         async (error) => {
@@ -538,7 +555,7 @@ export default function ProjectWorkspaceV3() {
         if (projectId && !cloudEnabledOverride) {
           try {
             const envSnap = await getDoc(doc(db, 'projectEnvVars', projectId));
-            const hasToken = envSnap.exists() && !!(envSnap.data() as Record<string, string>).DISCORD_TOKEN;
+            const hasToken = envSnap.exists() && !!(envSnap.data() as Record<string, string>).BOT_TOKEN;
             if (!hasToken) {
               await sendMessage.mutateAsync({
                 content: `I'm ready to build! Before I start, I'll need your Discord Application credentials so I can deploy the bot when the code is done.\n\nHead to the **Cloud** tab and click **Enable Cloud** to add your Bot Token and Guild ID — it only takes a moment. Come back here once you're done.`,
@@ -602,7 +619,7 @@ export default function ProjectWorkspaceV3() {
     if (projectId && !cloudEnabledOverride) {
       try {
         const envSnap = await getDoc(doc(db, 'projectEnvVars', projectId));
-        const hasToken = envSnap.exists() && !!(envSnap.data() as Record<string, string>).DISCORD_TOKEN;
+        const hasToken = envSnap.exists() && !!(envSnap.data() as Record<string, string>).BOT_TOKEN;
         if (!hasToken) {
           toast({ title: 'Cloud not enabled', description: 'Add your Bot Token in the Cloud tab before deploying.', variant: 'destructive' });
           setActiveMode('cloud');
@@ -626,7 +643,7 @@ export default function ProjectWorkspaceV3() {
           const res = await fetch(`${API_BASE}/api/deploy/${workspaceId}/status`, {
             headers: { Authorization: `Bearer ${token2}` },
           });
-          const data = await res.json() as { status: string };
+          const data = await res.json() as { status: string; error?: string };
           if (data.status === 'running' || data.status === 'error' || data.status === 'stopped') {
             setDeployStatus(data.status as typeof deployStatus);
             if (deployPollRef.current) clearInterval(deployPollRef.current);
@@ -634,7 +651,7 @@ export default function ProjectWorkspaceV3() {
               toast({ title: 'Bot is live', description: 'Your Discord bot is now running.' });
               setActiveMode('hosting');
             } else if (data.status === 'error') {
-              toast({ title: 'Deploy failed', description: 'Check the Hosting tab for details.', variant: 'destructive' });
+              toast({ title: 'Deploy failed', description: data.error ?? 'Check the Hosting tab for details.', variant: 'destructive' });
               setActiveMode('hosting');
             }
           }
@@ -715,14 +732,15 @@ export default function ProjectWorkspaceV3() {
     setActiveMode('code');
   }, [setSelectedFile]);
 
-  const handleFileSave = useCallback(async (newCode: string) => {
-    if (!selectedFile) return;
+  const handleFileSave = useCallback(async (newCode: string, filePath?: string) => {
+    const targetFile = filePath ?? selectedFile;
+    if (!targetFile) return;
 
     // 1. Update in-memory Zustand store immediately
     const { updateFile, setPreviewHtml: storeSetPreviewHtml } = useProjectFilesStore.getState();
-    updateFile(selectedFile, newCode);
+    updateFile(targetFile, newCode);
 
-    if (selectedFile.endsWith('.tsx') || selectedFile.endsWith('.jsx')) {
+    if (targetFile.endsWith('.tsx') || targetFile.endsWith('.jsx')) {
       const compiledHtml = compileComponentToHtml(newCode);
       const previewDoc = generatePreviewHtml(compiledHtml);
       storeSetPreviewHtml(previewDoc);
@@ -735,7 +753,7 @@ export default function ProjectWorkspaceV3() {
         const q = query(
           collection(db, 'workspaceFiles'),
           where('workspace_id', '==', workspaceId),
-          where('file_path', '==', selectedFile),
+          where('file_path', '==', targetFile),
           limit(1)
         );
         const snap = await getDocs(q);
@@ -745,12 +763,11 @@ export default function ProjectWorkspaceV3() {
             updated_at: serverTimestamp(),
           });
         } else {
-          // File doesn't exist in Firestore yet — create it
           await addDoc(collection(db, 'workspaceFiles'), {
             workspace_id: workspaceId,
-            file_path: selectedFile,
+            file_path: targetFile,
             content: newCode,
-            file_type: selectedFile.split('.').pop() ?? null,
+            file_type: targetFile.split('.').pop() ?? null,
             is_generated: false,
             updated_at: serverTimestamp(),
           });
@@ -762,7 +779,7 @@ export default function ProjectWorkspaceV3() {
 
     toast({
       title: 'File Saved',
-      description: `${selectedFile} has been updated`,
+      description: `${targetFile} has been updated`,
     });
   }, [selectedFile, workspaceId, handleRefreshPreview, toast]);
 
@@ -1107,6 +1124,7 @@ export default function ProjectWorkspaceV3() {
                   <CodeEditorTab
                     workspaceFiles={workspaceFiles?.map(f => ({ file_path: f.file_path, content: f.content })) ?? []}
                     isFree={isFree}
+                    onSave={handleFileSave}
                   />
                 )}
                 {activeMode === 'cloud' && (
@@ -1180,19 +1198,29 @@ function CloudEnableModal({ projectId, onClose, onEnabled }: {
   const [tokenVisible, setTokenVisible] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  const [saveError, setSaveError] = useState('');
+
   const handleAllow = async () => {
     if (!projectId || !botToken.trim()) return;
+    if (guildId.trim() && !/^\d{17,19}$/.test(guildId.trim())) {
+      setSaveError('Guild ID must be a 17–19 digit number. Right-click your server in Discord → Copy Server ID.');
+      return;
+    }
     setSaving(true);
+    setSaveError('');
     try {
       const ref = doc(db, 'projectEnvVars', projectId);
-      const payload: Record<string, string> = { DISCORD_TOKEN: botToken, CLIENT_ID: clientId, updated_at: new Date().toISOString() };
+      const payload: Record<string, string> = { BOT_TOKEN: botToken, CLIENT_ID: clientId, updated_at: new Date().toISOString() };
       if (guildId.trim()) payload.GUILD_ID = guildId.trim();
       await setDoc(ref, payload, { merge: true });
-    } catch (e) {
+      setSaving(false);
+      onEnabled();
+    } catch (e: unknown) {
       console.error('Failed to save credentials:', e);
+      const msg = e instanceof Error ? e.message : String(e);
+      setSaveError(msg.includes('permission') ? 'Permission denied — check Firestore rules.' : `Save failed: ${msg}`);
+      setSaving(false);
     }
-    setSaving(false);
-    onEnabled();
   };
 
   return (
@@ -1276,6 +1304,11 @@ function CloudEnableModal({ projectId, onClose, onEnabled }: {
             </p>
           </div>
 
+          {/* Error */}
+          {saveError && (
+            <p style={{ fontSize: 11, color: '#f87171', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 6, padding: '7px 10px', marginBottom: 12 }}>{saveError}</p>
+          )}
+
           {/* Actions */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '10px' }}>
             <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: 7, background: 'none', border: 'none', color: 'rgba(255,255,255,0.45)', fontSize: 13, cursor: 'pointer', fontFamily: "'Geist','DM Sans',sans-serif" }}>
@@ -1315,6 +1348,7 @@ function BotCloudPanel({ workspaceId, projectId, workspaceFiles, projectName, on
   onRequestEnableCloud?: () => void;
   cloudEnabledOverride?: boolean;
 }) {
+  const { toast } = useToast();
   const [envVars, setEnvVars] = useState<{ key: string; value: string }[]>([]);
   const [clientId, setClientId] = useState('');
   const [botToken, setBotToken] = useState('');
@@ -1350,34 +1384,47 @@ function BotCloudPanel({ workspaceId, projectId, workspaceFiles, projectName, on
     return [...new Set(found)];
   }, [workspaceFiles]);
 
+  // Reset token visibility when switching away from the token sub-tab
+  useEffect(() => { setTokenVisible(false); }, [subTab]);
+
   useEffect(() => {
     if (!projectId) return;
     getDoc(doc(db, 'projectEnvVars', projectId)).then(snap => {
       if (snap.exists()) {
         const data = snap.data() as Record<string, string>;
-        if (data.DISCORD_TOKEN) { setBotToken(data.DISCORD_TOKEN); setCloudEnabled(true); }
+        if (data.BOT_TOKEN) { setBotToken(data.BOT_TOKEN); setCloudEnabled(true); }
         if (data.CLIENT_ID) setClientId(data.CLIENT_ID);
         if (data.GUILD_ID) setGuildId(data.GUILD_ID);
         setEnvVars(
           Object.entries(data)
-            .filter(([k]) => k !== 'updated_at' && k !== 'DISCORD_TOKEN' && k !== 'CLIENT_ID' && k !== 'GUILD_ID')
+            .filter(([k]) => k !== 'updated_at' && k !== 'BOT_TOKEN' && k !== 'CLIENT_ID' && k !== 'GUILD_ID')
             .map(([key, value]) => ({ key, value: String(value) }))
         );
       }
-    }).catch(() => {});
-  }, [projectId]);
+    }).catch(() => {
+      toast({ title: 'Failed to load credentials', description: 'Could not read saved credentials. Check your connection and try refreshing.', variant: 'destructive' });
+    });
+  }, [projectId, cloudEnabledOverride]);
 
   const saveToken = async () => {
     if (!projectId || !botToken.trim()) return;
+    if (guildId.trim() && !/^\d{17,19}$/.test(guildId.trim())) {
+      toast({ title: 'Invalid Guild ID', description: 'Guild ID must be a 17–19 digit number. Right-click your server in Discord → Copy Server ID.', variant: 'destructive' });
+      return;
+    }
     setSaving(true);
     try {
-      const payload: Record<string, string> = { DISCORD_TOKEN: botToken, CLIENT_ID: clientId, updated_at: new Date().toISOString() };
+      const payload: Record<string, string> = { BOT_TOKEN: botToken, CLIENT_ID: clientId, updated_at: new Date().toISOString() };
       if (guildId.trim()) payload.GUILD_ID = guildId.trim();
       await setDoc(doc(db, 'projectEnvVars', projectId), payload, { merge: true });
       setTokenSaved(true);
       setCloudEnabled(true);
       setTimeout(() => setTokenSaved(false), 2000);
-    } catch (e) { console.error(e); }
+    } catch (e: unknown) {
+      console.error('saveToken failed:', e);
+      const msg = e instanceof Error ? e.message : String(e);
+      toast({ title: 'Save failed', description: `Failed to save credentials: ${msg}`, variant: 'destructive' });
+    }
     setSaving(false);
   };
 
@@ -1771,8 +1818,20 @@ function BotHostingPanel({
 }) {
   const [logs, setLogs] = useState<string>('');
   const [logsCopied, setLogsCopied] = useState(false);
+  const [deployError, setDeployError] = useState<string | null>(null);
   const logsRef = useRef<HTMLPreElement>(null);
   const logPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Fetch full status (with error message) when in error state
+  useEffect(() => {
+    if (deployStatus !== 'error' || !workspaceId) return;
+    auth.currentUser?.getIdToken().then(token =>
+      fetch(`${API_BASE}/api/deploy/${workspaceId}/status`, { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.json())
+        .then((d: { error?: string }) => setDeployError(d.error ?? null))
+        .catch(() => {})
+    );
+  }, [deployStatus, workspaceId]);
 
   // Fetch logs when running
   useEffect(() => {
@@ -1840,8 +1899,11 @@ function BotHostingPanel({
               }} />
               <div>
                 <p style={{ fontSize: '13px', fontWeight: 500, color: 'rgba(255,255,255,0.8)', margin: 0 }}>{statusText}</p>
-                <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', margin: 0 }}>
-                  {deployStatus === 'running' ? 'Your bot is live and responding to Discord' : deployStatus === 'idle' ? 'Deploy your bot to go live' : ''}
+                <p style={{ fontSize: '11px', color: deployStatus === 'error' ? '#f87171' : 'rgba(255,255,255,0.3)', margin: 0, maxWidth: 420, wordBreak: 'break-word' }}>
+                  {deployStatus === 'running' ? 'Your bot is live and responding to Discord'
+                    : deployStatus === 'idle' ? 'Deploy your bot to go live'
+                    : deployStatus === 'error' && deployError ? deployError
+                    : ''}
                 </p>
               </div>
             </div>

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Loader2, Eye, EyeOff } from 'lucide-react';
-import Grainient from '@/components/Grainient';
+import { AmbientBg, G, onGE, onGL, BH, BT, BTR } from '@/lib/glass';
 import wordmarkSvg from '@/assets/buildable-wordmark.svg';
 import {
   createUserWithEmailAndPassword,
@@ -78,17 +78,7 @@ export default function SignUp() {
     <div className="min-h-screen flex overflow-hidden relative">
 
       {/* Background */}
-      <div className="fixed inset-0 pointer-events-none" style={{ zIndex: 0 }}>
-        <Grainient
-          color1="#3a3c42" color2="#141518" color3="#252729"
-          timeSpeed={0.35} colorBalance={0} warpStrength={1}
-          warpFrequency={5} warpSpeed={2} warpAmplitude={50}
-          blendAngle={0} blendSoftness={0.05} rotationAmount={500}
-          noiseScale={2} grainAmount={0.1} grainScale={2}
-          grainAnimated={false} contrast={1.5} gamma={1} saturation={1}
-          centerX={0} centerY={0} zoom={0.9}
-        />
-      </div>
+      <AmbientBg />
 
       {/* Left panel */}
       <div
@@ -192,10 +182,16 @@ export default function SignUp() {
               </p>
 
               <div className="pt-2 space-y-3">
-                <motion.button type="submit" disabled={loading}
-                  whileHover={{ opacity: 0.9 }} whileTap={{ scale: 0.99 }}
-                  className="w-full flex items-center justify-center gap-2 py-3.5 disabled:opacity-40 transition-opacity"
-                  style={{ background: 'rgba(255,255,255,0.96)', color: '#0a0612', borderRadius: '3px', fontFamily: "'Geist', 'DM Sans', sans-serif", fontSize: '12px', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase' }}
+                <motion.button
+                  type="submit"
+                  disabled={loading}
+                  whileHover={BH}
+                  whileTap={BT}
+                  transition={BTR}
+                  className="w-full flex items-center justify-center gap-2 disabled:opacity-40"
+                  style={{ ...G, borderRadius: '10px', width: '100%', fontSize: '12px', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', padding: '14px' }}
+                  onMouseEnter={onGE}
+                  onMouseLeave={onGL}
                 >
                   {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Create Account'}
                 </motion.button>
@@ -206,10 +202,17 @@ export default function SignUp() {
                   <div className="flex-1" style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }} />
                 </div>
 
-                <motion.button type="button" onClick={handleGoogleSignUp} disabled={googleLoading}
-                  whileHover={{ background: 'rgba(255,255,255,0.07)' }} whileTap={{ scale: 0.99 }}
-                  className="w-full flex items-center justify-center gap-3 py-3.5 transition-colors disabled:opacity-40"
-                  style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '3px', fontFamily: "'Geist', 'DM Sans', sans-serif", fontSize: '12px', fontWeight: 500, letterSpacing: '0.06em', color: 'rgba(255,255,255,0.65)' }}
+                <motion.button
+                  type="button"
+                  onClick={handleGoogleSignUp}
+                  disabled={googleLoading}
+                  whileHover={BH}
+                  whileTap={BT}
+                  transition={BTR}
+                  className="w-full flex items-center justify-center gap-3 disabled:opacity-40"
+                  style={{ ...G, borderRadius: '10px', width: '100%', fontSize: '12px', fontWeight: 500, letterSpacing: '0.04em', padding: '14px', color: 'rgba(255,255,255,0.75)' }}
+                  onMouseEnter={onGE}
+                  onMouseLeave={onGL}
                 >
                   {googleLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : (
                     <>
@@ -259,6 +262,7 @@ export default function SignUp() {
           </p>
         </motion.div>
       </div>
+
 
     </div>
   );

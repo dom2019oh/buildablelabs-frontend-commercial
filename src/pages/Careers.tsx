@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import FloatingNav from "@/components/FloatingNav";
+import { AmbientBg } from "@/lib/glass";
 import { Globe, Layers, Zap } from "lucide-react";
 
 const fadeUp = { initial: { opacity: 0, y: 20 }, animate: { opacity: 1, y: 0 } };
@@ -29,19 +30,9 @@ const roles = [
 
 export default function Careers() {
   return (
-    <div style={{ background: "#080a0c", minHeight: "100vh" }}>
+    <div style={{ background: "#06060b", minHeight: "100vh", position: "relative" }}>      <AmbientBg />
       <FloatingNav />
 
-      <div
-        style={{
-          position: "fixed",
-          inset: 0,
-          background:
-            "radial-gradient(ellipse 80% 40% at 50% 0%, rgba(90,30,200,0.10) 0%, transparent 70%)",
-          pointerEvents: "none",
-          zIndex: 0,
-        }}
-      />
 
       <div style={{ position: "relative", zIndex: 1, paddingTop: "96px", paddingBottom: "96px" }}>
         <div className="max-w-5xl mx-auto px-6 md:px-10">
@@ -271,26 +262,7 @@ export default function Careers() {
                   <motion.button
                     whileHover={{ scale: 1.03 }}
                     whileTap={{ scale: 0.97 }}
-                    style={{
-                      background: "rgba(255,255,255,0.08)",
-                      border: "1px solid rgba(255,255,255,0.14)",
-                      borderRadius: "999px",
-                      color: "rgba(255,255,255,0.85)",
-                      padding: "10px 24px",
-                      fontFamily: "'Geist', sans-serif",
-                      fontSize: "13px",
-                      fontWeight: 500,
-                      cursor: "pointer",
-                      whiteSpace: "nowrap" as const,
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = "rgba(255,255,255,0.14)";
-                      e.currentTarget.style.color = "#fff";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = "rgba(255,255,255,0.08)";
-                      e.currentTarget.style.color = "rgba(255,255,255,0.85)";
-                    }}
+                    style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.14)", borderRadius: "999px", color: "rgba(255,255,255,0.85)", fontFamily: "'Geist', sans-serif", fontSize: "13px", fontWeight: 500, padding: "8px 18px", cursor: "pointer", whiteSpace: "nowrap" as const }}
                   >
                     Apply
                   </motion.button>

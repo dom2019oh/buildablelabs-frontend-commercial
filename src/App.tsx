@@ -38,7 +38,6 @@ import BotBuilder from "@/pages/BotBuilder";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import CookieConsent from "./components/CookieConsent";
-import CustomCursor from "./components/CustomCursor";
 import LogoPreview from "./pages/LogoPreview";
 import DashboardExplore from "./pages/DashboardExplore";
 import AdPreview from "./pages/AdPreview";
@@ -57,6 +56,7 @@ import HowToCreateDiscordBotWithoutCoding from "./pages/blog/HowToCreateDiscordB
 import AIDiscordBotGenerator from "./pages/blog/AIDiscordBotGenerator";
 import DiscordBotForGamingServers from "./pages/blog/DiscordBotForGamingServers";
 import HowToAddModerationBotToDiscord from "./pages/blog/HowToAddModerationBotToDiscord";
+import LegacyTerminal from "./pages/legacy/LegacyTerminal";
 
 const queryClient = new QueryClient();
 
@@ -67,7 +67,6 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter>
-          <CustomCursor />
           <CookieConsent />
           <AnalyticsTracker />
           <Routes>
@@ -76,6 +75,8 @@ const App = () => (
                 ? <Navigate to="/dashboard" replace />
                 : window.location.hostname === 'stakeholder.buildablelabs.dev'
                 ? <Navigate to="/stakeholder" replace />
+                : window.location.hostname === 'legacy.buildablelabs.dev'
+                ? <Navigate to="/legacy" replace />
                 : <Index />
             } />
             <Route path="/pricing" element={<Pricing />} />
@@ -135,6 +136,9 @@ const App = () => (
             <Route path="/stakeholder/credits" element={<StakeholderGate><StakeholderLayout><StakeholderCredits /></StakeholderLayout></StakeholderGate>} />
             <Route path="/stakeholder/notify" element={<StakeholderGate><StakeholderLayout><StakeholderNotify /></StakeholderLayout></StakeholderGate>} />
             <Route path="/stakeholder/analytics" element={<StakeholderGate><StakeholderLayout><StakeholderAnalytics /></StakeholderLayout></StakeholderGate>} />
+
+            {/* ── Legacy Terminal ── */}
+            <Route path="/legacy" element={<LegacyTerminal />} />
 
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />

@@ -1,5 +1,6 @@
 import { Renderer, Program, Mesh, Color, Triangle } from 'ogl';
 import { useEffect, useRef } from 'react';
+import './Aurora.css';
 
 const VERT = `#version 300 es
 in vec2 position;
@@ -116,7 +117,7 @@ interface AuroraProps {
 }
 
 export default function Aurora({
-  colorStops = ['#5227FF', '#7cff67', '#5227FF'],
+  colorStops = ['#0f1e3a', '#c4855a', '#0f1e3a'],
   amplitude = 1.0,
   blend = 0.5,
   speed = 1.0,
@@ -139,7 +140,9 @@ export default function Aurora({
     gl.clearColor(0, 0, 0, 0);
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-    (gl.canvas as HTMLCanvasElement).style.backgroundColor = 'transparent';
+    const canvas = gl.canvas as HTMLCanvasElement;
+    canvas.style.backgroundColor = 'transparent';
+    canvas.style.background = 'transparent';
 
     let program: Program;
 

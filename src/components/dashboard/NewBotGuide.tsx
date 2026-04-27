@@ -1,6 +1,10 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ArrowRight, ArrowLeft, Sparkles, Check } from 'lucide-react';
+import {
+  X, ArrowRight, ArrowLeft, Sparkles, Check,
+  Shield, Music, Coins, TrendingUp, Ticket,
+  UserPlus, Wrench, Wand2,
+} from 'lucide-react';
 import { useProjects } from '@/hooks/useProjects';
 
 // ─── Templates ────────────────────────────────────────────────────────────────
@@ -8,70 +12,80 @@ import { useProjects } from '@/hooks/useProjects';
 const TEMPLATES = [
   {
     id: 'moderation',
-    emoji: '🔨',
+    icon: Shield,
     name: 'Moderation Bot',
     desc: 'Kick, ban, mute, warnings, auto-mod, log channels',
-    tags: ['kick', 'ban', 'warnings', 'automod'],
+    tags: ['kick', 'ban', 'automod'],
     color: '#ef4444',
+    colorBg: 'rgba(239,68,68,0.12)',
   },
   {
     id: 'music',
-    emoji: '🎵',
+    icon: Music,
     name: 'Music Bot',
     desc: 'Play, queue, skip, shuffle, now playing with rich embeds',
-    tags: ['play', 'queue', 'skip', 'shuffle'],
+    tags: ['play', 'queue', 'skip'],
     color: '#8b5cf6',
+    colorBg: 'rgba(139,92,246,0.12)',
   },
   {
     id: 'economy',
-    emoji: '💰',
+    icon: Coins,
     name: 'Economy Bot',
     desc: 'Balance, daily rewards, shop, leaderboard, gambling',
-    tags: ['balance', 'daily', 'shop', 'leaderboard'],
+    tags: ['balance', 'daily', 'shop'],
     color: '#f59e0b',
+    colorBg: 'rgba(245,158,11,0.12)',
   },
   {
     id: 'leveling',
-    emoji: '⬆️',
+    icon: TrendingUp,
     name: 'Leveling Bot',
     desc: 'XP system, level-up roles, rank cards, leaderboard',
-    tags: ['xp', 'rank', 'levels', 'roles'],
+    tags: ['xp', 'rank', 'levels'],
     color: '#10b981',
+    colorBg: 'rgba(16,185,129,0.12)',
   },
   {
     id: 'ticket',
-    emoji: '🎫',
+    icon: Ticket,
     name: 'Ticket Bot',
     desc: 'Support tickets, staff channels, transcripts, close/reopen',
-    tags: ['tickets', 'support', 'staff', 'transcripts'],
+    tags: ['tickets', 'support', 'staff'],
     color: '#3b82f6',
+    colorBg: 'rgba(59,130,246,0.12)',
   },
   {
     id: 'welcome',
-    emoji: '👋',
+    icon: UserPlus,
     name: 'Welcome Bot',
     desc: 'Welcome & goodbye messages, auto-roles, member count',
-    tags: ['welcome', 'goodbye', 'autorole'],
+    tags: ['welcome', 'autorole'],
     color: '#ec4899',
+    colorBg: 'rgba(236,72,153,0.12)',
   },
   {
     id: 'utility',
-    emoji: '🔧',
+    icon: Wrench,
     name: 'Utility Bot',
     desc: 'Server info, polls, reminders, weather, role management',
-    tags: ['info', 'polls', 'reminders', 'roles'],
+    tags: ['info', 'polls', 'reminders'],
     color: '#6366f1',
+    colorBg: 'rgba(99,102,241,0.12)',
   },
   {
     id: 'custom',
-    emoji: '✨',
+    icon: Wand2,
     name: 'Custom Bot',
     desc: 'Describe exactly what your bot should do from scratch',
-    tags: ['anything', 'custom', 'unique'],
-    color: 'rgba(255,255,255,0.4)',
+    tags: ['anything', 'custom'],
+    color: 'rgba(255,255,255,0.5)',
+    colorBg: 'rgba(255,255,255,0.06)',
     custom: true,
   },
-];
+] as const;
+
+type Template = (typeof TEMPLATES)[number];
 
 const LANGUAGES = [
   { id: 'python',     label: 'Python',     sub: 'discord.py',     badge: '#3572A5' },
@@ -80,9 +94,9 @@ const LANGUAGES = [
 ];
 
 const COMMAND_STYLES = [
-  { id: 'prefix', label: 'Prefix commands', example: '!play, !ban, !balance' },
-  { id: 'slash',  label: 'Slash commands',  example: '/play, /ban, /balance' },
-  { id: 'both',   label: 'Both',            example: '!play  and  /play' },
+  { id: 'prefix', label: 'Prefix commands', example: '!play, !ban' },
+  { id: 'slash',  label: 'Slash commands',  example: '/play, /ban' },
+  { id: 'both',   label: 'Both',            example: '!play and /play' },
 ];
 
 // ─── Slide animation ──────────────────────────────────────────────────────────
@@ -100,13 +114,13 @@ interface Props { onClose: () => void; }
 export default function NewBotGuide({ onClose }: Props) {
   const { createProject } = useProjects();
 
-  const [step, setStep]         = useState(0); // 0=template 1=details 2=review
+  const [step, setStep]         = useState(0);
   const [dir,  setDir]          = useState(1);
-  const [template, setTemplate] = useState<typeof TEMPLATES[0] | null>(null);
+  const [template, setTemplate] = useState<Template | null>(null);
   const [description, setDescription] = useState('');
   const [botName,   setBotName]   = useState('');
   const [language,  setLanguage]  = useState('python');
-  const [cmdStyle,  setCmdStyle]  = useState('prefix');
+  const [cmdStyle,  setCmdStyle]  = useState('slash');
   const [creating,  setCreating]  = useState(false);
 
   const totalSteps = 3;
@@ -116,7 +130,7 @@ export default function NewBotGuide({ onClose }: Props) {
     setStep(n);
   }
 
-  function selectTemplate(t: typeof TEMPLATES[0]) {
+  function selectTemplate(t: Template) {
     setTemplate(t);
     if (!botName && !t.custom) setBotName(`My ${t.name}`);
     go(1);
@@ -138,149 +152,203 @@ export default function NewBotGuide({ onClose }: Props) {
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: 'rgba(0,0,0,0.82)', backdropFilter: 'blur(12px)' }}
+      style={{ background: 'rgba(0,0,0,0.78)', backdropFilter: 'blur(14px)' }}
     >
       <motion.div
-        initial={{ opacity: 0, scale: 0.96, y: 16 }}
+        initial={{ opacity: 0, scale: 0.97, y: 12 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.96, y: 16 }}
-        transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-        className="relative w-full max-w-3xl rounded-2xl overflow-hidden"
+        exit={{ opacity: 0, scale: 0.97, y: 12 }}
+        transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+        className="relative w-full max-w-2xl rounded-2xl overflow-hidden"
         style={{
-          background: '#0c0c10',
-          border: '1px solid rgba(255,255,255,0.09)',
-          boxShadow: '0 40px 120px rgba(0,0,0,0.8)',
-          maxHeight: '90vh',
+          background: '#0f0f12',
+          border: '1px solid rgba(255,255,255,0.08)',
+          boxShadow: '0 32px 96px rgba(0,0,0,0.7)',
+          maxHeight: '88vh',
         }}
       >
         {/* ── Header ── */}
-        <div className="flex items-center justify-between px-7 pt-6 pb-4"
-          style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+        <div
+          className="flex items-center justify-between px-6 pt-5 pb-4"
+          style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}
+        >
           <div>
-            <div className="flex items-center gap-2 mb-1">
-              <Sparkles className="w-4 h-4" style={{ color: 'rgba(160,140,255,0.7)' }} />
-              <span className="text-xs tracking-widest uppercase"
-                style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.28)' }}>
-                New Bot — Step {step + 1} of {totalSteps}
-              </span>
-            </div>
-            <h2 className="text-lg font-bold"
-              style={{ fontFamily: "'Geist', sans-serif", color: 'rgba(255,255,255,0.9)' }}>
-              {step === 0 && 'What kind of bot are you building?'}
+            <p className="text-[11px] tracking-widest uppercase mb-1"
+              style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.25)' }}>
+              Step {step + 1} of {totalSteps}
+            </p>
+            <h2 className="text-base font-semibold"
+              style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.88)' }}>
+              {step === 0 && 'Choose a template'}
               {step === 1 && 'Configure your bot'}
               {step === 2 && 'Review & start building'}
             </h2>
           </div>
 
-          {/* Progress dots */}
-          <div className="flex items-center gap-6">
-            <div className="flex gap-2">
+          <div className="flex items-center gap-4">
+            {/* Progress dots */}
+            <div className="flex gap-1.5">
               {Array.from({ length: totalSteps }).map((_, i) => (
-                <div key={i} className="rounded-full transition-all duration-300"
+                <div
+                  key={i}
+                  className="rounded-full transition-all duration-300"
                   style={{
-                    width: i === step ? '20px' : '6px',
+                    width: i === step ? '18px' : '6px',
                     height: '6px',
                     background: i < step
-                      ? 'rgba(40,200,80,0.7)'
+                      ? 'rgba(34,197,94,0.7)'
                       : i === step
                         ? 'rgba(160,140,255,0.85)'
-                        : 'rgba(255,255,255,0.12)',
-                  }} />
+                        : 'rgba(255,255,255,0.1)',
+                  }}
+                />
               ))}
             </div>
-            <button onClick={onClose}
-              className="w-8 h-8 rounded-full flex items-center justify-center transition-all"
-              style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.4)' }}
-              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.1)')}
-              onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.06)')}>
-              <X className="w-4 h-4" />
+
+            <button
+              onClick={onClose}
+              className="w-7 h-7 rounded-lg flex items-center justify-center transition-all"
+              style={{ background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.35)' }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.09)')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
+            >
+              <X className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
 
         {/* ── Step content ── */}
-        <div className="overflow-y-auto" style={{ maxHeight: 'calc(90vh - 140px)' }}>
+        <div className="overflow-y-auto" style={{ maxHeight: 'calc(88vh - 130px)' }}>
           <AnimatePresence mode="wait" custom={dir}>
 
             {/* ── STEP 0: Template picker ── */}
             {step === 0 && (
-              <motion.div key="step0" custom={dir} variants={slide}
-                initial="enter" animate="center" exit="exit"
-                transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                className="p-7 grid grid-cols-2 md:grid-cols-4 gap-3">
-                {TEMPLATES.map(t => (
-                  <button key={t.id} onClick={() => selectTemplate(t)}
-                    className="group relative rounded-xl p-4 text-left transition-all duration-200 flex flex-col gap-2"
-                    style={{
-                      background: template?.id === t.id ? 'rgba(160,140,255,0.1)' : 'rgba(255,255,255,0.03)',
-                      border: `1px solid ${template?.id === t.id ? 'rgba(160,140,255,0.35)' : 'rgba(255,255,255,0.07)'}`,
-                    }}
-                    onMouseEnter={e => {
-                      if (template?.id !== t.id) {
-                        e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
-                        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)';
-                      }
-                    }}
-                    onMouseLeave={e => {
-                      if (template?.id !== t.id) {
-                        e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
-                        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.07)';
-                      }
-                    }}>
-                    {/* Selected check */}
-                    {template?.id === t.id && (
-                      <div className="absolute top-2.5 right-2.5 w-5 h-5 rounded-full flex items-center justify-center"
-                        style={{ background: 'rgba(160,140,255,0.85)' }}>
-                        <Check className="w-3 h-3 text-white" />
+              <motion.div
+                key="step0"
+                custom={dir}
+                variants={slide}
+                initial="enter"
+                animate="center"
+                exit="exit"
+                transition={{ duration: 0.26, ease: [0.16, 1, 0.3, 1] }}
+                className="p-5 grid grid-cols-2 md:grid-cols-4 gap-2.5"
+              >
+                {TEMPLATES.map(t => {
+                  const Icon = t.icon;
+                  const isSelected = template?.id === t.id;
+                  return (
+                    <button
+                      key={t.id}
+                      onClick={() => selectTemplate(t)}
+                      className="group relative rounded-xl p-3.5 text-left transition-all duration-150 flex flex-col gap-2.5"
+                      style={{
+                        background: isSelected ? t.colorBg : 'rgba(255,255,255,0.025)',
+                        border: `1px solid ${isSelected ? t.color + '40' : 'rgba(255,255,255,0.07)'}`,
+                      }}
+                      onMouseEnter={e => {
+                        if (!isSelected) {
+                          e.currentTarget.style.background = 'rgba(255,255,255,0.045)';
+                          e.currentTarget.style.borderColor = 'rgba(255,255,255,0.11)';
+                        }
+                      }}
+                      onMouseLeave={e => {
+                        if (!isSelected) {
+                          e.currentTarget.style.background = 'rgba(255,255,255,0.025)';
+                          e.currentTarget.style.borderColor = 'rgba(255,255,255,0.07)';
+                        }
+                      }}
+                    >
+                      {isSelected && (
+                        <div
+                          className="absolute top-2 right-2 w-4 h-4 rounded-full flex items-center justify-center"
+                          style={{ background: t.color }}
+                        >
+                          <Check className="w-2.5 h-2.5 text-white" />
+                        </div>
+                      )}
+
+                      {/* Icon chip */}
+                      <div
+                        className="w-8 h-8 rounded-lg flex items-center justify-center"
+                        style={{ background: t.colorBg, border: `1px solid ${t.color}22` }}
+                      >
+                        <Icon className="w-4 h-4" style={{ color: t.color }} />
                       </div>
-                    )}
-                    <span className="text-2xl">{t.emoji}</span>
-                    <div className="text-sm font-semibold"
-                      style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.85)' }}>
-                      {t.name}
-                    </div>
-                    <div className="text-xs leading-relaxed"
-                      style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.38)' }}>
-                      {t.desc}
-                    </div>
-                    {/* Tags */}
-                    <div className="flex flex-wrap gap-1 mt-auto pt-1">
-                      {t.tags.slice(0, 2).map(tag => (
-                        <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded"
-                          style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.3)',
-                            fontFamily: "'Geist', 'DM Sans', sans-serif" }}>
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  </button>
-                ))}
+
+                      <div>
+                        <p className="text-[13px] font-medium leading-tight mb-1"
+                          style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.85)' }}>
+                          {t.name}
+                        </p>
+                        <p className="text-[11px] leading-relaxed"
+                          style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.35)' }}>
+                          {t.desc}
+                        </p>
+                      </div>
+
+                      {/* Tags */}
+                      <div className="flex flex-wrap gap-1 mt-auto">
+                        {t.tags.slice(0, 2).map(tag => (
+                          <span
+                            key={tag}
+                            className="text-[10px] px-1.5 py-0.5 rounded"
+                            style={{
+                              background: 'rgba(255,255,255,0.05)',
+                              color: 'rgba(255,255,255,0.28)',
+                              fontFamily: "'Geist', 'DM Sans', sans-serif",
+                            }}
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    </button>
+                  );
+                })}
               </motion.div>
             )}
 
             {/* ── STEP 1: Details ── */}
             {step === 1 && (
-              <motion.div key="step1" custom={dir} variants={slide}
-                initial="enter" animate="center" exit="exit"
-                transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                className="p-7 flex flex-col gap-6">
-
-                {/* Selected template pill */}
-                {template && (
-                  <div className="flex items-center gap-2 text-sm"
-                    style={{ fontFamily: "'Geist', 'DM Sans', sans-serif" }}>
-                    <span>{template.emoji}</span>
-                    <span style={{ color: 'rgba(255,255,255,0.5)' }}>{template.name}</span>
-                    <button onClick={() => go(0)}
-                      className="text-xs underline underline-offset-2"
-                      style={{ color: 'rgba(160,140,255,0.6)' }}>change</button>
-                  </div>
-                )}
+              <motion.div
+                key="step1"
+                custom={dir}
+                variants={slide}
+                initial="enter"
+                animate="center"
+                exit="exit"
+                transition={{ duration: 0.26, ease: [0.16, 1, 0.3, 1] }}
+                className="p-6 flex flex-col gap-5"
+              >
+                {/* Selected template chip */}
+                {template && (() => {
+                  const Icon = template.icon;
+                  return (
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-6 h-6 rounded-md flex items-center justify-center"
+                        style={{ background: template.colorBg }}
+                      >
+                        <Icon className="w-3.5 h-3.5" style={{ color: template.color }} />
+                      </div>
+                      <span className="text-sm" style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.5)' }}>
+                        {template.name}
+                      </span>
+                      <button
+                        onClick={() => go(0)}
+                        className="text-[11px] underline underline-offset-2"
+                        style={{ color: 'rgba(160,140,255,0.55)' }}
+                      >
+                        change
+                      </button>
+                    </div>
+                  );
+                })()}
 
                 {/* Bot name */}
-                <div className="flex flex-col gap-2">
-                  <label className="text-xs tracking-wide uppercase"
-                    style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.3)' }}>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[11px] tracking-wide uppercase"
+                    style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.28)' }}>
                     Bot name
                   </label>
                   <input
@@ -288,67 +356,68 @@ export default function NewBotGuide({ onClose }: Props) {
                     value={botName}
                     onChange={e => setBotName(e.target.value)}
                     placeholder="e.g. Modbot, MusicBot, ServerHelper"
-                    className="rounded-xl px-4 py-3 text-sm outline-none transition-all"
+                    className="rounded-xl px-4 py-2.5 text-sm outline-none transition-all"
                     style={{
                       background: 'rgba(255,255,255,0.04)',
-                      border: '1px solid rgba(255,255,255,0.09)',
+                      border: '1px solid rgba(255,255,255,0.08)',
                       color: 'rgba(255,255,255,0.85)',
                       fontFamily: "'Geist', 'DM Sans', sans-serif",
                     }}
-                    onFocus={e => (e.target.style.borderColor = 'rgba(160,140,255,0.4)')}
-                    onBlur={e => (e.target.style.borderColor = 'rgba(255,255,255,0.09)')}
+                    onFocus={e => (e.target.style.borderColor = 'rgba(160,140,255,0.35)')}
+                    onBlur={e => (e.target.style.borderColor = 'rgba(255,255,255,0.08)')}
                   />
                 </div>
 
-                {/* Description — always shown for custom, optional for templates */}
-                <div className="flex flex-col gap-2">
-                  <label className="text-xs tracking-wide uppercase"
-                    style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.3)' }}>
-                    {template?.custom ? 'Describe your bot *' : 'Anything specific to add? (optional)'}
+                {/* Description */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[11px] tracking-wide uppercase"
+                    style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.28)' }}>
+                    {template?.custom ? 'Describe your bot' : 'Anything to add? (optional)'}
                   </label>
                   <textarea
                     value={description}
                     onChange={e => setDescription(e.target.value)}
                     placeholder={template?.custom
-                      ? 'Describe exactly what your bot should do, what commands it needs, how it should behave...'
-                      : `Any extra features, specific commands, or custom behaviour for your ${template?.name}...`}
-                    rows={4}
-                    className="rounded-xl px-4 py-3 text-sm outline-none transition-all resize-none"
+                      ? 'Describe what your bot should do, what commands it needs...'
+                      : `Any extra features or specific behaviour for your ${template?.name}...`}
+                    rows={3}
+                    className="rounded-xl px-4 py-2.5 text-sm outline-none transition-all resize-none"
                     style={{
                       background: 'rgba(255,255,255,0.04)',
-                      border: '1px solid rgba(255,255,255,0.09)',
+                      border: '1px solid rgba(255,255,255,0.08)',
                       color: 'rgba(255,255,255,0.85)',
                       fontFamily: "'Geist', 'DM Sans', sans-serif",
                     }}
-                    onFocus={e => (e.target.style.borderColor = 'rgba(160,140,255,0.4)')}
-                    onBlur={e => (e.target.style.borderColor = 'rgba(255,255,255,0.09)')}
+                    onFocus={e => (e.target.style.borderColor = 'rgba(160,140,255,0.35)')}
+                    onBlur={e => (e.target.style.borderColor = 'rgba(255,255,255,0.08)')}
                   />
                 </div>
 
                 {/* Language */}
-                <div className="flex flex-col gap-2">
-                  <label className="text-xs tracking-wide uppercase"
-                    style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.3)' }}>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[11px] tracking-wide uppercase"
+                    style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.28)' }}>
                     Language
                   </label>
                   <div className="grid grid-cols-3 gap-2">
                     {LANGUAGES.map(l => (
-                      <button key={l.id} onClick={() => setLanguage(l.id)}
-                        className="rounded-xl px-4 py-3 text-left transition-all"
+                      <button
+                        key={l.id}
+                        onClick={() => setLanguage(l.id)}
+                        className="rounded-xl px-3 py-2.5 text-left transition-all"
                         style={{
-                          background: language === l.id ? 'rgba(160,140,255,0.1)' : 'rgba(255,255,255,0.03)',
-                          border: `1px solid ${language === l.id ? 'rgba(160,140,255,0.35)' : 'rgba(255,255,255,0.07)'}`,
-                        }}>
-                        <div className="flex items-center gap-2 mb-0.5">
-                          <span className="w-2 h-2 rounded-full flex-shrink-0"
-                            style={{ background: l.badge }} />
-                          <span className="text-sm font-semibold"
-                            style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.85)' }}>
+                          background: language === l.id ? 'rgba(160,140,255,0.08)' : 'rgba(255,255,255,0.025)',
+                          border: `1px solid ${language === l.id ? 'rgba(160,140,255,0.3)' : 'rgba(255,255,255,0.07)'}`,
+                        }}
+                      >
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                          <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: l.badge }} />
+                          <span className="text-[13px] font-medium"
+                            style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.82)' }}>
                             {l.label}
                           </span>
                         </div>
-                        <div className="text-xs pl-4"
-                          style={{ fontFamily: 'monospace', color: 'rgba(255,255,255,0.3)' }}>
+                        <div className="text-[10px] pl-3.5" style={{ fontFamily: 'monospace', color: 'rgba(255,255,255,0.28)' }}>
                           {l.sub}
                         </div>
                       </button>
@@ -357,27 +426,29 @@ export default function NewBotGuide({ onClose }: Props) {
                 </div>
 
                 {/* Command style */}
-                <div className="flex flex-col gap-2">
-                  <label className="text-xs tracking-wide uppercase"
-                    style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.3)' }}>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[11px] tracking-wide uppercase"
+                    style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.28)' }}>
                     Command style
                   </label>
                   <div className="grid grid-cols-3 gap-2">
                     {COMMAND_STYLES.map(c => (
-                      <button key={c.id} onClick={() => setCmdStyle(c.id)}
-                        className="rounded-xl px-4 py-3 text-left transition-all"
+                      <button
+                        key={c.id}
+                        onClick={() => setCmdStyle(c.id)}
+                        className="rounded-xl px-3 py-2.5 text-left transition-all"
                         style={{
-                          background: cmdStyle === c.id ? 'rgba(160,140,255,0.1)' : 'rgba(255,255,255,0.03)',
-                          border: `1px solid ${cmdStyle === c.id ? 'rgba(160,140,255,0.35)' : 'rgba(255,255,255,0.07)'}`,
-                        }}>
-                        <div className="text-sm font-medium mb-0.5"
+                          background: cmdStyle === c.id ? 'rgba(160,140,255,0.08)' : 'rgba(255,255,255,0.025)',
+                          border: `1px solid ${cmdStyle === c.id ? 'rgba(160,140,255,0.3)' : 'rgba(255,255,255,0.07)'}`,
+                        }}
+                      >
+                        <p className="text-[13px] font-medium mb-0.5"
                           style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.82)' }}>
                           {c.label}
-                        </div>
-                        <div className="text-[11px]"
-                          style={{ fontFamily: 'monospace', color: 'rgba(255,255,255,0.28)' }}>
+                        </p>
+                        <p className="text-[10px]" style={{ fontFamily: 'monospace', color: 'rgba(255,255,255,0.26)' }}>
                           {c.example}
-                        </div>
+                        </p>
                       </button>
                     ))}
                   </div>
@@ -387,36 +458,43 @@ export default function NewBotGuide({ onClose }: Props) {
 
             {/* ── STEP 2: Review ── */}
             {step === 2 && (
-              <motion.div key="step2" custom={dir} variants={slide}
-                initial="enter" animate="center" exit="exit"
-                transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                className="p-7 flex flex-col gap-5">
-
-                <p className="text-sm" style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.45)' }}>
+              <motion.div
+                key="step2"
+                custom={dir}
+                variants={slide}
+                initial="enter"
+                animate="center"
+                exit="exit"
+                transition={{ duration: 0.26, ease: [0.16, 1, 0.3, 1] }}
+                className="p-6 flex flex-col gap-5"
+              >
+                <p className="text-sm" style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.38)' }}>
                   Buildable AI will generate your bot based on the spec below. You can refine anything afterwards in the workspace.
                 </p>
 
                 {/* Summary card */}
-                <div className="rounded-xl overflow-hidden"
-                  style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
+                <div className="rounded-xl overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.07)' }}>
                   {[
-                    { label: 'Bot name',       value: botName },
-                    { label: 'Template',       value: `${template?.emoji} ${template?.name}` },
-                    { label: 'Language',       value: LANGUAGES.find(l => l.id === language)?.label + ' (' + LANGUAGES.find(l => l.id === language)?.sub + ')' },
-                    { label: 'Commands',       value: COMMAND_STYLES.find(c => c.id === cmdStyle)?.label },
+                    { label: 'Bot name', value: botName },
+                    { label: 'Template', value: template?.name ?? '' },
+                    { label: 'Language', value: `${LANGUAGES.find(l => l.id === language)?.label} (${LANGUAGES.find(l => l.id === language)?.sub})` },
+                    { label: 'Commands', value: COMMAND_STYLES.find(c => c.id === cmdStyle)?.label ?? '' },
                     ...(description ? [{ label: 'Extra requirements', value: description }] : []),
                   ].map((row, i, arr) => (
-                    <div key={row.label} className="flex gap-4 px-5 py-3.5"
+                    <div
+                      key={row.label}
+                      className="flex gap-4 px-4 py-3"
                       style={{
-                        background: i % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent',
+                        background: i % 2 === 0 ? 'rgba(255,255,255,0.015)' : 'transparent',
                         borderBottom: i < arr.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none',
-                      }}>
-                      <span className="text-xs w-36 flex-shrink-0 pt-0.5"
-                        style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.28)' }}>
+                      }}
+                    >
+                      <span className="text-[11px] w-32 flex-shrink-0 pt-0.5"
+                        style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.26)' }}>
                         {row.label}
                       </span>
                       <span className="text-sm"
-                        style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.75)' }}>
+                        style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.72)' }}>
                         {row.value}
                       </span>
                     </div>
@@ -424,24 +502,32 @@ export default function NewBotGuide({ onClose }: Props) {
                 </div>
 
                 {/* What happens next */}
-                <div className="rounded-xl px-5 py-4"
-                  style={{ background: 'rgba(160,140,255,0.06)', border: '1px solid rgba(160,140,255,0.12)' }}>
-                  <p className="text-xs mb-2" style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(160,140,255,0.7)' }}>
+                <div
+                  className="rounded-xl px-4 py-4"
+                  style={{ background: 'rgba(160,140,255,0.05)', border: '1px solid rgba(160,140,255,0.1)' }}
+                >
+                  <p className="text-[11px] mb-2.5 font-medium"
+                    style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(160,140,255,0.65)' }}>
                     What happens next
                   </p>
                   {[
                     'Buildable AI plans your bot architecture',
                     `Generates production-ready ${LANGUAGES.find(l => l.id === language)?.label} code`,
-                    'Opens your workspace — you can chat with AI to refine it',
+                    'Opens your workspace — chat with AI to refine it',
                     'Connect your Bot Token when ready to go live',
                   ].map((item, i) => (
-                    <div key={i} className="flex items-start gap-2.5 text-xs mb-1.5"
-                      style={{ fontFamily: "'Geist', 'DM Sans', sans-serif", color: 'rgba(255,255,255,0.45)' }}>
-                      <span className="mt-px w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 text-[10px] font-bold"
-                        style={{ background: 'rgba(160,140,255,0.2)', color: 'rgba(160,140,255,0.8)' }}>
+                    <div
+                      key={i}
+                      className="flex items-center gap-2.5 mb-1.5"
+                      style={{ fontFamily: "'Geist', 'DM Sans', sans-serif" }}
+                    >
+                      <span
+                        className="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 text-[10px] font-semibold"
+                        style={{ background: 'rgba(160,140,255,0.18)', color: 'rgba(160,140,255,0.8)' }}
+                      >
                         {i + 1}
                       </span>
-                      {item}
+                      <span className="text-[12px]" style={{ color: 'rgba(255,255,255,0.42)' }}>{item}</span>
                     </div>
                   ))}
                 </div>
@@ -452,54 +538,67 @@ export default function NewBotGuide({ onClose }: Props) {
         </div>
 
         {/* ── Footer nav ── */}
-        <div className="flex items-center justify-between px-7 py-5"
-          style={{ borderTop: '1px solid rgba(255,255,255,0.06)', background: '#0e0e13' }}>
+        <div
+          className="flex items-center justify-between px-6 py-4"
+          style={{ borderTop: '1px solid rgba(255,255,255,0.06)', background: '#0c0c10' }}
+        >
           <button
             onClick={() => go(step - 1)}
-            className="flex items-center gap-2 text-sm transition-opacity"
+            className="flex items-center gap-1.5 text-[13px] transition-opacity"
             style={{
               fontFamily: "'Geist', 'DM Sans', sans-serif",
-              color: 'rgba(255,255,255,0.35)',
+              color: 'rgba(255,255,255,0.3)',
               opacity: step === 0 ? 0 : 1,
               pointerEvents: step === 0 ? 'none' : 'auto',
-            }}>
-            <ArrowLeft className="w-4 h-4" /> Back
+            }}
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            Back
           </button>
 
           {step < 2 ? (
             <button
               onClick={() => go(step + 1)}
               disabled={step === 0 ? !canProceedStep1 : !canProceedStep2}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-all"
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-[13px] font-medium transition-all"
               style={{
                 fontFamily: "'Geist', 'DM Sans', sans-serif",
                 background: (step === 0 ? canProceedStep1 : canProceedStep2)
-                  ? 'rgba(160,140,255,0.85)' : 'rgba(255,255,255,0.07)',
+                  ? 'rgba(160,140,255,0.82)' : 'rgba(255,255,255,0.06)',
                 color: (step === 0 ? canProceedStep1 : canProceedStep2)
-                  ? '#fff' : 'rgba(255,255,255,0.25)',
+                  ? '#fff' : 'rgba(255,255,255,0.22)',
                 cursor: (step === 0 ? canProceedStep1 : canProceedStep2) ? 'pointer' : 'not-allowed',
-              }}>
-              Continue <ArrowRight className="w-4 h-4" />
+              }}
+            >
+              Continue
+              <ArrowRight className="w-3.5 h-3.5" />
             </button>
           ) : (
             <button
               onClick={handleBuild}
               disabled={creating}
-              className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold transition-all"
+              className="flex items-center gap-1.5 px-5 py-2 rounded-xl text-[13px] font-semibold transition-all"
               style={{
                 fontFamily: "'Geist', 'DM Sans', sans-serif",
-                background: creating ? 'rgba(160,140,255,0.4)' : 'rgba(160,140,255,0.85)',
+                background: creating ? 'rgba(160,140,255,0.4)' : 'rgba(160,140,255,0.82)',
                 color: '#fff',
                 cursor: creating ? 'wait' : 'pointer',
-              }}>
+              }}
+            >
               {creating ? (
                 <>
-                  <motion.div className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white"
-                    animate={{ rotate: 360 }} transition={{ duration: 0.8, repeat: Infinity, ease: 'linear' }} />
+                  <motion.div
+                    className="w-3.5 h-3.5 rounded-full border-2 border-white/30 border-t-white"
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 0.75, repeat: Infinity, ease: 'linear' }}
+                  />
                   Starting build...
                 </>
               ) : (
-                <><Sparkles className="w-4 h-4" /> Start Building</>
+                <>
+                  <Sparkles className="w-3.5 h-3.5" />
+                  Start Building
+                </>
               )}
             </button>
           )}

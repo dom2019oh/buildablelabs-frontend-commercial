@@ -48,6 +48,7 @@ export function useProjectMessages(projectId: string | undefined) {
       const q = query(
         collection(db, 'projectMessages'),
         where('project_id', '==', projectId),
+        where('user_id', '==', user.uid),
         orderBy('created_at', 'asc')
       );
       const snap = await getDocs(q);
@@ -67,6 +68,7 @@ export function useProjectMessages(projectId: string | undefined) {
     const q = query(
       collection(db, 'projectMessages'),
       where('project_id', '==', projectId),
+      where('user_id', '==', user.uid),
       orderBy('created_at', 'asc')
     );
 

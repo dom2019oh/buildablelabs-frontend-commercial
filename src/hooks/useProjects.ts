@@ -14,6 +14,7 @@ export interface Project {
   template?: string;
   language?: string;
   initialPrompt?: string;
+  initialMode?: 'plan' | 'architect' | 'build';
   deployed_url?: string;
   preview_html?: string;
 }
@@ -23,6 +24,7 @@ export interface CreateProjectOptions {
   language?: string;
   commandStyle?: string;
   prompt?: string;
+  mode?: 'plan' | 'architect' | 'build';
 }
 
 export function useProjects() {
@@ -74,6 +76,7 @@ export function useProjects() {
         language:      options.language ?? 'python',
         commandStyle:  options.commandStyle ?? 'prefix',
         initialPrompt: options.prompt ?? '',
+        initialMode:   options.mode ?? 'build',
         createdAt:     serverTimestamp(),
         updatedAt:     serverTimestamp(),
       });
@@ -126,6 +129,7 @@ export function useProject(projectId: string | undefined) {
           template:      d.template,
           language:      d.language,
           initialPrompt: d.initialPrompt ?? undefined,
+          initialMode:   d.initialMode ?? 'build',
           deployed_url:  d.deployedUrl ?? d.deployed_url ?? undefined,
           preview_html:  d.previewHtml ?? d.preview_html ?? undefined,
         });

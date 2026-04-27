@@ -5,11 +5,12 @@ import {
   ChevronDown,
   Bot, LayoutGrid, Cloud, Layers, BarChart2,
   BookOpen, GraduationCap, Users, History,
-  Heart, FileText, Briefcase, Mail,
+  Heart, FileText, Briefcase, Mail, Gift,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import wordmarkSvg from "@/assets/buildable-wordmark.svg";
 import { getLoginUrl, getDashboardUrl } from "@/lib/urls";
+import { G, onGE, onGL, BH, BT, BTR, GNav } from "@/lib/glass";
 
 // ─── Nav data (used by footer in Index.tsx) ───────────────────────────────────
 
@@ -22,7 +23,7 @@ export const NAV_ENTRIES: NavEntry[] = [
     items: [
       { label: "Bot Builder",  href: "/bot-builder", icon: Bot },
       { label: "Templates",    href: "/explore",     icon: LayoutGrid },
-      { label: "Pro Hosting",  href: "/pricing",     icon: Cloud },
+      { label: "Pro Hosting",  href: "/pro-hosting",  icon: Cloud },
       { label: "Multi-Bot",    href: "/pricing",     icon: Layers },
       { label: "Analytics",    href: "/dashboard",   icon: BarChart2 },
     ],
@@ -43,6 +44,7 @@ export const NAV_ENTRIES: NavEntry[] = [
       { label: "Blog",      href: "/blog",     icon: FileText },
       { label: "Careers",   href: "/careers",  icon: Briefcase },
       { label: "Contact",   href: "/contact",  icon: Mail },
+      { label: "Donate",    href: "/donate",   icon: Gift },
     ],
   },
 ];
@@ -211,11 +213,15 @@ export default function FloatingNav({ hidePricing }: FloatingNavProps) {
       transition={{ duration: 0.6, ease: "easeOut" }}
       className="fixed top-0 left-0 right-0 z-50 h-[58px] flex items-center px-6 md:px-10"
       style={{
-        background: scrolled ? "rgba(12, 6, 28, 0.65)" : "transparent",
-        backdropFilter: scrolled ? "blur(18px) saturate(140%)" : "none",
-        WebkitBackdropFilter: scrolled ? "blur(18px) saturate(140%)" : "none",
-        borderBottom: scrolled ? "1px solid rgba(255,255,255,0.06)" : "1px solid transparent",
-        transition: "background 0.35s ease, backdrop-filter 0.35s ease, border-color 0.35s ease",
+        ...(scrolled ? GNav : {}),
+        background: scrolled
+          ? GNav.background as string
+          : "transparent",
+        backdropFilter: scrolled ? GNav.backdropFilter as string : "none",
+        WebkitBackdropFilter: scrolled ? GNav.WebkitBackdropFilter as string : "none",
+        borderBottom: scrolled ? GNav.borderBottom as string : "1px solid transparent",
+        boxShadow: scrolled ? GNav.boxShadow as string : "none",
+        transition: "background 0.35s ease, backdrop-filter 0.35s ease, border-color 0.35s ease, box-shadow 0.35s ease",
       }}
     >
       {/* LEFT: Logo + wordmark */}
@@ -263,23 +269,17 @@ export default function FloatingNav({ hidePricing }: FloatingNavProps) {
             >
               Log in
             </a>
-            <motion.span whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
-              <a
-                href={getDashboardUrl()}
-                className="inline-flex items-center text-[13px] font-semibold px-4 py-[7px] rounded-full transition-all duration-200"
-                style={{
-                  fontFamily: "'Geist', 'DM Sans', sans-serif",
-                  background: "rgba(255,255,255,0.08)",
-                  border: "1px solid rgba(255,255,255,0.14)",
-                  color: "rgba(255,255,255,0.85)",
-                  letterSpacing: "-0.01em",
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.14)"; e.currentTarget.style.color = "#fff"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.08)"; e.currentTarget.style.color = "rgba(255,255,255,0.85)"; }}
-              >
-                Open Dashboard
-              </a>
-            </motion.span>
+            <motion.a
+              href={getDashboardUrl()}
+              style={{ ...G, borderRadius: '999px', padding: '7px 16px', fontSize: '13px', fontWeight: 600, textDecoration: 'none' }}
+              whileHover={BH}
+              whileTap={BT}
+              transition={BTR}
+              onMouseEnter={onGE}
+              onMouseLeave={onGL}
+            >
+              Open Dashboard
+            </motion.a>
           </>
         )}
       </div>

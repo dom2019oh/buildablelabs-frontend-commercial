@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { Search, Heart, Eye } from "lucide-react";
 import FloatingNav from "@/components/FloatingNav";
+import { AmbientBg } from "@/lib/glass";
 
 const showcaseProjects = [
   {
@@ -89,25 +90,12 @@ export default function Explore() {
     <div
       style={{
         minHeight: "100vh",
-        background: "#080a0c",
+        background: "#06060b",
         fontFamily: "'Geist', sans-serif",
         position: "relative",
       }}
     >
-      {/* Top purple bloom */}
-      <div
-        style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          right: 0,
-          height: "50vh",
-          background:
-            "radial-gradient(ellipse 80% 40% at 50% 0%, rgba(90,30,200,0.10) 0%, transparent 70%)",
-          pointerEvents: "none",
-          zIndex: 0,
-        }}
-      />
+      <AmbientBg />
 
       <FloatingNav />
 

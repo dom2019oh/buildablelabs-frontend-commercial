@@ -1,4 +1,4 @@
-import { Coins, Gift, AlertTriangle, Loader2 } from "lucide-react";
+import { Coins, AlertTriangle, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,10 +19,8 @@ export function UserCredits() {
   const {
     credits,
     totalCredits,
+    currentPlanType,
     isLoading,
-    canClaimDailyBonus,
-    claimDailyBonus,
-    isClaimingBonus,
   } = useCredits();
 
   if (isLoading) {
@@ -36,10 +34,14 @@ export function UserCredits() {
 
   if (!credits) return null;
 
-  const isLowBalance    = totalCredits < 10;
-  const maxCredits      = 500;
-  const progressPercent = Math.min((totalCredits / maxCredits) * 100, 100);
-  const canClaim        = canClaimDailyBonus();
+  const isFree         = currentPlanType === 'free';
+  const lifetimeLimit  = credits.free_lifetime_limit ?? 10;
+  const lifetimeUsed   = credits.lifetime_builds_used ?? 0;
+  const lifetimeLeft   = Math.max(0, lifetimeLimit - lifetimeUsed);
+  const isLowBalance   = isFree ? lifetimeLeft < 3 : totalCredits < 10;
+  const maxCredits     = isFree ? lifetimeLimit : 500;
+  const displayCount   = isFree ? lifetimeLeft : totalCredits;
+  const progressPercent = Math.min((displayCount / maxCredits) * 100, 100);
 
   return (
     <Popover>
@@ -54,7 +56,9 @@ export function UserCredits() {
           }`}
         >
           <Coins className="h-4 w-4" />
-          <span className="font-medium">{totalCredits.toFixed(0)}</span>
+          <span className="font-medium">
+            {isFree ? `${lifetimeLeft}/${lifetimeLimit}` : totalCredits.toFixed(0)}
+          </span>
           {isLowBalance && (
             <TooltipProvider>
               <Tooltip>
@@ -62,18 +66,10 @@ export function UserCredits() {
                   <AlertTriangle className="h-3 w-3" />
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p>Low credit balance</p>
+                  <p>{isFree ? 'Running low on lifetime builds' : 'Low credit balance'}</p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
-          )}
-          {canClaim && (
-            <Badge
-              variant="secondary"
-              className="h-4 px-1 text-[10px] bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
-            >
-              FREE
-            </Badge>
           )}
         </Button>
       </PopoverTrigger>
@@ -89,44 +85,51 @@ export function UserCredits() {
           <div className="space-y-2">
             <Progress value={progressPercent} className="h-2" />
             <p className="text-xs text-muted-foreground">
-              {totalCredits.toFixed(0)} credits remaining
+              {isFree
+                ? `${lifetimeLeft} of ${lifetimeLimit} lifetime builds remaining`
+                : `${totalCredits.toFixed(0)} credits remaining · resets monthly`}
             </p>
           </div>
 
           <div className="space-y-2 text-xs">
-            <div className="flex justify-between text-muted-foreground">
-              <span>Monthly</span>
-              <span className="font-mono">{Number(credits.monthly_credits).toFixed(1)}</span>
-            </div>
-            <div className="flex justify-between text-muted-foreground">
-              <span>Bonus</span>
-              <span className="font-mono">{Number(credits.bonus_credits).toFixed(1)}</span>
-            </div>
-            <div className="flex justify-between text-muted-foreground">
-              <span>Rollover</span>
-              <span className="font-mono">{Number(credits.rollover_credits).toFixed(1)}</span>
-            </div>
-            <div className="flex justify-between text-muted-foreground">
-              <span>Top-up</span>
-              <span className="font-mono">{Number(credits.topup_credits).toFixed(1)}</span>
-            </div>
+            {isFree ? (
+              <>
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Builds used</span>
+                  <span className="font-mono">{lifetimeUsed}</span>
+                </div>
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Lifetime limit</span>
+                  <span className="font-mono">{lifetimeLimit}</span>
+                </div>
+                {Number(credits.topup_credits) > 0 && (
+                  <div className="flex justify-between text-muted-foreground">
+                    <span>Top-up</span>
+                    <span className="font-mono">{Number(credits.topup_credits).toFixed(1)}</span>
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Monthly</span>
+                  <span className="font-mono">{Number(credits.monthly_credits).toFixed(1)}</span>
+                </div>
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Bonus</span>
+                  <span className="font-mono">{Number(credits.bonus_credits).toFixed(1)}</span>
+                </div>
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Rollover</span>
+                  <span className="font-mono">{Number(credits.rollover_credits).toFixed(1)}</span>
+                </div>
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Top-up</span>
+                  <span className="font-mono">{Number(credits.topup_credits).toFixed(1)}</span>
+                </div>
+              </>
+            )}
           </div>
-
-          {canClaim && (
-            <Button
-              onClick={() => claimDailyBonus()}
-              disabled={isClaimingBonus}
-              className="w-full gap-2 bg-emerald-600 hover:bg-emerald-700"
-              size="sm"
-            >
-              {isClaimingBonus ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Gift className="h-4 w-4" />
-              )}
-              Claim Daily Bonus
-            </Button>
-          )}
 
           {isLowBalance && (
             <div className="flex items-start gap-2 p-2 rounded-md bg-amber-500/10 border border-amber-500/20">

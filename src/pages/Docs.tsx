@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { Book, Code, Zap, Layers, Palette, Server, ChevronRight } from "lucide-react";
 import FloatingNav from "@/components/FloatingNav";
+import { AmbientBg } from "@/lib/glass";
 
 const docSections = [
   {
@@ -51,56 +52,22 @@ export default function Docs() {
     <div
       style={{
         minHeight: "100vh",
-        background: "#080a0c",
+        background: "#06060b",
         fontFamily: "'Geist', sans-serif",
         position: "relative",
       }}
-    >
-      {/* Top purple bloom */}
-      <div
-        style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          right: 0,
-          height: "50vh",
-          background:
-            "radial-gradient(ellipse 80% 40% at 50% 0%, rgba(90,30,200,0.10) 0%, transparent 70%)",
-          pointerEvents: "none",
-          zIndex: 0,
-        }}
-      />
+    >      <AmbientBg />
 
       <FloatingNav />
 
-      <div style={{ paddingTop: "112px", paddingBottom: "64px", paddingLeft: "24px", paddingRight: "24px", position: "relative", zIndex: 1 }}>
-        <div style={{ maxWidth: "800px", margin: "0 auto" }}>
-
-          {/* Header */}
+      <div style={{ position: "relative", zIndex: 1, paddingTop: "96px", paddingBottom: "96px" }}>
+        <div className="max-w-5xl mx-auto px-6 md:px-10">
           <motion.div
-            initial={{ opacity: 0, y: 16 }}
+            initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
             style={{ textAlign: "center", marginBottom: "64px" }}
           >
-            <div
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "8px",
-                background: "rgba(255,255,255,0.04)",
-                border: "1px solid rgba(255,255,255,0.08)",
-                borderRadius: "999px",
-                padding: "6px 14px",
-                marginBottom: "24px",
-              }}
-            >
-              <Book style={{ width: "14px", height: "14px", color: "rgba(140,100,255,0.8)" }} />
-              <span style={{ fontSize: "12px", color: "rgba(255,255,255,0.5)", fontFamily: "'Geist', sans-serif" }}>
-                Documentation
-              </span>
-            </div>
-
             <h1
               style={{
                 fontSize: "clamp(36px, 6vw, 52px)",

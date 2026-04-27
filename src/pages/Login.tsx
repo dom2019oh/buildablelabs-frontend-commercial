@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Loader2, Eye, EyeOff } from 'lucide-react';
-import Grainient from '@/components/Grainient';
+import { Loader2, Eye, EyeOff, Lock } from 'lucide-react';
+import { AmbientBg, G, onGE, onGL, GCard, BH, BT, BTR } from '@/lib/glass';
 import wordmarkSvg from '@/assets/buildable-wordmark.svg';
 import {
   signInWithEmailAndPassword,
@@ -13,8 +13,33 @@ import {
   browserSessionPersistence,
 } from 'firebase/auth';
 
-const REMEMBER_KEY = 'buildable_remember_expires';
-const THIRTY_DAYS  = 30 * 24 * 60 * 60 * 1000;
+const REMEMBER_KEY   = 'buildable_remember_expires';
+const THIRTY_DAYS    = 30 * 24 * 60 * 60 * 1000;
+const BF_ATTEMPTS_KEY = 'buildable_login_attempts';
+const BF_LOCKOUT_KEY  = 'buildable_login_lockout';
+const MAX_ATTEMPTS    = 5;
+const LOCKOUT_MS      = 15 * 60 * 1000; // 15 minutes
+
+function getBfState(): { attempts: number; lockedUntil: number } {
+  try {
+    return {
+      attempts:    parseInt(localStorage.getItem(BF_ATTEMPTS_KEY) ?? '0', 10),
+      lockedUntil: parseInt(localStorage.getItem(BF_LOCKOUT_KEY)  ?? '0', 10),
+    };
+  } catch { return { attempts: 0, lockedUntil: 0 }; }
+}
+function recordFailure() {
+  const { attempts } = getBfState();
+  const next = attempts + 1;
+  localStorage.setItem(BF_ATTEMPTS_KEY, String(next));
+  if (next >= MAX_ATTEMPTS) {
+    localStorage.setItem(BF_LOCKOUT_KEY, String(Date.now() + LOCKOUT_MS));
+  }
+}
+function clearBfState() {
+  localStorage.removeItem(BF_ATTEMPTS_KEY);
+  localStorage.removeItem(BF_LOCKOUT_KEY);
+}
 import { auth } from '@/lib/firebase';
 import { toast } from 'sonner';
 import { redirectToDashboard } from '@/lib/urls';
@@ -26,8 +51,23 @@ export default function Login() {
   const [rememberMe, setRememberMe]   = useState(false);
   const [loading, setLoading]         = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [lockoutSecondsLeft, setLockoutSecondsLeft] = useState(0);
   const navigate  = useNavigate();
   const location  = useLocation();
+
+  // Tick the lockout countdown
+  useEffect(() => {
+    const tick = () => {
+      const { lockedUntil } = getBfState();
+      const remaining = Math.max(0, Math.ceil((lockedUntil - Date.now()) / 1000));
+      setLockoutSecondsLeft(remaining);
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const isLockedOut = lockoutSecondsLeft > 0;
 
   const stateFrom   = (location.state as { from?: { pathname: string } })?.from?.pathname;
   const storedReturn = sessionStorage.getItem('buildable_return_to');
@@ -42,16 +82,29 @@ export default function Login() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) { toast.error('Please fill in all fields'); return; }
+    if (isLockedOut) {
+      const mins = Math.ceil(lockoutSecondsLeft / 60);
+      toast.error(`Too many failed attempts. Try again in ${mins} minute${mins !== 1 ? 's' : ''}.`);
+      return;
+    }
     setLoading(true);
     try {
       await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
       await signInWithEmailAndPassword(auth, email, password);
+      clearBfState();
       if (rememberMe) localStorage.setItem(REMEMBER_KEY, String(Date.now() + THIRTY_DAYS));
       else localStorage.removeItem(REMEMBER_KEY);
       toast.success('Welcome back!');
       afterLogin();
     } catch (err: any) {
-      toast.error(err.message ?? 'Failed to sign in');
+      recordFailure();
+      const { attempts } = getBfState();
+      const remaining = MAX_ATTEMPTS - attempts;
+      if (remaining > 0) {
+        toast.error(`Incorrect credentials. ${remaining} attempt${remaining !== 1 ? 's' : ''} remaining.`);
+      } else {
+        toast.error('Account locked for 15 minutes due to too many failed attempts.');
+      }
     } finally {
       setLoading(false);
     }
@@ -76,25 +129,15 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex overflow-hidden relative">
+    <div className="min-h-screen flex overflow-hidden relative" style={{ background: '#06060b' }}>
 
       {/* Background */}
-      <div className="fixed inset-0 pointer-events-none" style={{ zIndex: 0 }}>
-        <Grainient
-          color1="#3a3c42" color2="#141518" color3="#252729"
-          timeSpeed={0.35} colorBalance={0} warpStrength={1}
-          warpFrequency={5} warpSpeed={2} warpAmplitude={50}
-          blendAngle={0} blendSoftness={0.05} rotationAmount={500}
-          noiseScale={2} grainAmount={0.1} grainScale={2}
-          grainAnimated={false} contrast={1.5} gamma={1} saturation={1}
-          centerX={0} centerY={0} zoom={0.9}
-        />
-      </div>
+      <AmbientBg />
 
       {/* Left panel */}
       <div
         className="relative z-10 w-full md:w-[460px] lg:w-[500px] flex-shrink-0 flex flex-col min-h-screen"
-        style={{ background: 'rgba(4, 2, 12, 0.80)', backdropFilter: 'blur(48px)', WebkitBackdropFilter: 'blur(48px)', borderRight: '1px solid rgba(255,255,255,0.06)' }}
+        style={{ background: 'rgba(4, 2, 16, 0.85)', backdropFilter: 'blur(48px) saturate(180%)', WebkitBackdropFilter: 'blur(48px) saturate(180%)', borderRight: '1px solid rgba(255,255,255,0.08)', boxShadow: '1px 0 0 rgba(255,255,255,0.04)' }}
       >
         {/* Top bar */}
         <div className="flex items-center justify-between px-10 h-16 flex-shrink-0" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
@@ -206,12 +249,26 @@ export default function Login() {
               </div>
 
               <div className="pt-2 space-y-3">
-                <motion.button type="submit" disabled={loading}
-                  whileHover={{ opacity: 0.9 }} whileTap={{ scale: 0.99 }}
-                  className="w-full flex items-center justify-center gap-2 py-3.5 disabled:opacity-40 transition-opacity"
-                  style={{ background: 'rgba(255,255,255,0.96)', color: '#0a0612', borderRadius: '3px', fontFamily: "'Geist', 'DM Sans', sans-serif", fontSize: '12px', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase' }}
+                {isLockedOut && (
+                  <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 10, padding: '10px 14px', textAlign: 'center' }}>
+                    <p style={{ fontSize: 12, color: '#f87171', fontFamily: "'Geist','DM Sans',sans-serif", margin: 0 }}>
+                      Too many failed attempts. Try again in{' '}
+                      <strong>{Math.floor(lockoutSecondsLeft / 60)}:{String(lockoutSecondsLeft % 60).padStart(2, '0')}</strong>.
+                    </p>
+                  </div>
+                )}
+                <motion.button
+                  type="submit"
+                  disabled={loading || isLockedOut}
+                  whileHover={isLockedOut ? undefined : BH}
+                  whileTap={isLockedOut ? undefined : BT}
+                  transition={BTR}
+                  className="w-full flex items-center justify-center gap-2 py-3.5 disabled:opacity-40"
+                  style={{ ...G, borderRadius: '10px', width: '100%', fontSize: '12px', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', padding: '14px', cursor: isLockedOut ? 'not-allowed' : 'pointer' }}
+                  onMouseEnter={isLockedOut ? undefined : onGE}
+                  onMouseLeave={isLockedOut ? undefined : onGL}
                 >
-                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Continue'}
+                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : isLockedOut ? 'Account Locked' : 'Continue'}
                 </motion.button>
 
                 <div className="flex items-center gap-4 py-1">
@@ -220,10 +277,17 @@ export default function Login() {
                   <div className="flex-1" style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }} />
                 </div>
 
-                <motion.button type="button" onClick={handleGoogleSignIn} disabled={googleLoading}
-                  whileHover={{ background: 'rgba(255,255,255,0.07)' }} whileTap={{ scale: 0.99 }}
-                  className="w-full flex items-center justify-center gap-3 py-3.5 transition-colors disabled:opacity-40"
-                  style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '3px', fontFamily: "'Geist', 'DM Sans', sans-serif", fontSize: '12px', fontWeight: 500, letterSpacing: '0.06em', color: 'rgba(255,255,255,0.65)' }}
+                <motion.button
+                  type="button"
+                  onClick={handleGoogleSignIn}
+                  disabled={googleLoading}
+                  whileHover={BH}
+                  whileTap={BT}
+                  transition={BTR}
+                  className="w-full flex items-center justify-center gap-3 disabled:opacity-40"
+                  style={{ ...G, borderRadius: '10px', width: '100%', fontSize: '12px', fontWeight: 500, letterSpacing: '0.04em', padding: '14px', color: 'rgba(255,255,255,0.75)' }}
+                  onMouseEnter={onGE}
+                  onMouseLeave={onGL}
                 >
                   {googleLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : (
                     <>
@@ -273,6 +337,7 @@ export default function Login() {
           </p>
         </motion.div>
       </div>
+
 
     </div>
   );

@@ -1,6 +1,6 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { useState } from 'react';
-import { Home, Search, Compass, Settings, Share2, Zap, Inbox, Coins } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Home, Search, Compass, Settings, Share2, Zap, Inbox, Coins, BarChart2, PanelLeft } from 'lucide-react';
 import SearchModal from './SearchModal';
 import { useAuth } from '@/hooks/useAuth';
 import { useProjects } from '@/hooks/useProjects';
@@ -15,7 +15,7 @@ const C_DIM     = 'rgb(155, 152, 147)';
 const BG_ACTIVE = 'rgba(197,193,186,0.10)';
 const BORDER    = '1px solid rgb(39, 39, 37)';
 
-export default function DashboardSidebar() {
+export default function DashboardSidebar({ onToggle }: { onToggle?: () => void }) {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, profile, signOut } = useAuth();
@@ -29,8 +29,11 @@ export default function DashboardSidebar() {
 
   const hasNewMessages = false; // TODO: wire to Firestore notifications collection
 
-  const { totalCredits, currentPlanType, canClaimDailyBonus } = useCredits();
-  const claimReady = currentPlanType === 'free' && canClaimDailyBonus();
+  const { credits, totalCredits, currentPlanType } = useCredits();
+  const isFree = currentPlanType === 'free';
+  const lifetimeLimit = credits?.free_lifetime_limit ?? 10;
+  const lifetimeUsed  = credits?.lifetime_builds_used ?? 0;
+  const lifetimeLeft  = Math.max(0, lifetimeLimit - lifetimeUsed);
 
   const isActive = (href: string) =>
     href === '/dashboard'
@@ -40,36 +43,47 @@ export default function DashboardSidebar() {
   const handleSignOut = async () => { await signOut(); navigate('/'); };
 
   // Global ⌘K / Ctrl+K shortcut
-  useState(() => {
+  useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); setSearchOpen(true); }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  });
+  }, []);
 
   return (
     <aside
       className="fixed left-0 top-0 h-full flex flex-col z-50"
-      style={{ width: '240px', background: '#0c0c0c', borderRight: BORDER }}
+      style={{ width: '280px', background: '#0c0c0c' }}
     >
       {/* ── Logo ──────────────────────────────────────────────────── */}
-      <div className="px-4 pt-4 pb-3 flex-shrink-0" style={{ borderBottom: BORDER }}>
+      <div className="px-4 pt-4 pb-3 flex-shrink-0 flex items-center justify-between">
         <img src={logoStack} alt="Buildable" className="h-6 w-auto object-contain" />
+        <button
+          onClick={onToggle}
+          title="Collapse sidebar"
+          style={{ color: C_DIM, background: 'transparent', border: 'none', cursor: 'pointer', padding: 4, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'color 0.15s, background 0.15s' }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(197,193,186,0.08)'; e.currentTarget.style.color = C_MUTED; }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = C_DIM; }}
+        >
+          <PanelLeft style={{ width: 16, height: 16 }} />
+        </button>
       </div>
 
       {/* ── Main nav ──────────────────────────────────────────────── */}
       <div className="px-2 pt-3 pb-1">
         <NavItem icon={Home}    label="Home"    href="/"                       active={false} />
         <SearchNavItem onOpen={() => setSearchOpen(true)} active={false} />
-        <NavItem icon={Compass}  label="Explore"  href="/dashboard/explore"         active={isActive('/dashboard/explore')} />
-        <NavItem icon={Settings} label="Settings" href="/dashboard/settings"        active={isActive('/dashboard/settings')} />
+        <NavItem icon={Compass}   label="Explore"  href="/dashboard/explore"         active={isActive('/dashboard/explore')} />
+        <NavItem icon={BarChart2} label="Costs"    href="/dashboard/costs"            active={isActive('/dashboard/costs')} />
+        <NavItem icon={Settings}  label="Settings" href="/dashboard/settings"         active={isActive('/dashboard/settings')} />
       </div>
 
       {/* ── Projects section ──────────────────────────────────────── */}
       <SectionLabel label="Projects" />
       <div className="px-2 pb-1">
         <TextNavItem label="All bots"      href="/dashboard" />
+        <TextNavItem label="Templates"      href="/dashboard/templates" />
         <TextNavItem label="Starred"        href="#" />
         <TextNavItem label="Created by me"  href="#" />
         <TextNavItem label="Shared with me" href="#" />
@@ -107,18 +121,22 @@ export default function DashboardSidebar() {
           onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = C_MUTED; }}
           onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; e.currentTarget.style.color = C_DIM; }}
         >
-          <Coins className="w-3.5 h-3.5 flex-shrink-0" style={{ color: claimReady ? '#4ade80' : '#a78bfa' }} />
-          <span className="flex-1 text-left">{totalCredits} credit{totalCredits !== 1 ? 's' : ''}</span>
-          {claimReady && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(74,222,128,0.15)', color: '#4ade80' }}>
-              Claim
+          <Coins className="w-3.5 h-3.5 flex-shrink-0" style={{ color: isFree && lifetimeLeft <= 2 ? '#f87171' : isFree && lifetimeLeft <= 5 ? '#fbbf24' : '#a78bfa' }} />
+          {isFree ? (
+            <span className="flex-1 text-left">{lifetimeLeft} of {lifetimeLimit} lifetime</span>
+          ) : (
+            <span className="flex-1 text-left">{totalCredits} credit{totalCredits !== 1 ? 's' : ''}</span>
+          )}
+          {isFree && lifetimeLeft === 0 && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(239,68,68,0.15)', color: '#f87171' }}>
+              0 left
             </span>
           )}
         </button>
       </div>
 
       {/* ── Share + Upgrade ───────────────────────────────────────── */}
-      <div className="px-2 pt-2 pb-2" style={{ borderTop: BORDER }}>
+      <div className="px-2 pt-2 pb-2">
         {/* Share */}
         <button
           className="flex items-center gap-2 w-full px-3 py-[7px] rounded-lg text-[12.5px] mb-1 transition-all"
@@ -162,7 +180,7 @@ export default function DashboardSidebar() {
       {/* ── Bottom row: Avatar + Inbox ─────────────────────────────── */}
       <div
         className="flex items-center justify-between px-3 py-2.5 flex-shrink-0"
-        style={{ borderTop: BORDER }}
+        style={{ borderTop: 'none' }}
       >
         {/* Avatar — click opens settings */}
         <button

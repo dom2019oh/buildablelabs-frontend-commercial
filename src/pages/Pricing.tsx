@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { Check, Loader2, ChevronDown } from 'lucide-react';
 import FloatingNav from '@/components/FloatingNav';
+import { AmbientBg, G, GCard, onGE, onGL, tint, onTE, onTL, BH, BT, BTR, spring } from '@/lib/glass';
 import {
   Accordion,
   AccordionContent,
@@ -25,6 +26,7 @@ interface TierDisplay {
   price: number;
   annualPrice: number;
   priceId: string | null;
+  annualPriceId: string | null;
 }
 
 // ─── FAQ data ─────────────────────────────────────────────────────────────────
@@ -43,7 +45,7 @@ const faqs = [
   {
     question: 'What happens when I run out of credits?',
     answer:
-      'Hard stop — no overages, ever. Free users receive 5 new credits the next midnight. Pro and Max users wait for their monthly reset, or upgrade to a higher tier.',
+      'Hard stop — no overages, ever. Free users get 10 lifetime builds total — no daily reset. Pro and Max users wait for their monthly reset, or upgrade to a higher tier.',
   },
   {
     question: 'What is credit rollover?',
@@ -71,6 +73,9 @@ const faqs = [
       'Yes. All generated code is yours. Export it at any time and self-host if you prefer.',
   },
 ];
+
+// ─── Stripe live flag ─────────────────────────────────────────────────────────
+const STRIPE_LIVE = true;
 
 // ─── Stack mark ───────────────────────────────────────────────────────────────
 
@@ -152,9 +157,14 @@ function PlanCard({
     <div
       style={{
         background: highlighted
-          ? 'rgba(109,40,217,0.10)'
-          : 'rgba(255,255,255,0.025)',
-        border: `1px solid ${highlighted ? 'rgba(160,120,255,0.30)' : 'rgba(255,255,255,0.07)'}`,
+          ? 'linear-gradient(170deg, rgba(109,40,217,0.18) 0%, rgba(79,70,229,0.09) 100%)'
+          : 'linear-gradient(170deg, rgba(255,255,255,0.065) 0%, rgba(255,255,255,0.028) 100%)',
+        border: `1px solid ${highlighted ? 'rgba(160,120,255,0.32)' : 'rgba(255,255,255,0.09)'}`,
+        backdropFilter: 'blur(32px) saturate(180%)',
+        WebkitBackdropFilter: 'blur(32px) saturate(180%)',
+        boxShadow: highlighted
+          ? '0 16px 48px rgba(0,0,0,0.55), 0 0 48px rgba(109,40,217,0.22), 0 0 80px rgba(109,40,217,0.08), inset 0 1px 0 rgba(255,255,255,0.14), inset 0 -1px 0 rgba(0,0,0,0.10)'
+          : '0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.09), inset 0 -1px 0 rgba(0,0,0,0.08)',
         borderRadius: '20px',
         padding: '28px',
         display: 'flex',
@@ -343,7 +353,31 @@ function PlanCard({
       )}
 
       {/* CTA */}
-      {isFree ? (
+      {!STRIPE_LIVE && !isFree ? (
+        <div style={{ marginBottom: '22px' }}>
+          <div style={{
+            width: '100%', padding: '11px 0', borderRadius: '12px', textAlign: 'center',
+            background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)',
+            fontFamily: "'Geist', 'DM Sans', sans-serif", fontSize: '0.88rem', fontWeight: 600,
+            color: 'rgba(255,255,255,0.2)', cursor: 'not-allowed', userSelect: 'none',
+          }}>
+            Payments coming soon
+          </div>
+          <p style={{
+            textAlign: 'center', marginTop: '8px',
+            fontFamily: "'Geist', 'DM Sans', sans-serif",
+            fontSize: '0.72rem', color: 'rgba(255,255,255,0.2)',
+          }}>
+            We'll announce on our{' '}
+            <a href="/blog" style={{ color: 'rgba(255,255,255,0.38)', textDecoration: 'none' }}
+              onMouseEnter={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.65)')}
+              onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.38)')}
+            >
+              Blog
+            </a>
+          </p>
+        </div>
+      ) : isFree ? (
         <Link
           to={isAuthenticated ? '/dashboard' : '/sign-up'}
           style={{
@@ -354,20 +388,26 @@ function PlanCard({
             fontFamily: "'Geist', 'DM Sans', sans-serif",
             fontWeight: 600,
             fontSize: '0.88rem',
-            color: isCurrentPlan ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.75)',
-            background: isCurrentPlan ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.07)',
-            border: '1px solid rgba(255,255,255,0.10)',
+            color: isCurrentPlan ? 'rgba(255,255,255,0.28)' : 'rgba(255,255,255,0.88)',
+            background: isCurrentPlan
+              ? 'rgba(255,255,255,0.04)'
+              : 'linear-gradient(170deg, rgba(255,255,255,0.135) 0%, rgba(255,255,255,0.065) 100%)',
+            backdropFilter: isCurrentPlan ? 'none' : 'blur(24px) saturate(190%)',
+            WebkitBackdropFilter: isCurrentPlan ? 'none' : 'blur(24px) saturate(190%)',
+            border: isCurrentPlan ? '1px solid rgba(255,255,255,0.07)' : '1px solid rgba(255,255,255,0.165)',
+            boxShadow: isCurrentPlan ? 'none' : '0 4px 20px rgba(0,0,0,0.42), inset 0 1.5px 0 rgba(255,255,255,0.21), inset 0 -1px 0 rgba(0,0,0,0.14)',
             marginBottom: '22px',
             cursor: isCurrentPlan ? 'default' : 'pointer',
             textDecoration: 'none',
             pointerEvents: isCurrentPlan ? 'none' : 'auto',
+            transition: 'background 0.16s ease, box-shadow 0.16s ease',
           }}
         >
           {ctaLabel}
         </Link>
       ) : isAuthenticated ? (
         <button
-          onClick={() => onSubscribe?.(selectedTier?.priceId ?? null)}
+          onClick={() => onSubscribe?.((isAnnual ? selectedTier?.annualPriceId : selectedTier?.priceId) ?? null)}
           disabled={isCheckoutLoading || isCurrentPlan}
           style={{
             width: '100%',
@@ -376,15 +416,17 @@ function PlanCard({
             fontFamily: "'Geist', 'DM Sans', sans-serif",
             fontWeight: 600,
             fontSize: '0.88rem',
-            color: isCurrentPlan ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.95)',
+            color: isCurrentPlan ? 'rgba(255,255,255,0.28)' : 'rgba(255,255,255,0.92)',
             background: isCurrentPlan
               ? 'rgba(255,255,255,0.04)'
-              : highlighted
-              ? 'linear-gradient(135deg, #6d28d9, #4f46e5)'
-              : 'rgba(109,40,217,0.35)',
+              : 'linear-gradient(170deg, rgba(109,40,217,0.30) 0%, rgba(79,70,229,0.16) 100%)',
+            backdropFilter: isCurrentPlan ? 'none' : 'blur(24px) saturate(190%)',
+            WebkitBackdropFilter: isCurrentPlan ? 'none' : 'blur(24px) saturate(190%)',
             border: isCurrentPlan
               ? '1px solid rgba(255,255,255,0.07)'
-              : '1px solid rgba(160,120,255,0.30)',
+              : '1px solid rgba(139,92,246,0.40)',
+            boxShadow: isCurrentPlan ? 'none' : '0 4px 20px rgba(0,0,0,0.42), 0 0 20px rgba(109,40,217,0.15), inset 0 1.5px 0 rgba(255,255,255,0.15), inset 0 -1px 0 rgba(0,0,0,0.12)',
+            transition: 'background 0.16s ease, box-shadow 0.16s ease',
             marginBottom: '22px',
             cursor: isCurrentPlan || isCheckoutLoading ? 'default' : 'pointer',
             display: 'flex',
@@ -482,7 +524,8 @@ export default function Pricing() {
       credits: t.credits,
       price: t.price_cents / 100,
       annualPrice: t.annual_price_cents / 100,
-      priceId: null,
+      priceId: t.id,
+      annualPriceId: `${t.id}-annual`,
     }));
 
   const maxCreditTiers: TierDisplay[] = creditTiers
@@ -491,55 +534,56 @@ export default function Pricing() {
       credits: t.credits,
       price: t.price_cents / 100,
       annualPrice: t.annual_price_cents / 100,
-      priceId: null,
+      priceId: t.id,
+      annualPriceId: `${t.id}-annual`,
     }));
 
   const plans = [
     {
       name: 'Free',
-      tagline: 'Build your first Discord bot',
+      tagline: 'Start building at no cost',
       planType: 'free' as const,
       tiers: undefined,
       highlighted: false,
       features: [
-        '3 credits/day (resets at midnight)',
-        '2 bots max',
-        'Simplified pipeline (Claude Haiku)',
+        '10 lifetime builds — no expiry',
+        'Up to 2 active bots',
+        'AI pipeline powered by Claude Haiku',
         'Buildable Labs watermark on bots',
-        '/buildable command active',
+        '/buildable command enabled',
         'Community support',
       ],
     },
     {
       name: 'Pro',
-      tagline: 'For serious bot builders',
+      tagline: 'Everything you need to build seriously',
       planType: 'pro' as const,
       tiers: proCreditTiers,
       highlighted: true,
       features: [
-        '30–300 credits/month',
-        '10 bots max',
+        '30–300 credits per month',
+        'Up to 10 active bots',
         'Full 8-stage pipeline (Haiku + Sonnet)',
         'No Buildable watermark',
-        'No /buildable command',
-        '1 month credit rollover',
+        '/buildable command removed',
+        '1-month credit rollover',
         'Email support',
       ],
     },
     {
       name: 'Max',
-      tagline: 'For power users and agencies',
+      tagline: 'Maximum scale, for studios and agencies',
       planType: 'max' as const,
       tiers: maxCreditTiers,
       highlighted: false,
       features: [
-        '100–1,000 credits/month',
-        'Unlimited bots',
+        '100–1,000 credits per month',
+        'Unlimited active bots',
         'Full 8-stage pipeline (Haiku + Sonnet)',
-        'Priority queue',
+        'Priority generation queue',
         'No Buildable watermark',
-        'No /buildable command',
-        '2 month credit rollover',
+        '/buildable command removed',
+        '2-month credit rollover',
         'REST API access (headless)',
         'Custom embed domain (white-label)',
         'Early access to new features',
@@ -549,8 +593,11 @@ export default function Pricing() {
   ];
 
   const card = {
-    background: 'rgba(255,255,255,0.025)',
-    border: '1px solid rgba(255,255,255,0.07)',
+    background: 'linear-gradient(170deg, rgba(255,255,255,0.065) 0%, rgba(255,255,255,0.028) 100%)',
+    backdropFilter: 'blur(32px) saturate(180%)',
+    WebkitBackdropFilter: 'blur(32px) saturate(180%)',
+    border: '1px solid rgba(255,255,255,0.09)',
+    boxShadow: '0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.09), inset 0 -1px 0 rgba(0,0,0,0.08)',
     borderRadius: '20px',
     padding: '28px',
   };
@@ -559,25 +606,11 @@ export default function Pricing() {
     <div
       style={{
         minHeight: '100vh',
-        background: '#080a0c',
+        background: "#06060b",
         position: 'relative',
         overflow: 'hidden',
       }}
-    >
-      {/* Subtle top bloom */}
-      <div
-        style={{
-          position: 'fixed',
-          top: 0,
-          left: '50%',
-          transform: 'translateX(-50%)',
-          width: '700px',
-          height: '340px',
-          background: 'radial-gradient(ellipse at top, rgba(90,30,200,0.10) 0%, transparent 70%)',
-          pointerEvents: 'none',
-          zIndex: 0,
-        }}
-      />
+    >      <AmbientBg />
 
       <FloatingNav hidePricing />
 
@@ -599,6 +632,15 @@ export default function Pricing() {
             transition={{ duration: 0.6 }}
             style={{ textAlign: 'center', marginBottom: '36px' }}
           >
+            {/* Badge */}
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '22px' }}>
+              <span style={{
+                background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
+                borderRadius: '999px', padding: '4px 14px', fontFamily: "'Geist', sans-serif",
+                fontSize: '12px', fontWeight: 500, color: 'rgba(255,255,255,0.55)',
+                letterSpacing: '0.04em', textTransform: 'uppercase' as const,
+              }}>Pricing</span>
+            </div>
             <h1
               style={{
                 fontFamily: "'Geist', sans-serif",
@@ -635,6 +677,13 @@ export default function Pricing() {
               alignItems: 'center',
               gap: '12px',
               marginBottom: '56px',
+              background: 'linear-gradient(170deg, rgba(255,255,255,0.065) 0%, rgba(255,255,255,0.028) 100%)',
+              backdropFilter: 'blur(24px) saturate(180%)',
+              WebkitBackdropFilter: 'blur(24px) saturate(180%)',
+              border: '1px solid rgba(255,255,255,0.09)',
+              boxShadow: '0 4px 20px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.09)',
+              borderRadius: '999px',
+              padding: '8px 18px',
             }}
           >
             <Label
@@ -697,10 +746,11 @@ export default function Pricing() {
             {plans.map((plan, i) => (
               <motion.div
                 key={plan.name}
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 24 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: i * 0.08 }}
-                style={{ height: '100%' }}
+                transition={{ ...spring.enter, delay: i * 0.1 }}
+                whileHover={{ y: plan.highlighted ? -6 : -4, scale: plan.highlighted ? 1.012 : 1.008 }}
+                style={{ height: '100%', cursor: 'default' }}
               >
                 <PlanCard
                   {...plan}
@@ -716,9 +766,10 @@ export default function Pricing() {
 
           {/* How Credits Work */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.25 }}
+            initial={{ opacity: 0, y: 28 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: '-60px' }}
+            transition={{ ...spring.enter }}
             style={{ ...card, width: '100%', maxWidth: '860px', marginBottom: '24px' }}
           >
             <h2
@@ -769,9 +820,10 @@ export default function Pricing() {
 
           {/* Fair Usage Rules */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.32 }}
+            initial={{ opacity: 0, y: 28 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: '-60px' }}
+            transition={{ ...spring.enter, delay: 0.06 }}
             style={{ ...card, width: '100%', maxWidth: '860px', marginBottom: '24px' }}
           >
             <h2
@@ -796,7 +848,7 @@ export default function Pricing() {
               }}
             >
               {[
-                'Free credits reset at midnight — no rollover',
+                'Free plan: 10 lifetime builds — no reset, no expiry',
                 'Pro credits roll over for 1 month',
                 'Max credits roll over for 2 months',
                 'No overages — hard stop at credit limit',
@@ -834,9 +886,10 @@ export default function Pricing() {
 
           {/* FAQ */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.38 }}
+            initial={{ opacity: 0, y: 28 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: '-60px' }}
+            transition={{ ...spring.enter, delay: 0.08 }}
             style={{ width: '100%', maxWidth: '860px' }}
           >
             <h2
@@ -857,16 +910,18 @@ export default function Pricing() {
                   <AccordionItem
                     key={i}
                     value={`item-${i}`}
-                    style={{ borderColor: 'rgba(255,255,255,0.06)' }}
+                    style={{ borderColor: 'rgba(255,255,255,0.07)' }}
                   >
                     <AccordionTrigger
                       style={{
                         fontFamily: "'Geist', 'DM Sans', sans-serif",
                         fontSize: '0.88rem',
-                        color: 'rgba(255,255,255,0.75)',
+                        color: 'rgba(255,255,255,0.78)',
                         textAlign: 'left',
+                        paddingTop: '16px',
+                        paddingBottom: '16px',
                       }}
-                      className="hover:no-underline"
+                      className="hover:no-underline [&[data-state=open]]:text-white/90"
                     >
                       {faq.question}
                     </AccordionTrigger>
@@ -874,8 +929,9 @@ export default function Pricing() {
                       style={{
                         fontFamily: "'Geist', 'DM Sans', sans-serif",
                         fontSize: '0.83rem',
-                        color: 'rgba(255,255,255,0.38)',
-                        lineHeight: 1.65,
+                        color: 'rgba(255,255,255,0.42)',
+                        lineHeight: 1.7,
+                        paddingBottom: '16px',
                       }}
                     >
                       {faq.answer}
@@ -885,6 +941,26 @@ export default function Pricing() {
               </Accordion>
             </div>
           </motion.div>
+
+          {/* Legal notice */}
+          <div style={{
+            textAlign: 'center',
+            marginTop: '48px',
+            paddingBottom: '48px',
+            fontFamily: "'Geist', 'DM Sans', sans-serif",
+            fontSize: '0.75rem',
+            color: 'rgba(255,255,255,0.22)',
+            lineHeight: 1.8,
+            maxWidth: '560px',
+            margin: '48px auto 0',
+          }}>
+            All purchases are final. Credits are non-refundable and non-transferable once issued.
+            Annual plans are billed upfront and are not eligible for a refund after payment.
+            By subscribing you agree to our{' '}
+            <a href="/terms" style={{ color: 'rgba(255,255,255,0.38)', textDecoration: 'underline' }}>Terms of Service</a>
+            {' '}and{' '}
+            <a href="/privacy" style={{ color: 'rgba(255,255,255,0.38)', textDecoration: 'underline' }}>Privacy Policy</a>.
+          </div>
         </section>
       </div>
     </div>

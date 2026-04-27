@@ -1,14 +1,14 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Loader2, ArrowUp, ChevronRight, Sparkles, ChevronDown, Check } from 'lucide-react';
+import { Plus, Loader2, ArrowUp, ChevronRight, Sparkles, ChevronDown, Check, X, FileText, Image, Paperclip, Square } from 'lucide-react';
+import { PromptInput, PromptInputTextarea, PromptInputActions, PromptInputAction } from '@/components/ui/prompt-input';
 import { useProjects } from '@/hooks/useProjects';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import ProjectCard from './ProjectCard';
-import NewBotGuide from './NewBotGuide';
-import BorderGlow from '@/components/workspace/BorderGlow';
 import { type WorkspaceMode, MODE_CONFIG } from '@/components/workspace/ChatInputV2';
+import Aurora from '@/components/Aurora';
 
 const FONT = "'Geist', 'DM Sans', sans-serif";
 
@@ -20,24 +20,49 @@ interface Props {
 }
 
 
-export default function ProjectsView({ showNew: externalShowNew, onShowNewChange }: Props = {}) {
+export default function ProjectsView(_props: Props = {}) {
   const { projects, isLoading, createProject, createPending, duplicateProject, deleteProject } = useProjects();
   const { user, profile } = useAuth();
   const navigate  = useNavigate();
   const { toast } = useToast();
 
-  const [internalShowNew,  setInternalShowNew]  = useState(false);
   const [duplicatingId,    setDuplicatingId]    = useState<string | null>(null);
   const [deletingId,       setDeletingId]       = useState<string | null>(null);
   const [activeTab,        setActiveTab]        = useState<Tab>('my-bots');
   const [quickPrompt,      setQuickPrompt]      = useState('');
   const [mode,             setMode]             = useState<WorkspaceMode>('build');
   const [showModeDropdown, setShowModeDropdown] = useState(false);
-  const promptRef      = useRef<HTMLTextAreaElement>(null);
-  const modeDropdownRef = useRef<HTMLDivElement>(null);
+  const [attachedFiles,    setAttachedFiles]    = useState<Array<{ name: string; size: number; type: string; preview?: string }>>([]);
+  const promptRef        = useRef<HTMLTextAreaElement>(null);
+  const modeDropdownRef  = useRef<HTMLDivElement>(null);
+  const modeButtonRef    = useRef<HTMLButtonElement>(null);
+  const dropdownPanelRef = useRef<HTMLDivElement>(null);
+  const fileInputRef     = useRef<HTMLInputElement>(null);
+  const [dropdownPos, setDropdownPos] = useState<{ top: number; right: number } | null>(null);
 
-  const showNew    = externalShowNew !== undefined ? externalShowNew : internalShowNew;
-  const setShowNew = (v: boolean) => { setInternalShowNew(v); onShowNewChange?.(v); };
+  const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20 MB
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    files.forEach(file => {
+      if (file.size > MAX_FILE_SIZE) {
+        toast({ title: 'File too large', description: `${file.name} exceeds 20 MB`, variant: 'destructive' });
+        return;
+      }
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = ev => setAttachedFiles(prev => [...prev, { name: file.name, size: file.size, type: file.type, preview: ev.target?.result as string }]);
+        reader.readAsDataURL(file);
+      } else {
+        setAttachedFiles(prev => [...prev, { name: file.name, size: file.size, type: file.type }]);
+      }
+    });
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const removeFile = (idx: number) => setAttachedFiles(prev => prev.filter((_, i) => i !== idx));
+
+  const fmtSize = (b: number) => b < 1024 * 1024 ? `${(b / 1024).toFixed(0)} KB` : `${(b / (1024 * 1024)).toFixed(1)} MB`;
 
   const displayName = profile?.displayName || user?.email?.split('@')[0] || 'there';
 
@@ -49,22 +74,37 @@ export default function ProjectsView({ showNew: externalShowNew, onShowNewChange
     el.style.height = `${Math.min(el.scrollHeight, 140)}px`;
   }, [quickPrompt]);
 
-  // Close mode dropdown on outside click
+  // Close mode dropdown on outside click — check both the button wrapper AND the fixed panel
   useEffect(() => {
     if (!showModeDropdown) return;
     const handler = (e: MouseEvent) => {
-      if (modeDropdownRef.current && !modeDropdownRef.current.contains(e.target as Node)) {
-        setShowModeDropdown(false);
-      }
+      const inButton = modeDropdownRef.current?.contains(e.target as Node);
+      const inPanel  = dropdownPanelRef.current?.contains(e.target as Node);
+      if (!inButton && !inPanel) setShowModeDropdown(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [showModeDropdown]);
 
+  // Compute fixed dropdown position from button rect (avoids overflow:hidden clipping)
+  useEffect(() => {
+    if (showModeDropdown && modeButtonRef.current) {
+      const r = modeButtonRef.current.getBoundingClientRect();
+      setDropdownPos({ top: r.top, right: window.innerWidth - r.right });
+    } else {
+      setDropdownPos(null);
+    }
+  }, [showModeDropdown]);
+
   const handleSubmit = async () => {
     if (!quickPrompt.trim() || createPending) return;
     try {
-      const { id } = await createProject(quickPrompt.trim().slice(0, 60), { prompt: quickPrompt.trim() });
+      const fileContext = attachedFiles.length > 0
+        ? `\n\n[Attached files: ${attachedFiles.map(f => f.name).join(', ')}]`
+        : '';
+      const fullPrompt = quickPrompt.trim() + fileContext;
+      const { id } = await createProject(fullPrompt.slice(0, 60), { prompt: fullPrompt, mode });
+      setAttachedFiles([]);
       navigate(`/dashboard/project/${id}`);
     } catch (e: any) {
       toast({ title: 'Failed to create project', description: e?.message ?? 'Check your connection and try again.', variant: 'destructive' });
@@ -89,10 +129,24 @@ export default function ProjectsView({ showNew: externalShowNew, onShowNewChange
     projects;
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden">
+    <div style={{ height: '100vh', padding: '10px', boxSizing: 'border-box' as const }}>
+    <div style={{ height: '100%', position: 'relative' as const, overflow: 'hidden', borderRadius: '20px', background: '#0a0a0e' }}>
 
-      {/* ── Hero (transparent — Grainient shows through) ────────── */}
-      <div className="flex-1 flex flex-col items-center justify-center px-6 pb-4">
+      {/* ── Vapor trail background ───────────────────────────── */}
+      <div style={{ position: 'absolute', inset: 0, zIndex: 0, pointerEvents: 'none', borderRadius: 'inherit' }}>
+        <Aurora
+            colorStops={['#5b7ef5', '#f97316', '#c026d3']}
+            amplitude={1.4}
+            blend={0.6}
+            speed={0.8}
+          />
+      </div>
+
+      {/* ── Content layer (scrollable) ───────────────────────── */}
+      <div className="dashboard-scroll" style={{ position: 'relative' as const, zIndex: 1, height: '100%', overflowY: 'auto' as const }}>
+
+      {/* ── Hero: centered badge + greeting + prompt ─────────── */}
+      <div style={{ display: 'flex', flexDirection: 'column' as const, alignItems: 'center', justifyContent: 'center', padding: '80px 24px 40px', minHeight: '55vh' }}>
 
         {/* Badge */}
         <motion.div
@@ -102,7 +156,7 @@ export default function ProjectsView({ showNew: externalShowNew, onShowNewChange
           className="flex items-center gap-2 mb-5 px-3 py-1.5 rounded-full"
           style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)' }}
         >
-          <Sparkles className="w-3.5 h-3.5" style={{ color: 'rgba(255,255,255,0.6)' }} />
+          <img src="/buildable-ai-icon.png" style={{ width: 16, height: 16 }} />
           <span className="text-[12px]" style={{ color: 'rgba(255,255,255,0.65)', fontFamily: FONT }}>AI Discord bot builder</span>
           <ChevronRight className="w-3 h-3" style={{ color: 'rgba(255,255,255,0.3)' }} />
         </motion.div>
@@ -125,153 +179,136 @@ export default function ProjectsView({ showNew: externalShowNew, onShowNewChange
           transition={{ duration: 0.5, delay: 0.08 }}
           className="w-full max-w-[640px]"
         >
-          <BorderGlow
-            backgroundColor="#1a1a1a"
-            borderRadius={20}
-            glowColor={MODE_CONFIG[mode].glowHsl}
-            colors={MODE_CONFIG[mode].glowColors}
-            glowRadius={32}
-            glowIntensity={0.85}
-            coneSpread={20}
-            fillOpacity={0.25}
-            animated
-            style={{ width: '100%' }}
+          {/* Hidden file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept="image/*,.pdf,.txt,.md,.json,.csv"
+            className="hidden"
+            onChange={handleFileSelect}
+          />
+
+          <PromptInput
+            value={quickPrompt}
+            onValueChange={setQuickPrompt}
+            isLoading={createPending}
+            onSubmit={handleSubmit}
+            className="w-full border-0"
+            style={{
+              borderRadius: '28px',
+              background: 'rgba(14,14,16,0.90)',
+              border: '1.5px solid rgba(0,0,0,0.8)',
+              backdropFilter: 'blur(16px)',
+              WebkitBackdropFilter: 'blur(16px)',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+            }}
           >
-            <div style={{ borderRadius: '19px', background: '#1a1a1a', overflow: 'hidden' }}>
-              <div className="px-4 pt-4 pb-2">
-                <textarea
-                  ref={promptRef}
-                  value={quickPrompt}
-                  onChange={e => setQuickPrompt(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder={MODE_CONFIG[mode].placeholder}
-                  rows={2}
-                  className="w-full bg-transparent resize-none outline-none text-sm leading-relaxed placeholder:text-white/25"
-                  style={{ fontFamily: FONT, color: 'rgba(255,255,255,0.88)', minHeight: '52px', maxHeight: '140px', overflow: 'auto' }}
-                />
+            {/* Attached file chips */}
+            {attachedFiles.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 px-2 pt-1 pb-2">
+                {attachedFiles.map((f, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center gap-1.5 pl-1 pr-1.5 py-0.5 rounded-md"
+                    style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', maxWidth: '180px' }}
+                  >
+                    {f.preview
+                      ? <img src={f.preview} alt={f.name} className="w-5 h-5 rounded object-cover flex-shrink-0" />
+                      : f.type.startsWith('image/')
+                        ? <Image className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'rgba(255,255,255,0.4)' }} />
+                        : <FileText className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'rgba(255,255,255,0.4)' }} />
+                    }
+                    <span className="text-[11px] truncate" style={{ fontFamily: FONT, color: 'rgba(255,255,255,0.6)' }}>{f.name}</span>
+                    <span className="text-[10px] flex-shrink-0" style={{ color: 'rgba(255,255,255,0.28)' }}>{fmtSize(f.size)}</span>
+                    <button onClick={() => removeFile(i)} className="flex-shrink-0 ml-0.5" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
               </div>
-              <div className="flex items-center justify-between px-3 pb-3 gap-2">
-                {/* Left: + button */}
+            )}
+
+            <PromptInputTextarea
+              placeholder={MODE_CONFIG[mode].placeholder}
+              className="px-2 text-sm leading-relaxed placeholder:text-white/25 min-h-[52px] max-h-[140px]"
+              style={{ fontFamily: FONT, color: 'rgba(255,255,255,0.88)' }}
+            />
+
+            <PromptInputActions className="flex items-center justify-between px-1 pb-1 pt-1">
+              {/* Left: attach */}
+              <PromptInputAction tooltip="Attach files (max 20 MB)" side="top">
                 <button
-                  onClick={() => setShowNew(true)}
-                  className="flex items-center justify-center w-7 h-7 rounded-lg flex-shrink-0 transition-all"
-                  style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.4)' }}
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex items-center justify-center w-8 h-8 rounded-xl transition-all"
+                  style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.09)', color: 'rgba(255,255,255,0.45)' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.12)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.06)')}
+                >
+                  <Paperclip className="w-4 h-4" />
+                </button>
+              </PromptInputAction>
+
+              {/* Right: mode + send */}
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {/* Mode button — cycles through modes on click, no dropdown */}
+                <button
+                  onClick={() => {
+                    const modes: WorkspaceMode[] = ['build', 'plan', 'architect'];
+                    setMode(modes[(modes.indexOf(mode) + 1) % modes.length]);
+                  }}
+                  className="flex items-center gap-1.5 text-[12px] px-2.5 py-1.5 rounded-xl transition-all"
+                  style={{
+                    color: 'rgba(255,255,255,0.65)',
+                    fontFamily: FONT,
+                    fontWeight: 500,
+                    background: 'rgba(255,255,255,0.07)',
+                    border: '1px solid rgba(255,255,255,0.10)',
+                  }}
                   onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.12)')}
                   onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.07)')}
                 >
-                  <Plus className="w-3.5 h-3.5" />
+                  {(() => { const Icon = MODE_CONFIG[mode].icon; return <Icon className="w-3.5 h-3.5" style={{ color: 'rgba(255,255,255,0.55)' }} />; })()}
+                  <span>{MODE_CONFIG[mode].label}</span>
                 </button>
 
-                {/* Right: Mode dropdown + Send */}
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  {/* Mode button + dropdown */}
-                  <div className="relative" ref={modeDropdownRef}>
-                    {/* Dropdown panel */}
-                    {showModeDropdown && (
-                      <div
-                        className="absolute bottom-full mb-2 right-0 z-50"
-                        style={{ width: '230px' }}
-                      >
-                        <BorderGlow
-                          backgroundColor="#13121a"
-                          borderRadius={14}
-                          glowColor={MODE_CONFIG[mode].glowHsl}
-                          colors={MODE_CONFIG[mode].glowColors}
-                          glowRadius={28}
-                          glowIntensity={0.9}
-                          coneSpread={20}
-                          animated
-                          style={{ width: '100%' }}
-                        >
-                          <div style={{ borderRadius: '13px', overflow: 'hidden', background: '#13121a' }}>
-                            {(Object.entries(MODE_CONFIG) as [WorkspaceMode, typeof MODE_CONFIG[WorkspaceMode]][]).map(([key, cfg]) => (
-                              <button
-                                key={key}
-                                onClick={() => { setMode(key); setShowModeDropdown(false); }}
-                                className="w-full flex items-center gap-3 px-3 py-2.5 transition-all text-left"
-                                style={{ background: mode === key ? 'rgba(255,255,255,0.07)' : 'transparent' }}
-                                onMouseEnter={e => { if (mode !== key) e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
-                                onMouseLeave={e => { if (mode !== key) e.currentTarget.style.background = 'transparent'; }}
-                              >
-                                <div
-                                  className="w-2 h-2 rounded-full flex-shrink-0"
-                                  style={{ background: cfg.color, boxShadow: `0 0 6px ${cfg.color}80` }}
-                                />
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-[13px] font-medium leading-tight" style={{ color: 'rgba(255,255,255,0.9)', fontFamily: FONT }}>{cfg.label}</p>
-                                  <p className="text-[11px] leading-tight mt-0.5" style={{ color: 'rgba(255,255,255,0.38)', fontFamily: FONT }}>{cfg.description}</p>
-                                </div>
-                                {mode === key && (
-                                  <Check className="h-3.5 w-3.5 flex-shrink-0" style={{ color: cfg.color }} />
-                                )}
-                              </button>
-                            ))}
-                          </div>
-                        </BorderGlow>
-                      </div>
-                    )}
-
-                    {/* Mode button */}
-                    <button
-                      onClick={() => setShowModeDropdown(v => !v)}
-                      className="flex items-center gap-1.5 text-[12px] px-2.5 py-1 rounded-lg transition-all"
-                      style={{
-                        color: 'rgba(255,255,255,0.75)',
-                        fontFamily: FONT,
-                        background: showModeDropdown ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.05)',
-                        border: `1px solid ${MODE_CONFIG[mode].color}35`,
-                      }}
-                    >
-                      <div
-                        className="w-1.5 h-1.5 rounded-full"
-                        style={{ background: MODE_CONFIG[mode].color, boxShadow: `0 0 5px ${MODE_CONFIG[mode].color}` }}
-                      />
-                      Mode
-                      <ChevronDown
-                        className="w-3 h-3 transition-transform"
-                        style={{
-                          color: 'rgba(255,255,255,0.35)',
-                          transform: showModeDropdown ? 'rotate(180deg)' : 'rotate(0deg)',
-                        }}
-                      />
-                    </button>
-                  </div>
-
-                  {/* Send button */}
+                {/* Send */}
+                <PromptInputAction tooltip={createPending ? 'Stop' : 'Send message'} side="top">
                   <button
                     onClick={handleSubmit}
                     disabled={!quickPrompt.trim() || createPending}
                     className="w-8 h-8 rounded-full flex items-center justify-center transition-all"
                     style={{
-                      background: quickPrompt.trim() ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.08)',
+                      background: quickPrompt.trim() ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.08)',
                       cursor: quickPrompt.trim() ? 'pointer' : 'default',
                     }}
                   >
                     {createPending
-                      ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: '#0e0d12' }} />
+                      ? <Square className="w-3.5 h-3.5 fill-current" style={{ color: '#0e0d12' }} />
                       : <ArrowUp className="w-4 h-4" style={{ color: quickPrompt.trim() ? '#0e0d12' : 'rgba(255,255,255,0.25)' }} />
                     }
                   </button>
-                </div>
+                </PromptInputAction>
               </div>
-            </div>
-          </BorderGlow>
+            </PromptInputActions>
+          </PromptInput>
 
         </motion.div>
-      </div>
+      </div>{/* end hero section */}
 
-      {/* ── Bottom: Tab bar + project grid ─────────────────────── */}
-      <div className="px-3 pb-3 flex-shrink-0">
-      <div
-        style={{
-          background: '#0c0c0c',
-          border: '1px solid rgb(39,39,37)',
-          borderRadius: '16px',
-          overflow: 'hidden',
-        }}
-      >
+      {/* ── Projects floating card at bottom ─────────────────── */}
+      <div style={{
+        margin: '0 12px 12px',
+        border: '1px solid rgba(255,255,255,0.10)',
+        borderRadius: '16px',
+        overflow: 'hidden',
+        background: 'rgba(10,10,12,0.88)',
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
+      }}>
+      <div>
         {/* Tab bar */}
-        <div className="flex items-center gap-1 px-4 pt-3 pb-2">
+        <div className="flex items-center gap-1 px-4 pt-3 pb-2" style={{ flexShrink: 0 }}>
           {([
             { id: 'my-bots',   label: 'My Projects'      },
             { id: 'recent',    label: 'Recently Viewed'  },
@@ -313,15 +350,12 @@ export default function ProjectsView({ showNew: externalShowNew, onShowNewChange
           </button>
         </div>
 
-        {/* Project grid — only expands when there's content */}
+        {/* Project grid */}
         <div
-          className="overflow-y-auto"
           style={{
-            maxHeight: tabProjects.length > 0 || activeTab === 'templates' ? '42vh' : '0',
-            paddingLeft: tabProjects.length > 0 ? '1.5rem' : 0,
-            paddingRight: tabProjects.length > 0 ? '1.5rem' : 0,
-            paddingBottom: tabProjects.length > 0 ? '1.5rem' : 0,
-            overflow: tabProjects.length > 0 || activeTab === 'templates' ? 'auto' : 'hidden',
+            paddingLeft: '1.5rem',
+            paddingRight: '1.5rem',
+            paddingBottom: '1.5rem',
           }}
         >
           {activeTab === 'templates' ? (
@@ -393,10 +427,11 @@ export default function ProjectsView({ showNew: externalShowNew, onShowNewChange
             </motion.div>
           )}
         </div>
-      </div>
-      </div>
+      </div>{/* end inner flex */}
+      </div>{/* end projects card */}
 
-      <AnimatePresence>{showNew && <NewBotGuide onClose={() => setShowNew(false)} />}</AnimatePresence>
+      </div>{/* end content layer */}
+    </div>{/* end rounded card */}
     </div>
   );
 }

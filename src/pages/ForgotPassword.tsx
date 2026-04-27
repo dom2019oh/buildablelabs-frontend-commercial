@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
-import Grainient from '@/components/Grainient';
+import { AmbientBg } from '@/lib/glass';
 import wordmarkSvg from '@/assets/buildable-wordmark.svg';
 import { sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
@@ -31,17 +31,7 @@ export default function ForgotPassword() {
 
   return (
     <div className="min-h-screen flex overflow-hidden relative">
-      <div className="fixed inset-0 pointer-events-none" style={{ zIndex: 0 }}>
-        <Grainient
-          color1="#3a3c42" color2="#141518" color3="#252729"
-          timeSpeed={0.35} colorBalance={0} warpStrength={1}
-          warpFrequency={5} warpSpeed={2} warpAmplitude={50}
-          blendAngle={0} blendSoftness={0.05} rotationAmount={500}
-          noiseScale={2} grainAmount={0.1} grainScale={2}
-          grainAnimated={false} contrast={1.5} gamma={1} saturation={1}
-          centerX={0} centerY={0} zoom={0.9}
-        />
-      </div>
+      <AmbientBg />
 
       <div
         className="relative z-10 w-full md:w-[460px] lg:w-[500px] flex-shrink-0 flex flex-col min-h-screen"

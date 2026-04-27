@@ -149,8 +149,8 @@ export default function WorkspaceTopBarV2({
                 onClick={() => onModeChange(mode.id)}
                 className="flex items-center transition-all duration-150"
                 style={{
-                  background: isActive ? '#2563eb' : 'transparent',
-                  color: isActive ? '#ffffff' : 'rgba(255,255,255,0.38)',
+                  background: isActive ? 'rgba(255,255,255,0.12)' : 'transparent',
+                  color: isActive ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.38)',
                   borderRadius: '7px',
                   padding: isActive ? '4px 11px' : '5px 7px',
                   gap: isActive ? '5px' : undefined,

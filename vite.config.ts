@@ -16,6 +16,10 @@ export default defineConfig(() => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  esbuild: {
+    // Strip all console.* and debugger statements from production builds
+    drop: ['console', 'debugger'],
+  },
   build: {
     rollupOptions: {
       output: {
